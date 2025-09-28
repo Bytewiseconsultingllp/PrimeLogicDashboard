@@ -43,6 +43,11 @@ const navItems = [
     icon: BookUser,
   },
   {
+    title: "Visitors",
+    href: "/dashboard/Administrator/visitors",
+    icon: UserCircle,
+  },
+  {
     title: "Client Profiles",
     href: "/dashboard/Administrator/client-profiles",
     icon: Users,
