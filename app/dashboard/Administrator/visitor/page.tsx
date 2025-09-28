@@ -89,7 +89,7 @@ const VisitorsPage = () => {
     }
   }, [authToken, pagination.currentPage, businessTypeFilter, referralSourceFilter])
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
+  const API_BASE_URL =`${process.env.NEXT_PUBLIC_API_URL}/visitor/register`
 
   const fetchVisitors = async () => {
     try {
