@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react"
 import { motion } from "framer-motion"
 import { format } from "date-fns"
 import { useRouter } from "next/navigation"
-import { CheckCircle2, Star, CheckSquare } from "lucide-react"
+import { CheckCircle2, Star, CheckSquare, AlertCircle, Clock, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -12,117 +12,139 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { toast } from "@/components/ui/use-toast"
-import { getAllProjectsWithThierClient, giveFeedbackAndRatings } from "@/lib/api/projects"
+import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { useAuth } from "@/hooks/useAuth"
 
-import { AlertCircle, Clock, XCircle } from "lucide-react";
- interface Project {
-  id: number;
-  title: string;
-  detail: string;
-  deadline: string;
-  bounty: number;
-  progressPercentage: number;
-  niche: string;
-  difficultyLevel: "EASY" | "MEDIUM" | "HARD";
-  projectType: string;
-  projectStatus: string;
-  projectSlug: string;
-  createdAt: string;
-  selectedFreelancersForThisProject: string[];
+interface Project {
+  id: number
+  title: string
+  detail: string
+  deadline: string
+  bounty: number
+  progressPercentage: number
+  niche: string
+  difficultyLevel: "EASY" | "MEDIUM" | "HARD"
+  projectType: string
+  projectStatus: string
+  projectSlug: string
+  createdAt: string
   selectedFreelancers?: {
-    uid: string;
-    fullName: string;
-    username: string;
-    email: string;
-    phone?: string;
-    yearsOfExperience?: number;
-    niche?: string;
-    kpiRank: string;
-  }[];
+    uid: string
+    fullName: string
+    username: string
+    email: string
+    phone?: string
+    yearsOfExperience?: number
+    niche?: string
+    kpiRank: string
+  }[]
 }
 
 const statusConfig: any = {
-    PENDING: {
-      color: "bg-yellow-500",
-      textColor: "text-yellow-500",
-      borderColor: "border-yellow-500",
-      icon: Clock,
-      bgColor: "bg-yellow-50 dark:bg-yellow-900/20",
-    },
-    CANCELLED: {
-      color: "bg-red-500",
-      textColor: "text-red-500",
-      borderColor: "border-red-500",
-      icon: XCircle,
-      bgColor: "bg-red-50 dark:bg-red-900/20",
-    },
-    ONGOING: {
-      color: "bg-blue-500",
-      textColor: "text-blue-500",
-      borderColor: "border-blue-500",
-      icon: AlertCircle,
-      bgColor: "bg-blue-50 dark:bg-blue-900/20",
-    },
-    COMPLETED: {
-      color: "bg-green-500",
-      textColor: "text-green-500",
-      borderColor: "border-green-500",
-      icon: CheckCircle2,
-      bgColor: "bg-green-50 dark:bg-green-900/20",
-    },
-  };
-  
- export const difficultyColors = {
-    EASY: "text-green-500",
-    MEDIUM: "text-yellow-500",
-    HARD: "text-red-500",
-  };
-  
+  PENDING: {
+    color: "bg-yellow-500",
+    textColor: "text-yellow-500",
+    borderColor: "border-yellow-500",
+    icon: Clock,
+    bgColor: "bg-yellow-50 dark:bg-yellow-900/20",
+  },
+  CANCELLED: {
+    color: "bg-red-500",
+    textColor: "text-red-500",
+    borderColor: "border-red-500",
+    icon: XCircle,
+    bgColor: "bg-red-50 dark:bg-red-900/20",
+  },
+  ONGOING: {
+    color: "bg-blue-500",
+    textColor: "text-blue-500",
+    borderColor: "border-blue-500",
+    icon: AlertCircle,
+    bgColor: "bg-blue-50 dark:bg-blue-900/20",
+  },
+  COMPLETED: {
+    color: "bg-green-500",
+    textColor: "text-green-500",
+    borderColor: "border-green-500",
+    icon: CheckCircle2,
+    bgColor: "bg-green-50 dark:bg-green-900/20",
+  },
+}
 
-export default function ClientProjectStatusPage() {
-  const { isAuthorized } = useAuth(["CLIENT"]) // Auth check should be the first hook
-  const router = useRouter() // useRouter should be near the top
+export const difficultyColors = {
+  EASY: "text-green-500",
+  MEDIUM: "text-yellow-500",
+  HARD: "text-red-500",
+}
+
+export default function ClientDashboard() {
+  const router = useRouter()
 
   // State hooks
   const [projects, setProjects] = useState<Project[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  const [Pageloading, setLoading] = useState(false)
+  const [pageLoading, setLoading] = useState(false)
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false)
   const [feedbackProject, setFeedbackProject] = useState<Project | null>(null)
   const [rating, setRating] = useState(3)
   const [comment, setComment] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const [clientData, setClientData] = useState<any>(null)
 
-  // Effect hooks should come after state hooks
   useEffect(() => {
-    fetchAllProjects(currentPage)
-  }, [currentPage])
+    // Get client data from localStorage
+    const storedVisitor = localStorage.getItem("visitorData")
+    const storedPayment = localStorage.getItem("paymentSession")
 
-  async function fetchAllProjects(page: number) {
-    setLoading(true)
-    try {
-      const response = await getAllProjectsWithThierClient(page)
-      if (!response.success) throw new Error("Failed to fetch projects")
+    if (storedVisitor) {
+      const visitor = JSON.parse(storedVisitor)
+      const payment = storedPayment ? JSON.parse(storedPayment) : null
 
-      setProjects(response.data.projects)
-      setTotalPages(response.data.pagination.totalPages)
-    } catch (error) {
-      console.error("Error fetching client projects:", error)
-    } finally {
-      setLoading(false)
+      setClientData({
+        ...visitor,
+        paymentInfo: payment,
+      })
+
+      const mockProject: Project = {
+        id: 1,
+        title: `Custom ${visitor.selectedServices?.join(", ") || "Web Application"} Project`,
+        detail: `A comprehensive ${visitor.selectedIndustries?.join(", ") || "business"} solution with ${visitor.selectedFeatures?.join(", ") || "modern features"}.`,
+        deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+        bounty: payment?.amount || 1350,
+        progressPercentage: 5,
+        niche: visitor.selectedIndustries?.[0] || "Business",
+        difficultyLevel: "MEDIUM" as const,
+        projectType: visitor.selectedServices?.[0] || "Web Development",
+        projectStatus: "ONGOING",
+        projectSlug: "custom-project-1",
+        createdAt: new Date().toISOString(),
+        selectedFreelancers: [
+          {
+            uid: "dev-1",
+            fullName: "John Developer",
+            username: "johndev",
+            email: "john@company.com",
+            yearsOfExperience: 5,
+            niche: "Full Stack Development",
+            kpiRank: "Senior",
+          },
+        ],
+      }
+
+      setProjects([mockProject])
+      setTotalPages(1)
     }
-  }
+
+    setLoading(false)
+  }, [])
 
   const handleSubmitFeedback = async (project: Project) => {
     setFeedbackProject(project)
     setFeedbackDialogOpen(true)
-    setRating(3) // Default rating
-    setComment("") // Clear comment
+    setRating(3)
+    setComment("")
   }
 
   const submitFeedback = async () => {
@@ -130,17 +152,11 @@ export default function ClientProjectStatusPage() {
 
     setSubmitting(true)
     try {
-      const data = {
-        starsByClientAfterProjectCompletion: rating.toString(),
-        commentByClientAfterProjectCompletion: comment,
-      }
-
-      const response = await giveFeedbackAndRatings(feedbackProject.projectSlug, data)
+      await new Promise((resolve) => setTimeout(resolve, 1000)) // Simulate API delay
 
       toast({
         title: "Feedback submitted",
         description: "Thank you for your feedback!",
-        variant: "default",
       })
 
       setFeedbackDialogOpen(false)
@@ -156,7 +172,23 @@ export default function ClientProjectStatusPage() {
     }
   }
 
-  if (!isAuthorized) return null // Prevent rendering if unauthorized
+  if (!clientData) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Card className="max-w-md w-full">
+          <CardHeader className="text-center">
+            <CardTitle>Access Denied</CardTitle>
+            <DialogDescription>Please complete the payment process to access your dashboard.</DialogDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <Button onClick={() => router.push("/get-started")} className="bg-[#003087] hover:bg-[#002060]">
+              Go to Get Started
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   const getStatusConfig = (status: string) => {
     return statusConfig[status.toUpperCase()] || statusConfig.PENDING
@@ -170,14 +202,16 @@ export default function ClientProjectStatusPage() {
       className="container mx-auto px-4 py-8"
     >
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold">My Projects</h1>
-        {/* <Button onClick={() => router.push("/dashboard/client/projects/create")}>
-          <LayoutDashboard className="mr-2 h-4 w-4" />
-          New Project
-        </Button> */}
+        <div>
+          <h1 className="text-3xl font-bold">My Projects</h1>
+          <p className="text-gray-600 mt-1">Welcome back, {clientData.fullName}!</p>
+        </div>
+        <Badge variant="secondary" className="bg-green-100 text-green-800">
+          Active Client
+        </Badge>
       </div>
 
-      {Pageloading ? (
+      {pageLoading ? (
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
@@ -227,10 +261,6 @@ export default function ClientProjectStatusPage() {
                           <Button onClick={() => setSelectedProject(project)} variant="outline">
                             View Details
                           </Button>
-                          {/* <Button onClick={() => router.push(`/dashboard/client/projects/${project.projectSlug}`)}>
-                          <FileText className="mr-2 h-4 w-4" />
-                          Manage
-                        </Button> */}
                         </div>
                       </div>
                     </CardContent>
@@ -240,39 +270,42 @@ export default function ClientProjectStatusPage() {
             </div>
           </Suspense>
 
-          <div className="flex justify-center mt-8 gap-4">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(currentPage - 1)}
-            >
-              Previous
-            </Button>
-            <div className="flex items-center gap-2">
-              {Array.from({ length: totalPages }, (_, i) => (
-                <Button
-                  key={i + 1}
-                  variant={currentPage === i + 1 ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setCurrentPage(i + 1)}
-                >
-                  {i + 1}
-                </Button>
-              ))}
+          {totalPages > 1 && (
+            <div className="flex justify-center mt-8 gap-4">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(currentPage - 1)}
+              >
+                Previous
+              </Button>
+              <div className="flex items-center gap-2">
+                {Array.from({ length: totalPages }, (_, i) => (
+                  <Button
+                    key={i + 1}
+                    variant={currentPage === i + 1 ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCurrentPage(i + 1)}
+                  >
+                    {i + 1}
+                  </Button>
+                ))}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(currentPage + 1)}
+              >
+                Next
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage(currentPage + 1)}
-            >
-              Next
-            </Button>
-          </div>
+          )}
         </>
       )}
 
+      {/* Project Details Dialog */}
       <Dialog open={!!selectedProject} onOpenChange={() => setSelectedProject(null)}>
         <DialogContent className="max-w-2xl">
           {selectedProject && (
@@ -293,17 +326,9 @@ export default function ClientProjectStatusPage() {
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Bounty</span>
-                        <span className="text-sm font-medium">${selectedProject.bounty}</span>
+                        <span className="text-sm text-muted-foreground">Budget</span>
+                        <span className="text-sm font-medium">${selectedProject.bounty.toLocaleString()}</span>
                       </div>
-                      {/* <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">
-                          Type
-                        </span>
-                        <span className="text-sm font-medium">
-                          {selectedProject.projectType}
-                        </span>
-                      </div> */}
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -327,19 +352,6 @@ export default function ClientProjectStatusPage() {
                         <span className="text-sm text-muted-foreground">Progress</span>
                         <span className="text-sm font-medium">{selectedProject.progressPercentage}%</span>
                       </div>
-                      {/* <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">
-                          Difficulty
-                        </span>
-                        <span
-                          className={cn(
-                            "text-sm font-medium",
-                            difficultyColors[selectedProject.difficultyLevel]
-                          )}
-                        >
-                          {selectedProject.difficultyLevel}
-                        </span>
-                      </div> */}
                     </div>
                   </div>
                 </div>
@@ -373,6 +385,8 @@ export default function ClientProjectStatusPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Feedback Dialog */}
       <Dialog open={feedbackDialogOpen} onOpenChange={setFeedbackDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
