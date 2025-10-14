@@ -72,10 +72,10 @@ export default function HireUsRequests() {
       try {
         const response = await getTrashedHireUsRequests();
         if (response.status === 200) {
-          setRequests(response.data);
-          setFilteredRequests(response.data);
+          setRequests(response.data.data);
+          setFilteredRequests(response.data.data);
         } else {
-          setError(response.message || "Failed to fetch data");
+          setError(response.data.message || "Failed to fetch data");
         }
       } catch (error) {
         console.error("Error fetching data:", error);

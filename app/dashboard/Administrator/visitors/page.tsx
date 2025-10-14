@@ -21,6 +21,7 @@ import {
   UserCheck
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { getUserDetails } from '@/lib/api/storage'
 
 interface Visitor {
   id: string
@@ -78,8 +79,9 @@ const VisitorsPage = () => {
   const [authToken, setAuthToken] = useState('')
 
   useEffect(() => {
-    // Get auth token from localStorage or your auth context
-    const token = localStorage.getItem('authToken') || process.env.NEXT_PUBLIC_JWT_TOKEN
+    // Get auth token from user details stored in cookies
+    const userDetails = getUserDetails()
+    const token = userDetails?.accessToken
     setAuthToken(token || '')
   }, [])
 
@@ -89,7 +91,7 @@ const VisitorsPage = () => {
     }
   }, [authToken, pagination.currentPage, businessTypeFilter, referralSourceFilter])
 
-  const API_BASE_URL =`${process.env.NEXT_PUBLIC_API_URL}/visitor/register`
+  const API_BASE_URL = 'http://localhost:8000/api/v1/visitors'
 
   const fetchVisitors = async () => {
     try {
@@ -108,7 +110,7 @@ const VisitorsPage = () => {
         params.append('referralSource', referralSourceFilter)
       }
 
-      const response = await fetch(`${API_BASE_URL}/visitors?${params.toString()}`, {
+      const response = await fetch(`${API_BASE_URL}?${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json'
@@ -135,7 +137,7 @@ const VisitorsPage = () => {
 
   const fetchSingleVisitor = async (visitorId: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/visitors/${visitorId}`, {
+      const response = await fetch(`${API_BASE_URL}/${visitorId}`, {
         headers: {
           'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json'
@@ -159,7 +161,7 @@ const VisitorsPage = () => {
 
   const updateVisitor = async (visitorId: string, updateData: Partial<Visitor>) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/visitors/${visitorId}`, {
+      const response = await fetch(`${API_BASE_URL}/${visitorId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${authToken}`,
@@ -191,7 +193,7 @@ const VisitorsPage = () => {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/visitors/${visitorId}`, {
+      const response = await fetch(`${API_BASE_URL}/${visitorId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${authToken}`,

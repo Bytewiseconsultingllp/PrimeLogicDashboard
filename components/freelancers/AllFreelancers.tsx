@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { getUserDetails } from "@/lib/api/storage"
 
 type FreelancerRegistration = {
   id: string
@@ -153,7 +154,25 @@ export default function FreelancerRegistrationsPage() {
   const fetchRegistrations = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch("/api/v1/freelancer/registrations")
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+
+      if (!token) {
+        toast({
+          title: "Error",
+          description: "Please login to view freelancer registrations",
+          variant: "destructive",
+        })
+        setIsLoading(false)
+        return
+      }
+
+      const response = await fetch("http://localhost:8000/api/v1/freelancer/registrations", {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
       const result: ApiResponse = await response.json()
 
       if (result.success && Array.isArray(result.data)) {
@@ -180,7 +199,15 @@ export default function FreelancerRegistrationsPage() {
 
   const viewRegistration = async (id: string) => {
     try {
-      const response = await fetch(`/api/v1/freelancer/registrations/${id}`)
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+
+      const response = await fetch(`http://localhost:8000/api/v1/freelancer/registrations/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
       const result: ApiResponse = await response.json()
 
       if (result.success && result.data && !Array.isArray(result.data)) {
@@ -205,8 +232,15 @@ export default function FreelancerRegistrationsPage() {
 
   const acceptRegistration = async (id: string) => {
     try {
-      const response = await fetch(`/api/v1/freelancer/registrations/${id}/accept`, {
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+
+      const response = await fetch(`http://localhost:8000/api/v1/freelancer/registrations/${id}/accept`, {
         method: "PATCH",
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       })
       const result: ApiResponse = await response.json()
 
@@ -235,8 +269,15 @@ export default function FreelancerRegistrationsPage() {
 
   const rejectRegistration = async (id: string) => {
     try {
-      const response = await fetch(`/api/v1/freelancer/registrations/${id}/reject`, {
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+
+      const response = await fetch(`http://localhost:8000/api/v1/freelancer/registrations/${id}/reject`, {
         method: "DELETE",
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       })
       const result: ApiResponse = await response.json()
 
@@ -265,8 +306,15 @@ export default function FreelancerRegistrationsPage() {
 
   const trashRegistration = async (id: string) => {
     try {
-      const response = await fetch(`/api/v1/freelancer/registrations/${id}/trash`, {
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+
+      const response = await fetch(`http://localhost:8000/api/v1/freelancer/registrations/${id}/trash`, {
         method: "PATCH",
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       })
       const result: ApiResponse = await response.json()
 
@@ -295,8 +343,15 @@ export default function FreelancerRegistrationsPage() {
 
   const untrashRegistration = async (id: string) => {
     try {
-      const response = await fetch(`/api/v1/freelancer/registrations/${id}/untrash`, {
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+
+      const response = await fetch(`http://localhost:8000/api/v1/freelancer/registrations/${id}/untrash`, {
         method: "PATCH",
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       })
       const result: ApiResponse = await response.json()
 

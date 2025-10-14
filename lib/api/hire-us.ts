@@ -6,7 +6,7 @@ export async function getAllHireUsRequests() {
   try {
     const response = await apiInstance.get("/hireUs/getAllHireUsRequests");
 
-    return response.data;
+    return response;
   } catch (error) {
     if (axios.isAxiosError(error)) {
       console.error("Axios error:", error.response?.data || error.message);
@@ -25,7 +25,7 @@ export async function getAllHireUsRequests() {
 export async function trashHireUsRequest(id: number) {
     try {
         const response = await apiInstance.patch(`/hireUs/trashHireUsRequest/${id}`);
-        return response.data;
+        return response;
       } catch (error) {
         if (axios.isAxiosError(error)) {
           console.error("Axios error:", error.response?.data || error.message);
@@ -43,7 +43,7 @@ export async function trashHireUsRequest(id: number) {
 export async function getTrashedHireUsRequests() {
   try {
       const response = await apiInstance.get("/trash/getTrashedHireUs");
-      return response.data;
+      return response;
     } catch (error) {
       if (axios.isAxiosError(error)) {
         console.error("Axios error:", error.response?.data || error.message);
@@ -62,7 +62,7 @@ export async function getTrashedHireUsRequests() {
 export async function untrashHireUsRequest(id: number) {
   try {
       const response = await apiInstance.patch(`/hireUs/untrashHireUsRequest/${id}`);
-      return response.data;
+      return response;
     } catch (error) {
       if (axios.isAxiosError(error)) {
         console.error("Axios error:", error.response?.data || error.message);
@@ -80,7 +80,7 @@ export async function untrashHireUsRequest(id: number) {
 export async function deleteHireUsRequest(id: number) {
   try {
       const response = await apiInstance.delete(`/hireUs/permanentDeleteHireUsRequest/${id}`);
-      return response.data;
+      return response;
     } catch (error) {
       if (axios.isAxiosError(error)) {
         console.error("Axios error:", error.response?.data || error.message);

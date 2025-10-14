@@ -6,7 +6,7 @@ import { format } from "date-fns"
 import { useRouter } from "next/navigation"
 import { CheckCircle2, Star, CheckSquare, AlertCircle, Clock, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -178,7 +178,7 @@ export default function ClientDashboard() {
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
             <CardTitle>Access Denied</CardTitle>
-            <DialogDescription>Please complete the payment process to access your dashboard.</DialogDescription>
+            <CardDescription>Please complete the payment process to access your dashboard.</CardDescription>
           </CardHeader>
           <CardContent className="text-center">
             <Button onClick={() => router.push("/get-started")} className="bg-[#003087] hover:bg-[#002060]">

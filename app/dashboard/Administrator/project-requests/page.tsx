@@ -1,42 +1,70 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Loader2 } from "lucide-react";
-import { getAllHireUsRequests, trashHireUsRequest } from "@/lib/api/hire-us";
+import { Search, Loader2, Eye, Trash2 } from "lucide-react";
+import { getAllProjectBuilders, deleteProjectBuilder } from "@/lib/api/project-builder";
 import { Input } from "@/components/ui/input";
-import RequestCard from "@/components/hire-us/RequestCard";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 
-interface Document {
-  url: string;
-  name: string;
+interface Freelancer {
+  uid: string;
+  username: string;
+  fullName: string;
+  email: string;
 }
 
-interface HireUsRequest {
-  id: number;
-  name: string;
-  email: string;
-  phone: string;
-  company: string;
-  address: string;
-  detail: string;
-  docs: Document[];
+interface ProjectBuilderRequest {
+  id: string;
+  projectName: string;
+  projectDescription: string;
+  projectType: string;
+  technologies: string[];
+  features: string[];
+  budget: number;
+  timeline: string;
+  priority: string;
+  status: string;
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  clientCompany: string;
+  additionalNotes?: string;
   createdAt: string;
-  trashedBy: string | null;
-  trashedAt: string | null;
+  updatedAt: string;
+  interestedFreelancers: Freelancer[];
+  selectedFreelancers: Freelancer[];
   isDeleting?: boolean; 
 }
 
-export default function HireUsRequests() {
-  const [requests, setRequests] = useState<HireUsRequest[]>([]);
+export default function ProjectRequestsPage() {
+  const [requests, setRequests] = useState<ProjectBuilderRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filteredRequests, setFilteredRequests] = useState<HireUsRequest[]>([]);
+  const [filteredRequests, setFilteredRequests] = useState<ProjectBuilderRequest[]>([]);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedProject, setSelectedProject] = useState<ProjectBuilderRequest | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { isAuthorized } = useAuth(["ADMIN", "MODERATOR"]);
 
   useEffect(() => {
@@ -44,16 +72,27 @@ export default function HireUsRequests() {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await getAllHireUsRequests();
+        const response = await getAllProjectBuilders();
+        console.log("Project Builders Response:", response);
         if (response.status === 200) {
-          setRequests(response.data.data);
-          setFilteredRequests(response.data.data);
+          const data = Array.isArray(response.data.data?.projectBuilders) 
+            ? response.data.data.projectBuilders 
+            : Array.isArray(response.data.data) 
+            ? response.data.data 
+            : [];
+          console.log("Processed Data:", data);
+          setRequests(data);
+          setFilteredRequests(data);
         } else {
-          setError(response.message || "Failed to fetch data");
+          setError(response.data?.message || "Failed to fetch data");
+          setRequests([]);
+          setFilteredRequests([]);
         }
       } catch (error) {
         console.error("Error fetching data:", error);
         setError("Failed to fetch data. Please try again later.");
+        setRequests([]);
+        setFilteredRequests([]);
       } finally {
         setIsLoading(false);
       }
@@ -62,13 +101,20 @@ export default function HireUsRequests() {
   }, []);
 
   useEffect(() => {
+    if (!Array.isArray(requests)) {
+      setFilteredRequests([]);
+      return;
+    }
+    
     const filtered = requests.filter((request) =>
       [
-        request.name,
-        request.email,
-        request.phone,
-        request.company,
-        request.address,
+        request.projectName,
+        request.clientName,
+        request.clientEmail,
+        request.clientPhone,
+        request.clientCompany,
+        request.projectType,
+        request.status,
       ].some((field) => field?.toLowerCase().includes(search.toLowerCase()))
     );
     setFilteredRequests(filtered);
@@ -77,16 +123,20 @@ export default function HireUsRequests() {
 
   
 
-const handleTrash = async (id: number) => {
+const handleDelete = async (id: string) => {
   setDeletingId(id);
   try {
-    const response = await trashHireUsRequest(id);
+    const response = await deleteProjectBuilder(id);
     if(response.status === 200) {
-        toast.success("Hire Us Request Trashed Successfully");
-        setRequests((prevRequests) => prevRequests.filter((request) => request.id !== id));
+        toast.success("Project Request Deleted Successfully");
+        setRequests((prevRequests) => {
+          if (!Array.isArray(prevRequests)) return [];
+          return prevRequests.filter((request) => request.id !== id);
+        });
     }
   } catch (error) {
-    console.error("Error trashing request:", error);
+    console.error("Error deleting request:", error);
+    toast.error("Failed to delete project request");
   } finally {
     setDeletingId(null); 
   }
@@ -103,8 +153,8 @@ const handleTrash = async (id: number) => {
     });
   };
 
-  const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
-  const displayedRequests = filteredRequests.slice(
+  const totalPages = Math.ceil((filteredRequests?.length || 0) / itemsPerPage);
+  const displayedRequests = (filteredRequests || []).slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
@@ -151,48 +201,293 @@ const handleTrash = async (id: number) => {
         </div>
       ) : (
         <>
-          <div className="grid gap-6">
-            {displayedRequests.length > 0 ? (
-              displayedRequests.map((request) => (
-                <RequestCard
-                  key={request.id}
-                  request={{
-                    ...request,
-                    isDeleting: deletingId === request.id,
-                  }} // Add isDeleting
-                  onTrash={handleTrash}
-                  formatDate={formatDate}
-                />
-              ))
-            ) : (
-              <div className="text-center py-12">
-                <p className="text-muted-foreground">No requests found</p>
-              </div>
-            )}
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Project Name</TableHead>
+                  <TableHead>Client</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Budget</TableHead>
+                  <TableHead>Timeline</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Priority</TableHead>
+                  <TableHead>Freelancers</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {displayedRequests.length > 0 ? (
+                  displayedRequests.map((request) => (
+                    <TableRow key={request.id}>
+                      <TableCell className="font-medium">
+                        <div>
+                          <div className="font-semibold">{request.projectName}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {request.projectDescription.substring(0, 50)}...
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{request.clientName}</div>
+                          <div className="text-xs text-muted-foreground">{request.clientCompany}</div>
+                          <div className="text-xs text-muted-foreground">{request.clientEmail}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{request.projectType}</Badge>
+                      </TableCell>
+                      <TableCell>${request.budget.toLocaleString()}</TableCell>
+                      <TableCell>{request.timeline}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            request.status === "APPROVED"
+                              ? "default"
+                              : request.status === "SUBMITTED"
+                              ? "secondary"
+                              : "outline"
+                          }
+                        >
+                          {request.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            request.priority === "URGENT"
+                              ? "destructive"
+                              : request.priority === "HIGH"
+                              ? "default"
+                              : "secondary"
+                          }
+                        >
+                          {request.priority}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          <div>{request.interestedFreelancers.length} interested</div>
+                          <div>{request.selectedFreelancers.length} selected</div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setSelectedProject(request);
+                              setIsDialogOpen(true);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(request.id)}
+                            disabled={deletingId === request.id}
+                          >
+                            {deletingId === request.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            )}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center py-12">
+                      <p className="text-muted-foreground">No requests found</p>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </div>
+          
+          {/* Pagination */}
           <div className="flex justify-between items-center mt-6">
-            <button
-              className="px-4 py-2 bg-gray-200 rounded disabled:opacity-50"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-            >
-              Prev
-            </button>
-            <span>
-              Page {currentPage} of {totalPages}
-            </span>
-            <button
-              className="px-4 py-2 bg-gray-200 rounded disabled:opacity-50"
-              disabled={currentPage === totalPages}
-              onClick={() =>
-                setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-              }
-            >
-              Next
-            </button>
+            <div className="text-sm text-muted-foreground">
+              Showing {((currentPage - 1) * itemsPerPage) + 1} to{" "}
+              {Math.min(currentPage * itemsPerPage, filteredRequests?.length || 0)} of{" "}
+              {filteredRequests?.length || 0} entries
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              >
+                Next
+              </Button>
+            </div>
           </div>
         </>
       )}
+
+      {/* Project Details Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{selectedProject?.projectName}</DialogTitle>
+            <DialogDescription>Project Request Details</DialogDescription>
+          </DialogHeader>
+
+          {selectedProject && (
+            <div className="space-y-6">
+              {/* Project Description */}
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Description</h3>
+                <p className="text-sm text-muted-foreground">{selectedProject.projectDescription}</p>
+              </div>
+
+              {/* Client Information */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Client Information</h3>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium">Name</p>
+                    <p className="text-sm text-muted-foreground">{selectedProject.clientName}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Company</p>
+                    <p className="text-sm text-muted-foreground">{selectedProject.clientCompany}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Email</p>
+                    <p className="text-sm text-muted-foreground">{selectedProject.clientEmail}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Phone</p>
+                    <p className="text-sm text-muted-foreground">{selectedProject.clientPhone}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Project Details */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Project Details</h3>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium">Type</p>
+                    <Badge variant="outline">{selectedProject.projectType}</Badge>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Budget</p>
+                    <p className="text-sm text-muted-foreground">${selectedProject.budget.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Timeline</p>
+                    <p className="text-sm text-muted-foreground">{selectedProject.timeline}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Status</p>
+                    <Badge variant="secondary">{selectedProject.status}</Badge>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Priority</p>
+                    <Badge variant={selectedProject.priority === "URGENT" ? "destructive" : "default"}>
+                      {selectedProject.priority}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Created</p>
+                    <p className="text-sm text-muted-foreground">{formatDate(selectedProject.createdAt)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Technologies */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Technologies</h3>
+                <div className="flex flex-wrap gap-2">
+                  {selectedProject.technologies.map((tech, idx) => (
+                    <Badge key={idx} variant="secondary">
+                      {tech}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              {/* Features */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Features</h3>
+                <div className="flex flex-wrap gap-2">
+                  {selectedProject.features.map((feature, idx) => (
+                    <Badge key={idx} variant="outline">
+                      {feature}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              {/* Freelancers */}
+              {(selectedProject.interestedFreelancers.length > 0 || selectedProject.selectedFreelancers.length > 0) && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Freelancers</h3>
+                  
+                  {selectedProject.interestedFreelancers.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-sm font-medium mb-2">Interested ({selectedProject.interestedFreelancers.length})</p>
+                      <div className="space-y-2">
+                        {selectedProject.interestedFreelancers.map((freelancer) => (
+                          <div key={freelancer.uid} className="flex items-center justify-between p-2 border rounded">
+                            <div>
+                              <p className="font-medium">{freelancer.fullName}</p>
+                              <p className="text-sm text-muted-foreground">{freelancer.email}</p>
+                            </div>
+                            <Badge variant="secondary">{freelancer.username}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedProject.selectedFreelancers.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium mb-2">Selected ({selectedProject.selectedFreelancers.length})</p>
+                      <div className="space-y-2">
+                        {selectedProject.selectedFreelancers.map((freelancer) => (
+                          <div key={freelancer.uid} className="flex items-center justify-between p-2 border rounded bg-green-50">
+                            <div>
+                              <p className="font-medium">{freelancer.fullName}</p>
+                              <p className="text-sm text-muted-foreground">{freelancer.email}</p>
+                            </div>
+                            <Badge variant="default">{freelancer.username}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Additional Notes */}
+              {selectedProject.additionalNotes && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-2">Additional Notes</h3>
+                  <p className="text-sm text-muted-foreground">{selectedProject.additionalNotes}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

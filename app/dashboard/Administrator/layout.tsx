@@ -30,6 +30,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getUserDetails, removeUserDetails } from "@/lib/api/storage";
 import { getCurrentUserDetails } from "@/lib/api/auth";
 import { useAuth } from "@/hooks/useAuth";
+import { Toaster } from 'react-hot-toast';
 
 const navItems = [
   {
@@ -128,8 +129,10 @@ export default function AdministratorLayout({
   if(!isAuthorized) return null;
 
   return (
-    <div className="flex min-h-screen">
-      <motion.aside
+    <>
+      <Toaster position="top-right" />
+      <div className="flex min-h-screen">
+        <motion.aside
         initial={{ width: 250 }}
         animate={{ width: isCollapsed ? 80 : 280 }}
         className="fixed left-0 top-0 z-20 flex h-screen flex-col"
@@ -270,5 +273,6 @@ export default function AdministratorLayout({
         <div className="p-6">{children}</div>
       </main>
     </div>
+    </>
   );
 }
