@@ -128,7 +128,7 @@ export default function ClientDashboard() {
           throw new Error("Invalid payment intent ID")
         }
 
-        const response = await fetch(`http://localhost:8000/api/v1/payment/payment-intent/${paymentIntentId}`, {
+        const response = await fetch(`https://api.primelogicsol.com/api/v1/payment/payment-intent/${paymentIntentId}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

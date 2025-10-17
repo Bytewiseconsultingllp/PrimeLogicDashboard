@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
     // Here you would make the actual API call to your backend
     // For now, we'll simulate the API call based on the provided documentation
-    const backendUrl = "http://localhost:8000"
+    const backendUrl = "https://api.primelogicsol.com"
     const jwtToken = process.env.JWT_TOKEN || "YOUR_JWT_TOKEN"
 
     const response = await fetch(`${backendUrl}/api/v1/payment/create-checkout-session`, {

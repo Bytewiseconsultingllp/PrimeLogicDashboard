@@ -91,7 +91,7 @@ const VisitorsPage = () => {
     }
   }, [authToken, pagination.currentPage, businessTypeFilter, referralSourceFilter])
 
-  const API_BASE_URL = 'http://localhost:8000/api/v1/visitors'
+  const API_BASE_URL = 'https://api.primelogicsol.com/api/v1/visitors'
 
   const fetchVisitors = async () => {
     try {

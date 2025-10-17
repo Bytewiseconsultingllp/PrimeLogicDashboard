@@ -167,7 +167,7 @@ export default function FreelancerRegistrationsPage() {
         return
       }
 
-      const response = await fetch("http://localhost:8000/api/v1/freelancer/registrations", {
+      const response = await fetch("https://api.primelogicsol.com/api/v1/freelancer/registrations", {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -202,7 +202,7 @@ export default function FreelancerRegistrationsPage() {
       const userDetails = getUserDetails()
       const token = userDetails?.accessToken
 
-      const response = await fetch(`http://localhost:8000/api/v1/freelancer/registrations/${id}`, {
+      const response = await fetch(`https://api.primelogicsol.com/api/v1/freelancer/registrations/${id}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -235,7 +235,7 @@ export default function FreelancerRegistrationsPage() {
       const userDetails = getUserDetails()
       const token = userDetails?.accessToken
 
-      const response = await fetch(`http://localhost:8000/api/v1/freelancer/registrations/${id}/accept`, {
+      const response = await fetch(`https://api.primelogicsol.com/api/v1/freelancer/registrations/${id}/accept`, {
         method: "PATCH",
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -272,7 +272,7 @@ export default function FreelancerRegistrationsPage() {
       const userDetails = getUserDetails()
       const token = userDetails?.accessToken
 
-      const response = await fetch(`http://localhost:8000/api/v1/freelancer/registrations/${id}/reject`, {
+      const response = await fetch(`https://api.primelogicsol.com/api/v1/freelancer/registrations/${id}/reject`, {
         method: "DELETE",
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -309,7 +309,7 @@ export default function FreelancerRegistrationsPage() {
       const userDetails = getUserDetails()
       const token = userDetails?.accessToken
 
-      const response = await fetch(`http://localhost:8000/api/v1/freelancer/registrations/${id}/trash`, {
+      const response = await fetch(`https://api.primelogicsol.com/api/v1/freelancer/registrations/${id}/trash`, {
         method: "PATCH",
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -346,7 +346,7 @@ export default function FreelancerRegistrationsPage() {
       const userDetails = getUserDetails()
       const token = userDetails?.accessToken
 
-      const response = await fetch(`http://localhost:8000/api/v1/freelancer/registrations/${id}/untrash`, {
+      const response = await fetch(`https://api.primelogicsol.com/api/v1/freelancer/registrations/${id}/untrash`, {
         method: "PATCH",
         headers: {
           'Authorization': `Bearer ${token}`,

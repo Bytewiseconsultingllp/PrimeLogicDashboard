@@ -145,7 +145,7 @@ const handleApprove = async (request: ProjectBuilderRequest) => {
       )
     );
 
-    const response = await fetch(`http://localhost:8000/api/v1/projectBuilder/${request.id}`, {
+    const response = await fetch(`https://api.primelogicsol.com/api/v1/projectBuilder/${request.id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
