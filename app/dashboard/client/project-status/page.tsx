@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react"
 import { motion } from "framer-motion"
 import { format } from "date-fns"
 import { useRouter } from "next/navigation"
-import { CheckCircle2, Star, CheckSquare, AlertCircle, Clock, XCircle } from "lucide-react"
+import { CheckCircle2, Star, CheckSquare, AlertCircle, Clock, XCircle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils"
 
 interface Project {
   id: number
+  fullName?: string
   title: string
   detail: string
   deadline: string
@@ -38,6 +39,14 @@ interface Project {
     niche?: string
     kpiRank: string
   }[]
+}
+
+interface PaymentVerification {
+  isPaymentComplete: boolean
+  isClientRegistered: boolean
+  paymentStatus: string
+  clientId?: string
+  message: string
 }
 
 const statusConfig: any = {
@@ -80,11 +89,11 @@ export const difficultyColors = {
 export default function ClientDashboard() {
   const router = useRouter()
 
-  // State hooks
+  // State hooks including fullClientFormData for full form details
   const [projects, setProjects] = useState<Project[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  const [pageLoading, setLoading] = useState(false)
+  const [pageLoading, setLoading] = useState(true)
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false)
   const [feedbackProject, setFeedbackProject] = useState<Project | null>(null)
@@ -92,53 +101,99 @@ export default function ClientDashboard() {
   const [comment, setComment] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [clientData, setClientData] = useState<any>(null)
+  const [fullClientFormData, setFullClientFormData] = useState<any>(null)
+  const [paymentVerification, setPaymentVerification] = useState<PaymentVerification | null>(null)
+  const [verificationLoading, setVerificationLoading] = useState(true)
+  const [verificationError, setVerificationError] = useState<string | null>(null)
 
   useEffect(() => {
-    // Get client data from localStorage
-    const storedVisitor = localStorage.getItem("visitorData")
-    const storedPayment = localStorage.getItem("paymentSession")
+    const verifyPaymentAndClient = async () => {
+      try {
+        setVerificationLoading(true)
+        setVerificationError(null)
 
-    if (storedVisitor) {
-      const visitor = JSON.parse(storedVisitor)
-      const payment = storedPayment ? JSON.parse(storedPayment) : null
+        const storedVisitor = localStorage.getItem("visitorData")
+        if (!storedVisitor) {
+          setVerificationError("No client data found. Please complete the registration process.")
+          setVerificationLoading(false)
+          return
+        }
+        const visitor = JSON.parse(storedVisitor)
+        const storedPayment = localStorage.getItem("paymentSession")
+        const payment = storedPayment ? JSON.parse(storedPayment) : null
 
-      setClientData({
-        ...visitor,
-        paymentInfo: payment,
-      })
+        // Use actual paymentIntentId from payment data
+        const paymentIntentId = payment?.paymentIntentId || payment?.id || null
+        if (!paymentIntentId) {
+          throw new Error("Invalid payment intent ID")
+        }
 
-      const mockProject: Project = {
-        id: 1,
-        title: `Custom ${visitor.selectedServices?.join(", ") || "Web Application"} Project`,
-        detail: `A comprehensive ${visitor.selectedIndustries?.join(", ") || "business"} solution with ${visitor.selectedFeatures?.join(", ") || "modern features"}.`,
-        deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-        bounty: payment?.amount || 1350,
-        progressPercentage: 5,
-        niche: visitor.selectedIndustries?.[0] || "Business",
-        difficultyLevel: "MEDIUM" as const,
-        projectType: visitor.selectedServices?.[0] || "Web Development",
-        projectStatus: "ONGOING",
-        projectSlug: "custom-project-1",
-        createdAt: new Date().toISOString(),
-        selectedFreelancers: [
-          {
-            uid: "dev-1",
-            fullName: "John Developer",
-            username: "johndev",
-            email: "john@company.com",
-            yearsOfExperience: 5,
-            niche: "Full Stack Development",
-            kpiRank: "Senior",
-          },
-        ],
+        const response = await fetch(`http://localhost:8000/api/v1/payment/payment-intent/${paymentIntentId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            paymentSessionId: payment?.sessionId || payment?.id,
+            clientEmail: visitor.email,
+            clientData: visitor,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.message || "Failed to verify payment")
+        }
+
+        const verification: PaymentVerification = await response.json()
+        setPaymentVerification(verification)
+
+        if (verification.isPaymentComplete && verification.isClientRegistered) {
+          // Fetch full client form data by clientId
+          const clientInfoResponse = await fetch(`/api/client-info?clientId=${verification.clientId}`)
+          if (!clientInfoResponse.ok) throw new Error("Failed to fetch client info")
+          const clientInfoData = await clientInfoResponse.json()
+
+          setClientData({ ...visitor, paymentInfo: payment, clientId: verification.clientId })
+          setFullClientFormData(clientInfoData)
+
+          if (verification.clientId) {
+            await fetchClientProjects(verification.clientId)
+          } else {
+            throw new Error("Client ID missing after verification")
+          }
+        } else {
+          setVerificationError(verification.message || "Payment verification failed or client not registered")
+        }
+      } catch (error) {
+        console.error("[v0] Error verifying payment:", error)
+        setVerificationError(error instanceof Error ? error.message : "An error occurred while verifying your payment. Please try again.")
+      } finally {
+        setVerificationLoading(false)
       }
-
-      setProjects([mockProject])
-      setTotalPages(1)
     }
 
-    setLoading(false)
+    verifyPaymentAndClient()
   }, [])
+
+  const fetchClientProjects = async (clientId: string) => {
+    try {
+      setLoading(true)
+      const response = await fetch(`/api/client-projects?clientId=${clientId}`)
+      if (!response.ok) throw new Error("Failed to fetch projects")
+
+      const data = await response.json()
+      setProjects(data.projects || [])
+      setTotalPages(data.totalPages || 1)
+    } catch (error) {
+      console.error("Error fetching projects:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load your projects. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleSubmitFeedback = async (project: Project) => {
     setFeedbackProject(project)
@@ -152,7 +207,18 @@ export default function ClientDashboard() {
 
     setSubmitting(true)
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000)) // Simulate API delay
+      const response = await fetch("/api/submit-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: feedbackProject.id,
+          clientId: clientData?.clientId,
+          rating,
+          comment,
+        }),
+      })
+
+      if (!response.ok) throw new Error("Failed to submit feedback")
 
       toast({
         title: "Feedback submitted",
@@ -172,15 +238,39 @@ export default function ClientDashboard() {
     }
   }
 
-  if (!clientData) {
+  if (verificationLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Card className="max-w-md w-full">
+          <CardHeader className="text-center">
+            <CardTitle className="flex items-center justify-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Verifying Payment
+            </CardTitle>
+            <CardDescription>Please wait while we verify your payment and registration...</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    )
+  }
+
+  if (verificationError || !clientData || !paymentVerification?.isPaymentComplete) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
             <CardTitle>Access Denied</CardTitle>
-            <CardDescription>Please complete the payment process to access your dashboard.</CardDescription>
+            <CardDescription>{verificationError || "Payment verification failed. Please complete the payment process to access your dashboard."}</CardDescription>
           </CardHeader>
-          <CardContent className="text-center">
+          <CardContent className="text-center space-y-4">
+            <div className="text-sm text-gray-600">
+              {paymentVerification && (
+                <>
+                  <p>Payment Status: {paymentVerification.paymentStatus}</p>
+                  <p>Client Registered: {paymentVerification.isClientRegistered ? "Yes" : "No"}</p>
+                </>
+              )}
+            </div>
             <Button onClick={() => router.push("/get-started")} className="bg-[#003087] hover:bg-[#002060]">
               Go to Get Started
             </Button>
@@ -195,12 +285,7 @@ export default function ClientDashboard() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-      className="container mx-auto px-4 py-8"
-    >
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }} className="container mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold">My Projects</h1>
@@ -218,7 +303,8 @@ export default function ClientDashboard() {
       ) : projects.length === 0 ? (
         <Card className="p-8 text-center">
           <CardContent>
-            <p className="text-xl font-semibold mb-4">You have not been assigned any projects.</p>
+            <p className="text-xl font-semibold mb-4">You have not been assigned any projects yet.</p>
+            <p className="text-gray-600">Your projects will appear here once they are assigned to you.</p>
           </CardContent>
         </Card>
       ) : (
@@ -244,18 +330,13 @@ export default function ClientDashboard() {
                         <Progress value={project.progressPercentage} className="h-2" />
                         <div className="flex justify-between items-center">
                           <span className="text-sm">Status</span>
-                          <Badge
-                            className={cn("border", statusConf.borderColor, statusConf.textColor, statusConf.bgColor)}
-                            variant="outline"
-                          >
+                          <Badge className={cn("border", statusConf.borderColor, statusConf.textColor, statusConf.bgColor)} variant="outline">
                             {project.projectStatus}
                           </Badge>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-sm">Deadline</span>
-                          <span className="text-sm font-medium">
-                            {format(new Date(project.deadline), "MMM d, yyyy")}
-                          </span>
+                          <span className="text-sm font-medium">{format(new Date(project.deadline), "MMM d, yyyy")}</span>
                         </div>
                         <div className="mt-4 flex justify-center gap-2">
                           <Button onClick={() => setSelectedProject(project)} variant="outline">
@@ -272,12 +353,7 @@ export default function ClientDashboard() {
 
           {totalPages > 1 && (
             <div className="flex justify-center mt-8 gap-4">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(currentPage - 1)}
-              >
+              <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(currentPage - 1)}>
                 Previous
               </Button>
               <div className="flex items-center gap-2">
@@ -292,12 +368,7 @@ export default function ClientDashboard() {
                   </Button>
                 ))}
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(currentPage + 1)}
-              >
+              <Button variant="outline" size="sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(currentPage + 1)}>
                 Next
               </Button>
             </div>
@@ -321,9 +392,7 @@ export default function ClientDashboard() {
                     <div className="grid gap-2">
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">Deadline</span>
-                        <span className="text-sm font-medium">
-                          {format(new Date(selectedProject.deadline), "MMM d, yyyy")}
-                        </span>
+                        <span className="text-sm font-medium">{format(new Date(selectedProject.deadline), "MMM d, yyyy")}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-muted-foreground">Budget</span>
@@ -331,6 +400,7 @@ export default function ClientDashboard() {
                       </div>
                     </div>
                   </div>
+
                   <div className="space-y-2">
                     <h4 className="font-medium text-sm">Status Information</h4>
                     <div className="grid gap-2">
@@ -355,6 +425,8 @@ export default function ClientDashboard() {
                     </div>
                   </div>
                 </div>
+
+                {/* Assigned Developers */}
                 <div className="space-y-3">
                   <h4 className="font-medium text-sm">Assigned Developers</h4>
                   {selectedProject?.selectedFreelancers && selectedProject.selectedFreelancers.length > 0 ? (
@@ -370,6 +442,52 @@ export default function ClientDashboard() {
                     <p className="text-sm text-muted-foreground">No Developers assigned yet</p>
                   )}
                 </div>
+
+                {/* Client Provided Full Form Data */}
+                {fullClientFormData && (
+                  <div className="mt-6">
+                    <h4 className="font-semibold text-lg mb-2">Your Provided Project Details</h4>
+                    {/* Example sections */}
+                    <div className="mb-4">
+                      <h5 className="font-medium">Services Selected:</h5>
+                      <ul className="list-disc list-inside">
+                        {fullClientFormData.services?.map((service: string) => (
+                          <li key={service}>{service}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="mb-4">
+                      <h5 className="font-medium">Industries:</h5>
+                      <ul className="list-disc list-inside">
+                        {fullClientFormData.industries?.map((industry: string) => (
+                          <li key={industry}>{industry}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="mb-4">
+                      <h5 className="font-medium">Technologies:</h5>
+                      <ul className="list-disc list-inside">
+                        {fullClientFormData.technologies?.map((tech: string) => (
+                          <li key={tech}>{tech}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="mb-4">
+                      <h5 className="font-medium">Features:</h5>
+                      <ul className="list-disc list-inside">
+                        {fullClientFormData.features?.map((feature: string) => (
+                          <li key={feature}>{feature}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="mb-4">
+                      <h5 className="font-medium">Budget Details:</h5>
+                      <p>Estimated Budget: ${fullClientFormData.budget?.toLocaleString()}</p>
+                    </div>
+                    {/* Add additional form fields as needed */}
+                  </div>
+                )}
+
                 {selectedProject.progressPercentage === 100 && (
                   <Button
                     variant="default"
@@ -399,22 +517,14 @@ export default function ClientDashboard() {
               <div className="flex items-center justify-center space-x-1">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button key={star} type="button" onClick={() => setRating(star)} className="focus:outline-none">
-                    <Star
-                      className={`h-8 w-8 ${rating >= star ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
-                    />
+                    <Star className={`h-8 w-8 ${rating >= star ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
                   </button>
                 ))}
               </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="comment">Comment</Label>
-              <Textarea
-                id="comment"
-                placeholder="Share your thoughts about this project..."
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                rows={4}
-              />
+              <Textarea id="comment" placeholder="Share your thoughts about this project..." value={comment} onChange={(e) => setComment(e.target.value)} rows={4} />
             </div>
           </div>
           <div className="flex justify-end space-x-2">
