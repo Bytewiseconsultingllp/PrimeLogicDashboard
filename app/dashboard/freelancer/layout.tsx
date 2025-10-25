@@ -1,90 +1,87 @@
-"use client";
+"use client"
 
-import { useEffect, useState, type ReactNode } from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { motion } from "framer-motion";
-import {
-  BarChart3,
-  MessageCircle,
-  Settings,
-  ChevronDown,
-  LogOut,
-  BarChart4,
-} from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react"
+import Link from "next/link"
+import { usePathname, useRouter } from "next/navigation"
+import { motion } from "framer-motion"
+import { Home, Briefcase, TrendingUp, DollarSign, Mail, Settings, ChevronDown, LogOut } from "lucide-react"
 
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getUserDetails, removeUserDetails } from "@/lib/api/storage";
-import { getCurrentUserDetails } from "@/lib/api/auth";
-import { useAuth } from "@/hooks/useAuth";
-import Image from "next/image";
-import plslogo from "@/assets/pls_logo.jpg";
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { getUserDetails, removeUserDetails } from "@/lib/api/storage"
+import { getCurrentUserDetails } from "@/lib/api/auth"
+import { useAuth } from "@/hooks/useAuth"
 
 const navItems = [
   {
-    title: "All Projects",
+    title: "Home",
+    href: "/dashboard/freelancer",
+    icon: Home,
+  },
+  {
+    title: "Projects",
     href: "/dashboard/freelancer/projects",
-    icon: BarChart3,
+    icon: Briefcase,
   },
   {
-    title: "My Projects",
-    href: "/dashboard/freelancer/my-projects",
-    icon: BarChart4,
+    title: "Project Status",
+    href: "/dashboard/freelancer/project-status",
+    icon: TrendingUp,
   },
   {
-    title: "Contact Us",
+    title: "Project Bid",
+    href: "/dashboard/freelancer/project-bid",
+    icon: DollarSign,
+  },
+  {
+    title: "Contact",
     href: "/dashboard/freelancer/contact-us",
-    icon: MessageCircle,
+    icon: Mail,
   },
   {
     title: "Settings",
     href: "/dashboard/freelancer/settings",
     icon: Settings,
   },
-];
+]
 
-export default function FreelancerLayout({
+export default function DashboardLayout({
   children,
 }: {
-  children: ReactNode;
+  children: ReactNode
 }) {
-  const [userRole, setUserRole] = useState("");
-  const pathname = usePathname();
-  const router = useRouter();
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const { isAuthorized } = useAuth(["FREELANCER"]);
-
-  useEffect(() => {
-    getCurrentUserDetail();
-    const userDetails = getUserDetails();
-    console.log(userDetails);
-    const userRole = userDetails?.role;
-    setUserRole(userRole);
-  }, []);
+  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [fullName, setFullName] = useState("")
+  const [email, setEmail] = useState("")
+  const { isAuthorized } = useAuth(["FREELANCER"])
+  const pathname = usePathname()
+  const router = useRouter()
 
   async function getCurrentUserDetail() {
     try {
-      const userDetails = await getCurrentUserDetails();
-      setFullName(userDetails.data.fullName);
-      setEmail(userDetails.data.email);
+      const userDetails = await getCurrentUserDetails()
+      setFullName(userDetails.data.fullName)
+      setEmail(userDetails.data.email)
+      console.log(userDetails)
     } catch (error) {
-      console.log(error);
+      console.log(error)
     }
   }
 
+  useEffect(() => {
+    getCurrentUserDetail()
+  }, [])
+
   const handleLogout = () => {
-    // Add your logout logic here
-    const userDetails = getUserDetails();
-    console.log("Logging out user:", userDetails);
-    removeUserDetails();
-    router.push("/login");
-  };
-  if(!isAuthorized) return null;
+    const userDetails = getUserDetails()
+    console.log("Logging out user:", userDetails)
+    removeUserDetails()
+    router.push("/login")
+  }
+
+  if (!isAuthorized) return null
 
   return (
     <div className="flex min-h-screen">
@@ -93,76 +90,58 @@ export default function FreelancerLayout({
         animate={{ width: isCollapsed ? 80 : 280 }}
         className="fixed left-0 top-0 z-20 flex h-screen flex-col"
         style={{
-          background:
-            "linear-gradient(180deg, rgba(167, 139, 250, 0.1) 0%, rgba(255, 179, 145, 0.1) 100%)",
+          background: "linear-gradient(180deg, rgba(167, 139, 250, 0.1) 0%, rgba(255, 179, 145, 0.1) 100%)",
         }}
       >
-        <div className="flex h-14 items-center border-r-2 px-3 border-r-[#FF6B35]  bg-[#003087]">
-          <Link
-            href="/"
-            className="flex items-center gap-2 font-semibold"
-          >
-            <Image src={plslogo} alt="PLS LOGO" width="50" height="50" className="bg-[#003087]"/>
+        <div className="flex h-14 items-center border-r-2 px-3 border-r-[#FF6B35] bg-[#003087]">
+          <Link href="/" className="flex items-center gap-2 font-semibold">
+            <div className="w-10 h-10 bg-white rounded flex items-center justify-center text-[#003087] font-bold text-sm">
+              PLS
+            </div>
             {!isCollapsed && (
-              <motion.div
+              <motion.span
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="text-base"
+                className="text-lg"
                 style={{ color: "#003087" }}
               >
                 <div>
-                  {/* <p className="text-lg">PRIME LOGIC SOLUTIONS</p> */}
-                  <p className="text-sm text-[#FF6B35]">{userRole} DASHBOARD</p>
+                  <p className="text-sm text-[#FF6B35]">FREELANCER DASHBOARD</p>
                 </div>
-                
-              </motion.div>
+              </motion.span>
             )}
           </Link>
         </div>
         <ScrollArea className="flex-1 px-4">
           <div className="space-y-2 py-4">
-            {navItems.map((item) => {
-              if (item.title === "Trash" && userRole === "MODERATOR") {
-                return null; // Hide the "Trash" item if the user is not an admin
-              }
-              return (
-                <Button
-                  key={item.title}
-                  asChild
-                  variant="ghost"
-                  className={cn(
-                    "w-full justify-start",
-                    pathname === item.href &&
-                      "bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground"
+            {navItems.map((item) => (
+              <Button
+                key={item.title}
+                asChild
+                variant="ghost"
+                className={cn(
+                  "w-full justify-start",
+                  pathname === item.href &&
+                    "bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground",
+                )}
+              >
+                <Link href={item.href} className="flex items-center gap-3">
+                  <item.icon className={cn("h-4 w-4", pathname === item.href && "text-primary")} />
+                  {!isCollapsed && (
+                    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                      {item.title}
+                    </motion.span>
                   )}
-                >
-                  <Link href={item.href} className="flex items-center gap-3">
-                    <item.icon
-                      className={cn(
-                        "h-4 w-4",
-                        pathname === item.href && "text-primary"
-                      )}
-                    />
-                    {!isCollapsed && (
-                      <motion.span
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                      >
-                        {item.title}
-                      </motion.span>
-                    )}
-                  </Link>
-                </Button>
-              );
-            })}
+                </Link>
+              </Button>
+            ))}
           </div>
         </ScrollArea>
         <div className="border-t">
-          <div className="flex items-center gap-3 bg-[#003087] p-2 shadow-sm">
+          <div className="flex items-center gap-3 bg-[#003087] p-3 shadow-sm">
             <Avatar>
-              <AvatarImage src="/placeholder-avatar.jpg" alt="Client" />
+              <AvatarImage src="/placeholder-user.jpg" alt="Freelancer" />
               <AvatarFallback>
                 {fullName
                   ?.split(" ")
@@ -193,31 +172,17 @@ export default function FreelancerLayout({
           </Button>
         </div>
       </motion.aside>
-      <main
-        className={cn(
-          "flex-1 transition-all",
-          isCollapsed ? "pl-[80px]" : "pl-[280px]"
-        )}
-      >
+      <main className={cn("flex-1 transition-all", isCollapsed ? "pl-[80px]" : "pl-[280px]")}>
         <div className="sticky top-0 z-10 h-14 border-b bg-[#003087] backdrop-blur">
           <div className="flex h-full items-center gap-4 px-6">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsCollapsed(!isCollapsed)}
-            >
-              <ChevronDown
-                className={cn(
-                  "h-4 w-4 transition-transform",
-                  isCollapsed && "rotate-180"
-                )}
-              />
+            <Button variant="ghost" size="icon" onClick={() => setIsCollapsed(!isCollapsed)}>
+              <ChevronDown className={cn("h-4 w-4 transition-transform", isCollapsed && "rotate-180")} />
             </Button>
             <div
               style={{
                 color: "white",
                 fontSize: "1.2rem",
-                fontWeight: "bolder"
+                fontWeight: "bolder",
               }}
             >
               {(pathname.split("/").pop() || "").toUpperCase()}
@@ -227,5 +192,5 @@ export default function FreelancerLayout({
         <div className="p-6">{children}</div>
       </main>
     </div>
-  );
+  )
 }

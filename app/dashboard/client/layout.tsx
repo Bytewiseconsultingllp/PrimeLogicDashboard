@@ -1,28 +1,27 @@
-"use client";
+"use client"
 
-import { useEffect, useState, type ReactNode } from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { motion } from "framer-motion";
-import {
-  BarChart3,
-  MessageCircle,
-  Settings,
-  ChevronDown,
-  LogOut,
-} from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react"
+import Link from "next/link"
+import { usePathname, useRouter } from "next/navigation"
+import { motion } from "framer-motion"
+import { BarChart3, MessageCircle, Settings, ChevronDown, LogOut } from "lucide-react"
 
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getUserDetails, removeUserDetails } from "@/lib/api/storage";
-import { getCurrentUserDetails } from "@/lib/api/auth";
-import { useAuth } from "@/hooks/useAuth";
-import Image from "next/image";
-import plslogo from "@/assets/pls_logo.jpg";
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { getUserDetails, removeUserDetails } from "@/lib/api/storage"
+import { getCurrentUserDetails } from "@/lib/api/auth"
+import { useAuth } from "@/hooks/useAuth"
+import Image from "next/image"
+import plslogo from "@/assets/pls_logo.jpg"
 
 const navItems = [
+  {
+    title: "Home",
+    href: "/dashboard/client",
+    icon: BarChart3,
+  },
   {
     title: "Project Status",
     href: "/dashboard/client/project-status",
@@ -38,43 +37,43 @@ const navItems = [
     href: "/dashboard/client/settings",
     icon: Settings,
   },
-];
+]
 
 export default function ClientDashboardLayout({
   children,
 }: {
-  children: ReactNode;
+  children: ReactNode
 }) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const { isAuthorized } = useAuth(["CLIENT"]);
-  const pathname = usePathname();
-  const router = useRouter();
+  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [fullName, setFullName] = useState("")
+  const [email, setEmail] = useState("")
+  const { isAuthorized } = useAuth(["CLIENT"])
+  const pathname = usePathname()
+  const router = useRouter()
 
   async function getCurrentUserDetail() {
     try {
-      const userDetails = await getCurrentUserDetails();
-      setFullName(userDetails.data.fullName);
-      setEmail(userDetails.data.email);
-      console.log(userDetails);
+      const userDetails = await getCurrentUserDetails()
+      setFullName(userDetails.data.fullName)
+      setEmail(userDetails.data.email)
+      console.log(userDetails)
     } catch (error) {
-      console.log(error);
+      console.log(error)
     }
   }
 
   useEffect(() => {
-    getCurrentUserDetail();
-  }, []);
+    getCurrentUserDetail()
+  }, [])
 
   const handleLogout = () => {
-    const userDetails = getUserDetails();
-    console.log("Logging out user:", userDetails);
-    removeUserDetails();
-    router.push("/login");
-  };
+    const userDetails = getUserDetails()
+    console.log("Logging out user:", userDetails)
+    removeUserDetails()
+    router.push("/login")
+  }
 
-  if (!isAuthorized) return null;
+  if (!isAuthorized) return null
 
   return (
     <div className="flex min-h-screen">
@@ -83,16 +82,12 @@ export default function ClientDashboardLayout({
         animate={{ width: isCollapsed ? 80 : 280 }}
         className="fixed left-0 top-0 z-20 flex h-screen flex-col"
         style={{
-          background:
-            "linear-gradient(180deg, rgba(167, 139, 250, 0.1) 0%, rgba(255, 179, 145, 0.1) 100%)",
+          background: "linear-gradient(180deg, rgba(167, 139, 250, 0.1) 0%, rgba(255, 179, 145, 0.1) 100%)",
         }}
       >
         <div className="flex h-14 items-center border-r-2 px-3 border-r-[#FF6B35]  bg-[#003087]">
-          <Link
-            href="/"
-            className="flex items-center gap-2 font-semibold"
-          >
-            <Image src={plslogo} alt="PLS LOGO" width="50" height="50" className="bg-[#003087]"/>
+          <Link href="/" className="flex items-center gap-2 font-semibold">
+            <Image src={plslogo || "/placeholder.svg"} alt="PLS LOGO" width="50" height="50" className="bg-[#003087]" />
             {!isCollapsed && (
               <motion.span
                 initial={{ opacity: 0 }}
@@ -118,22 +113,13 @@ export default function ClientDashboardLayout({
                 className={cn(
                   "w-full justify-start",
                   pathname === item.href &&
-                    "bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground"
+                    "bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground",
                 )}
               >
                 <Link href={item.href} className="flex items-center gap-3">
-                  <item.icon
-                    className={cn(
-                      "h-4 w-4",
-                      pathname === item.href && "text-primary"
-                    )}
-                  />
+                  <item.icon className={cn("h-4 w-4", pathname === item.href && "text-primary")} />
                   {!isCollapsed && (
-                    <motion.span
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                    >
+                    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                       {item.title}
                     </motion.span>
                   )}
@@ -176,25 +162,11 @@ export default function ClientDashboardLayout({
           </Button>
         </div>
       </motion.aside>
-      <main
-        className={cn(
-          "flex-1 transition-all",
-          isCollapsed ? "pl-[80px]" : "pl-[280px]"
-        )}
-      >
+      <main className={cn("flex-1 transition-all", isCollapsed ? "pl-[80px]" : "pl-[280px]")}>
         <div className="sticky top-0 z-10 h-14 border-b bg-[#003087] backdrop-blur">
           <div className="flex h-full items-center gap-4 px-6">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsCollapsed(!isCollapsed)}
-            >
-              <ChevronDown
-                className={cn(
-                  "h-4 w-4 transition-transform",
-                  isCollapsed && "rotate-180"
-                )}
-              />
+            <Button variant="ghost" size="icon" onClick={() => setIsCollapsed(!isCollapsed)}>
+              <ChevronDown className={cn("h-4 w-4 transition-transform", isCollapsed && "rotate-180")} />
             </Button>
             <div
               style={{
@@ -210,5 +182,5 @@ export default function ClientDashboardLayout({
         <div className="p-6">{children}</div>
       </main>
     </div>
-  );
+  )
 }
