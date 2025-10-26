@@ -5,11 +5,10 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Search, Eye, CheckCircle, XCircle, Trash2, RotateCcw, ChevronLeft, ChevronRight } from "lucide-react"
+import { Search, Eye, ChevronLeft, ChevronRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getUserDetails } from "@/lib/api/storage"
 
 type FreelancerRegistration = {
@@ -121,11 +120,11 @@ type ApiResponse = {
   }
 }
 
-export default function FreelancerRegistrationsPage() {
+export default function AcceptedFreelancersPage() {
   const [searchTerm, setSearchTerm] = useState("")
-  const [registrations, setRegistrations] = useState<FreelancerRegistration[]>([])
-  const [filteredRegistrations, setFilteredRegistrations] = useState<FreelancerRegistration[]>([])
-  const [selectedRegistration, setSelectedRegistration] = useState<FreelancerRegistration | null>(null)
+  const [freelancers, setFreelancers] = useState<FreelancerRegistration[]>([])
+  const [filteredFreelancers, setFilteredFreelancers] = useState<FreelancerRegistration[]>([])
+  const [selectedFreelancer, setSelectedFreelancer] = useState<FreelancerRegistration | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
@@ -133,25 +132,25 @@ export default function FreelancerRegistrationsPage() {
   const { toast } = useToast()
 
   useEffect(() => {
-    fetchRegistrations()
+    fetchAcceptedFreelancers()
   }, [])
 
   useEffect(() => {
     if (searchTerm) {
-      const filtered = registrations.filter(
-        (reg) =>
-          reg.whoYouAre.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          reg.whoYouAre.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          reg.coreRole.primaryDomain.toLowerCase().includes(searchTerm.toLowerCase()),
+      const filtered = freelancers.filter(
+        (freelancer) =>
+          freelancer.whoYouAre.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          freelancer.whoYouAre.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          freelancer.coreRole.primaryDomain.toLowerCase().includes(searchTerm.toLowerCase()),
       )
-      setFilteredRegistrations(filtered)
+      setFilteredFreelancers(filtered)
     } else {
-      setFilteredRegistrations(registrations)
+      setFilteredFreelancers(freelancers)
     }
     setCurrentPage(1)
-  }, [searchTerm, registrations])
+  }, [searchTerm, freelancers])
 
-  const fetchRegistrations = async () => {
+  const fetchAcceptedFreelancers = async () => {
     setIsLoading(true)
     try {
       const userDetails = getUserDetails()
@@ -160,36 +159,36 @@ export default function FreelancerRegistrationsPage() {
       if (!token) {
         toast({
           title: "Error",
-          description: "Please login to view freelancer registrations",
+          description: "Please login to view accepted freelancers",
           variant: "destructive",
         })
         setIsLoading(false)
         return
       }
 
-      const response = await fetch("https://api.primelogicsol.com/api/v1/freelancer/registrations", {
+      const response = await fetch("https://api.primelogicsol.com/api/v1/freelancer/registrations/accepted", {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       })
       const result: ApiResponse = await response.json()
 
       if (result.success && Array.isArray(result.data)) {
-        setRegistrations(result.data)
-        setFilteredRegistrations(result.data)
+        setFreelancers(result.data)
+        setFilteredFreelancers(result.data)
       } else {
         toast({
           title: "Error",
-          description: result.message || "Failed to fetch registrations",
+          description: result.message || "Failed to fetch accepted freelancers",
           variant: "destructive",
         })
       }
     } catch (error) {
-      console.error("[v0] Error fetching registrations:", error)
+      console.error("[v0] Error fetching accepted freelancers:", error)
       toast({
         title: "Error",
-        description: "Failed to fetch registrations",
+        description: "Failed to fetch accepted freelancers",
         variant: "destructive",
       })
     } finally {
@@ -197,203 +196,50 @@ export default function FreelancerRegistrationsPage() {
     }
   }
 
-  const viewRegistration = async (id: string) => {
+  const viewFreelancer = async (id: string) => {
     try {
       const userDetails = getUserDetails()
       const token = userDetails?.accessToken
 
       const response = await fetch(`https://api.primelogicsol.com/api/v1/freelancer/registrations/${id}`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       })
       const result: ApiResponse = await response.json()
 
       if (result.success && result.data && !Array.isArray(result.data)) {
-        setSelectedRegistration(result.data)
+        setSelectedFreelancer(result.data)
         setIsDialogOpen(true)
       } else {
         toast({
           title: "Error",
-          description: result.message || "Failed to fetch registration details",
+          description: result.message || "Failed to fetch freelancer details",
           variant: "destructive",
         })
       }
     } catch (error) {
-      console.error("[v0] Error fetching registration:", error)
+      console.error("[v0] Error fetching freelancer:", error)
       toast({
         title: "Error",
-        description: "Failed to fetch registration details",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const acceptRegistration = async (id: string) => {
-    try {
-      const userDetails = getUserDetails()
-      const token = userDetails?.accessToken
-
-      const response = await fetch(`https://api.primelogicsol.com/api/v1/freelancer/registrations/${id}/accept`, {
-        method: "PATCH",
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      const result: ApiResponse = await response.json()
-
-      if (result.success) {
-        toast({
-          title: "Success",
-          description: result.message,
-        })
-        fetchRegistrations()
-      } else {
-        toast({
-          title: "Error",
-          description: result.message || "Failed to accept registration",
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
-      console.error("[v0] Error accepting registration:", error)
-      toast({
-        title: "Error",
-        description: "Failed to accept registration",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const rejectRegistration = async (id: string) => {
-    try {
-      const userDetails = getUserDetails()
-      const token = userDetails?.accessToken
-
-      const response = await fetch(`https://api.primelogicsol.com/api/v1/freelancer/registrations/${id}/reject`, {
-        method: "DELETE",
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      const result: ApiResponse = await response.json()
-
-      if (result.success) {
-        toast({
-          title: "Success",
-          description: result.message,
-        })
-        fetchRegistrations()
-      } else {
-        toast({
-          title: "Error",
-          description: result.message || "Failed to reject registration",
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
-      console.error("[v0] Error rejecting registration:", error)
-      toast({
-        title: "Error",
-        description: "Failed to reject registration",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const trashRegistration = async (id: string) => {
-    try {
-      const userDetails = getUserDetails()
-      const token = userDetails?.accessToken
-
-      const response = await fetch(`https://api.primelogicsol.com/api/v1/freelancer/registrations/${id}/trash`, {
-        method: "PATCH",
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      const result: ApiResponse = await response.json()
-
-      if (result.success) {
-        toast({
-          title: "Success",
-          description: result.message,
-        })
-        fetchRegistrations()
-      } else {
-        toast({
-          title: "Error",
-          description: result.message || "Failed to trash registration",
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
-      console.error("[v0] Error trashing registration:", error)
-      toast({
-        title: "Error",
-        description: "Failed to trash registration",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const untrashRegistration = async (id: string) => {
-    try {
-      const userDetails = getUserDetails()
-      const token = userDetails?.accessToken
-
-      const response = await fetch(`https://api.primelogicsol.com/api/v1/freelancer/registrations/${id}/untrash`, {
-        method: "PATCH",
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      const result: ApiResponse = await response.json()
-
-      if (result.success) {
-        toast({
-          title: "Success",
-          description: result.message,
-        })
-        fetchRegistrations()
-      } else {
-        toast({
-          title: "Error",
-          description: result.message || "Failed to restore registration",
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
-      console.error("[v0] Error restoring registration:", error)
-      toast({
-        title: "Error",
-        description: "Failed to restore registration",
+        description: "Failed to fetch freelancer details",
         variant: "destructive",
       })
     }
   }
 
   // Pagination
-  const totalPages = Math.ceil(filteredRegistrations.length / itemsPerPage)
+  const totalPages = Math.ceil(filteredFreelancers.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
-  const currentRegistrations = filteredRegistrations.slice(startIndex, endIndex)
-
-  // Separate registrations by status
-  const activeRegistrations = currentRegistrations.filter((reg) => !reg.trashedAt && !reg.isAccepted)
-  const acceptedRegistrations = currentRegistrations.filter((reg) => reg.isAccepted)
-  const trashedRegistrations = currentRegistrations.filter((reg) => reg.trashedAt)
+  const currentFreelancers = filteredFreelancers.slice(startIndex, endIndex)
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="mb-2 text-3xl font-bold">Freelancer Registrations</h1>
-        <p className="text-muted-foreground">Manage and review freelancer registration applications</p>
+        <h1 className="mb-2 text-3xl font-bold">Accepted Freelancers</h1>
+        <p className="text-muted-foreground">View all accepted freelancers in the system</p>
       </div>
 
       {/* Search Bar */}
@@ -413,192 +259,74 @@ export default function FreelancerRegistrationsPage() {
         <div className="flex h-64 items-center justify-center">
           <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-primary"></div>
         </div>
-      ) : filteredRegistrations.length === 0 ? (
+      ) : filteredFreelancers.length === 0 ? (
         <div className="rounded-lg bg-muted py-12 text-center">
-          <p className="text-lg text-muted-foreground">No registrations found</p>
+          <p className="text-lg text-muted-foreground">No accepted freelancers found</p>
         </div>
       ) : (
         <>
-          {/* Tabs for different statuses */}
-          <Tabs defaultValue="pending" className="w-full">
-            <TabsList className="mb-4 grid w-full grid-cols-3">
-              <TabsTrigger value="pending">Pending ({activeRegistrations.length})</TabsTrigger>
-              <TabsTrigger value="accepted">Accepted ({acceptedRegistrations.length})</TabsTrigger>
-              <TabsTrigger value="trashed">Trashed ({trashedRegistrations.length})</TabsTrigger>
-            </TabsList>
-
-            {/* Pending Registrations */}
-            <TabsContent value="pending">
-              <div className="overflow-hidden rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Domain</TableHead>
-                      <TableHead>Skills</TableHead>
-                      <TableHead>Experience</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+          {/* Accepted Freelancers Table */}
+          <div className="overflow-hidden rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Domain</TableHead>
+                  <TableHead>Skills</TableHead>
+                  <TableHead>Experience</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {currentFreelancers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground">
+                      No freelancers available
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  currentFreelancers.map((freelancer) => (
+                    <TableRow key={freelancer.id}>
+                      <TableCell className="font-medium">{freelancer.whoYouAre.fullName}</TableCell>
+                      <TableCell>{freelancer.whoYouAre.email}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">{freelancer.coreRole.primaryDomain}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {freelancer.eliteSkillCards.selectedSkills.slice(0, 2).map((skill, idx) => (
+                            <Badge key={idx} variant="outline" className="text-xs">
+                              {skill}
+                            </Badge>
+                          ))}
+                          {freelancer.eliteSkillCards.selectedSkills.length > 2 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{freelancer.eliteSkillCards.selectedSkills.length - 2}
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {freelancer.domainExperience.roles.reduce((total, role) => total + role.years, 0)} years
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => viewFreelancer(freelancer.id)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {activeRegistrations.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground">
-                          No pending registrations
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      activeRegistrations.map((registration) => (
-                        <TableRow key={registration.id}>
-                          <TableCell className="font-medium">{registration.whoYouAre.fullName}</TableCell>
-                          <TableCell>{registration.whoYouAre.email}</TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">{registration.coreRole.primaryDomain}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {registration.eliteSkillCards.selectedSkills.slice(0, 2).map((skill, idx) => (
-                                <Badge key={idx} variant="outline" className="text-xs">
-                                  {skill}
-                                </Badge>
-                              ))}
-                              {registration.eliteSkillCards.selectedSkills.length > 2 && (
-                                <Badge variant="outline" className="text-xs">
-                                  +{registration.eliteSkillCards.selectedSkills.length - 2}
-                                </Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {registration.domainExperience.roles.reduce((total, role) => total + role.years, 0)} years
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button variant="ghost" size="icon" onClick={() => viewRegistration(registration.id)}>
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => acceptRegistration(registration.id)}>
-                                <CheckCircle className="h-4 w-4 text-green-600" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => rejectRegistration(registration.id)}>
-                                <XCircle className="h-4 w-4 text-red-600" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => trashRegistration(registration.id)}>
-                                <Trash2 className="h-4 w-4 text-orange-600" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </TabsContent>
-
-            {/* Accepted Registrations */}
-            <TabsContent value="accepted">
-              <div className="overflow-hidden rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Domain</TableHead>
-                      <TableHead>User ID</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {acceptedRegistrations.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground">
-                          No accepted registrations
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      acceptedRegistrations.map((registration) => (
-                        <TableRow key={registration.id}>
-                          <TableCell className="font-medium">{registration.whoYouAre.fullName}</TableCell>
-                          <TableCell>{registration.whoYouAre.email}</TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">{registration.coreRole.primaryDomain}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className="bg-green-600">{registration.userId || "N/A"}</Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="ghost" size="icon" onClick={() => viewRegistration(registration.id)}>
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </TabsContent>
-
-            {/* Trashed Registrations */}
-            <TabsContent value="trashed">
-              <div className="overflow-hidden rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Domain</TableHead>
-                      <TableHead>Trashed At</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {trashedRegistrations.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground">
-                          No trashed registrations
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      trashedRegistrations.map((registration) => (
-                        <TableRow key={registration.id}>
-                          <TableCell className="font-medium">{registration.whoYouAre.fullName}</TableCell>
-                          <TableCell>{registration.whoYouAre.email}</TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">{registration.coreRole.primaryDomain}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            {registration.trashedAt ? new Date(registration.trashedAt).toLocaleDateString() : "N/A"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button variant="ghost" size="icon" onClick={() => viewRegistration(registration.id)}>
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => untrashRegistration(registration.id)}>
-                                <RotateCcw className="h-4 w-4 text-blue-600" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => rejectRegistration(registration.id)}>
-                                <XCircle className="h-4 w-4 text-red-600" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </TabsContent>
-          </Tabs>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
 
           {/* Pagination */}
           <div className="mt-6 flex items-center justify-between">
             <div className="text-sm text-muted-foreground">
-              Showing {startIndex + 1} to {Math.min(endIndex, filteredRegistrations.length)} of{" "}
-              {filteredRegistrations.length} registrations
+              Showing {startIndex + 1} to {Math.min(endIndex, filteredFreelancers.length)} of{" "}
+              {filteredFreelancers.length} freelancers
             </div>
 
             <div className="flex items-center gap-2">
@@ -632,11 +360,11 @@ export default function FreelancerRegistrationsPage() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-h-[80vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Registration Details</DialogTitle>
-            <DialogDescription>Complete information about the freelancer registration</DialogDescription>
+            <DialogTitle>Freelancer Details</DialogTitle>
+            <DialogDescription>Complete information about the accepted freelancer</DialogDescription>
           </DialogHeader>
 
-          {selectedRegistration && (
+          {selectedFreelancer && (
             <div className="space-y-6">
               {/* Personal Information */}
               <Card>
@@ -646,43 +374,43 @@ export default function FreelancerRegistrationsPage() {
                 <CardContent className="grid gap-4 md:grid-cols-2">
                   <div>
                     <p className="text-sm font-medium">Full Name</p>
-                    <p className="text-sm text-muted-foreground">{selectedRegistration.whoYouAre.fullName}</p>
+                    <p className="text-sm text-muted-foreground">{selectedFreelancer.whoYouAre.fullName}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium">Email</p>
-                    <p className="text-sm text-muted-foreground">{selectedRegistration.whoYouAre.email}</p>
+                    <p className="text-sm text-muted-foreground">{selectedFreelancer.whoYouAre.email}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium">Time Zone</p>
-                    <p className="text-sm text-muted-foreground">{selectedRegistration.whoYouAre.timeZone}</p>
+                    <p className="text-sm text-muted-foreground">{selectedFreelancer.whoYouAre.timeZone}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium">Country</p>
-                    <p className="text-sm text-muted-foreground">{selectedRegistration.whoYouAre.country}</p>
+                    <p className="text-sm text-muted-foreground">{selectedFreelancer.whoYouAre.country}</p>
                   </div>
-                  {selectedRegistration.whoYouAre.professionalLinks.github && (
+                  {selectedFreelancer.whoYouAre.professionalLinks.github && (
                     <div>
                       <p className="text-sm font-medium">GitHub</p>
                       <a
-                        href={selectedRegistration.whoYouAre.professionalLinks.github}
+                        href={selectedFreelancer.whoYouAre.professionalLinks.github}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-sm text-blue-600 hover:underline"
                       >
-                        {selectedRegistration.whoYouAre.professionalLinks.github}
+                        {selectedFreelancer.whoYouAre.professionalLinks.github}
                       </a>
                     </div>
                   )}
-                  {selectedRegistration.whoYouAre.professionalLinks.linkedin && (
+                  {selectedFreelancer.whoYouAre.professionalLinks.linkedin && (
                     <div>
                       <p className="text-sm font-medium">LinkedIn</p>
                       <a
-                        href={selectedRegistration.whoYouAre.professionalLinks.linkedin}
+                        href={selectedFreelancer.whoYouAre.professionalLinks.linkedin}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-sm text-blue-600 hover:underline"
                       >
-                        {selectedRegistration.whoYouAre.professionalLinks.linkedin}
+                        {selectedFreelancer.whoYouAre.professionalLinks.linkedin}
                       </a>
                     </div>
                   )}
@@ -697,12 +425,12 @@ export default function FreelancerRegistrationsPage() {
                 <CardContent className="space-y-4">
                   <div>
                     <p className="mb-2 text-sm font-medium">Primary Domain</p>
-                    <Badge>{selectedRegistration.coreRole.primaryDomain}</Badge>
+                    <Badge>{selectedFreelancer.coreRole.primaryDomain}</Badge>
                   </div>
                   <div>
                     <p className="mb-2 text-sm font-medium">Elite Skills</p>
                     <div className="flex flex-wrap gap-2">
-                      {selectedRegistration.eliteSkillCards.selectedSkills.map((skill, idx) => (
+                      {selectedFreelancer.eliteSkillCards.selectedSkills.map((skill, idx) => (
                         <Badge key={idx} variant="secondary">
                           {skill}
                         </Badge>
@@ -718,7 +446,7 @@ export default function FreelancerRegistrationsPage() {
                   <CardTitle>Toolstack Proficiency</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {selectedRegistration.toolstackProficiency.selectedTools.map((toolGroup, idx) => (
+                  {selectedFreelancer.toolstackProficiency.selectedTools.map((toolGroup, idx) => (
                     <div key={idx}>
                       <p className="mb-2 text-sm font-medium">{toolGroup.category}</p>
                       <div className="flex flex-wrap gap-2">
@@ -742,7 +470,7 @@ export default function FreelancerRegistrationsPage() {
                   <div>
                     <p className="mb-2 text-sm font-medium">Domain Experience</p>
                     <div className="space-y-2">
-                      {selectedRegistration.domainExperience.roles.map((role, idx) => (
+                      {selectedFreelancer.domainExperience.roles.map((role, idx) => (
                         <div key={idx} className="flex items-center justify-between">
                           <span className="text-sm">{role.title}</span>
                           <Badge variant="secondary">{role.years} years</Badge>
@@ -753,7 +481,7 @@ export default function FreelancerRegistrationsPage() {
                   <div>
                     <p className="mb-2 text-sm font-medium">Industry Experience</p>
                     <div className="flex flex-wrap gap-2">
-                      {selectedRegistration.industryExperience.selectedIndustries.map((industry, idx) => (
+                      {selectedFreelancer.industryExperience.selectedIndustries.map((industry, idx) => (
                         <Badge key={idx} variant="outline">
                           {industry}
                         </Badge>
@@ -772,19 +500,17 @@ export default function FreelancerRegistrationsPage() {
                   <div>
                     <p className="text-sm font-medium">Weekly Commitment</p>
                     <p className="text-sm text-muted-foreground">
-                      {selectedRegistration.availabilityWorkflow.weeklyCommitment} hours/week
+                      {selectedFreelancer.availabilityWorkflow.weeklyCommitment} hours/week
                     </p>
                   </div>
                   <div>
                     <p className="text-sm font-medium">Team Style</p>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedRegistration.availabilityWorkflow.teamStyle}
-                    </p>
+                    <p className="text-sm text-muted-foreground">{selectedFreelancer.availabilityWorkflow.teamStyle}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium">Working Hours</p>
                     <div className="flex flex-wrap gap-1">
-                      {selectedRegistration.availabilityWorkflow.workingHours.map((hour, idx) => (
+                      {selectedFreelancer.availabilityWorkflow.workingHours.map((hour, idx) => (
                         <Badge key={idx} variant="outline" className="text-xs">
                           {hour}
                         </Badge>
@@ -794,7 +520,7 @@ export default function FreelancerRegistrationsPage() {
                   <div>
                     <p className="text-sm font-medium">Collaboration Tools</p>
                     <div className="flex flex-wrap gap-1">
-                      {selectedRegistration.availabilityWorkflow.collaborationTools.map((tool, idx) => (
+                      {selectedFreelancer.availabilityWorkflow.collaborationTools.map((tool, idx) => (
                         <Badge key={idx} variant="outline" className="text-xs">
                           {tool}
                         </Badge>
@@ -813,39 +539,39 @@ export default function FreelancerRegistrationsPage() {
                   <div>
                     <p className="text-sm font-medium">Compensation Preference</p>
                     <p className="text-sm text-muted-foreground">
-                      {selectedRegistration.projectQuoting.compensationPreference}
+                      {selectedFreelancer.projectQuoting.compensationPreference}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm font-medium">Small Project Rate</p>
                     <p className="text-sm text-muted-foreground">
-                      ${selectedRegistration.projectQuoting.smallProjectPrice}/hr
+                      ${selectedFreelancer.projectQuoting.smallProjectPrice}/hr
                     </p>
                   </div>
                   <div>
                     <p className="text-sm font-medium">Mid Project Rate</p>
                     <p className="text-sm text-muted-foreground">
-                      ${selectedRegistration.projectQuoting.midProjectPrice}/hr
+                      ${selectedFreelancer.projectQuoting.midProjectPrice}/hr
                     </p>
                   </div>
                   <div>
                     <p className="text-sm font-medium">Long-term Rate</p>
                     <p className="text-sm text-muted-foreground">
-                      ${selectedRegistration.projectQuoting.longTermPrice}/hr
+                      ${selectedFreelancer.projectQuoting.longTermPrice}/hr
                     </p>
                   </div>
                 </CardContent>
               </Card>
 
               {/* Certifications */}
-              {selectedRegistration.certifications.certificates.length > 0 && (
+              {selectedFreelancer.certifications.certificates.length > 0 && (
                 <Card>
                   <CardHeader>
                     <CardTitle>Certifications</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
-                      {selectedRegistration.certifications.certificates.map((cert, idx) => (
+                      {selectedFreelancer.certifications.certificates.map((cert, idx) => (
                         <div key={idx} className="flex items-center justify-between">
                           <span className="text-sm">{cert.name}</span>
                           <a
@@ -869,4 +595,3 @@ export default function FreelancerRegistrationsPage() {
     </div>
   )
 }
-
