@@ -27,7 +27,7 @@ export default function Forbidden() {
             Go Back
           </Button> */}
           <Button variant="outline" asChild>
-            <Link href="/">Return Home</Link>
+            <Link href="https://primelogicd.vercel.app">Return Home</Link>
           </Button>
         </div>
       </div>
