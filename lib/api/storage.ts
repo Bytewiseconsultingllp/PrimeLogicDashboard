@@ -36,3 +36,27 @@ export const getUserDetails = (): any | null => {
 export const removeUserDetails = () => {
     Cookies.remove("userDetails");
 };
+
+export function getAuthToken(accessToken: any) {
+  if (typeof window === "undefined") return null
+  return localStorage.getItem("authToken")
+}
+
+// Store freelancer profile in localStorage
+export const setFreelancerProfile = (profile: object) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem("freelancerProfile", JSON.stringify(profile));
+};
+
+// Retrieve freelancer profile from localStorage
+export const getFreelancerProfile = (): any | null => {
+  if (typeof window === "undefined") return null;
+  const profile = localStorage.getItem("freelancerProfile");
+  return profile ? JSON.parse(profile) : null;
+};
+
+// Remove freelancer profile from localStorage
+export const removeFreelancerProfile = () => {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("freelancerProfile");
+};

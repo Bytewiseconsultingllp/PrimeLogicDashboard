@@ -205,6 +205,11 @@ import Image from "next/image"
 
 const navItems = [
   {
+    title: "Home",
+    href: "/dashboard/client",
+    icon: BarChart3,
+  },
+  {
     title: "Project Status",
     href: "/dashboard/client/project-status",
     icon: BarChart3,

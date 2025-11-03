@@ -1,0 +1,1607 @@
+generator client {
+  provider = "prisma-client-js"
+
+  previewFeatures = ["fullTextSearchPostgres"]
+  binaryTargets   = ["native", "darwin-arm64"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model RateLimiterFlexible {
+  key    String    @id
+  points Int
+  expire DateTime?
+}
+
+enum Role {
+  CLIENT
+  ADMIN
+  MODERATOR
+  FREELANCER
+}
+
+enum KPIRANK {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINIUM
+  DIAMOND
+  CROWN
+  ACE
+  CONQUERER
+}
+
+model User {
+  uid                     String    @id @default(cuid())
+  username                String    @unique
+  fullName                String
+  email                   String    @unique
+  password                String
+  role                    Role      @default(CLIENT)
+  otpPassword             String?   @unique
+  giveModeratorFullAccess Boolean   @default(false)
+  otpPasswordExpiry       DateTime?
+  emailVerifiedAt         DateTime?
+  phone                   String?   @unique
+  tokenVersion            Int       @default(0)
+  address                 String?
+  detail                  String?
+  portfolioUrl            String?
+  niche                   String?
+  topProjects             String[]  @default([])
+  kpi                     Json[]    @default([])
+  kpiHistory              Json[]    @default([])
+  kpiRank                 KPIRANK   @default(BRONZE)
+  kpiRankPoints           Int       @default(0)
+  trashedBy               String?
+  trashedAt               DateTime?
+  isActive                Boolean   @default(true) // For deactivating users (especially moderators)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  // Relations
+  visitors           Visitor[]   // Visitors that converted to this client
+  projects           Project[]   // Projects owned by this client
+  payments           Payment[]   // Payments made by this client
+  freelancer         Freelancer? // Freelancer profile (if user is a freelancer)
+  moderatedProjects  Project[]   @relation("ProjectModerator") // Projects moderated by this user
+
+  @@index([trashedAt])
+  @@index([trashedBy])
+  @@index([uid])
+  @@index([username])
+  @@index([email])
+  @@index([role, createdAt])
+  @@index([role, isActive])
+  @@index([otpPassword], name: "otp_user_idx")
+  @@index([role, username], name: "role_name_user_idx")
+}
+
+model ContactUs {
+  id        Int       @id @default(autoincrement())
+  firstName String
+  lastName  String
+  email     String
+  message   String
+  createdAt DateTime  @default(now())
+  trashedBy String?
+  trashedAt DateTime?
+
+  @@index([trashedAt])
+  @@index([trashedBy])
+  @@index([email])
+  @@index([createdAt])
+  @@index([message])
+  @@map("ContactUs")
+}
+
+model Newsletter {
+  id                 String  @id @default(cuid())
+  email              String  @unique
+  subscriptionStatus Boolean @default(true)
+
+  createdAt DateTime @default(now())
+}
+
+model MenuItem {
+  id          Int        @id @default(autoincrement())
+  title       String
+  description String?
+  slug        String     @unique
+  href        String?
+  image       String?
+  parentId    Int?
+  parent      MenuItem?  @relation("ParentChild", fields: [parentId], references: [id], onDelete: Cascade)
+  children    MenuItem[] @relation("ParentChild")
+  trashedBy   String?
+  trashedAt   DateTime?
+
+  @@index([trashedAt])
+  @@index([trashedBy])
+  @@index([id])
+  @@index([parentId])
+}
+
+model GetQuote {
+  id        Int       @id @default(autoincrement())
+  name      String
+  email     String
+  phone     String
+  company   String?   @default("")
+  address   String
+  deadline  String?
+  services  String
+  detail    String?   @default("")
+  createdAt DateTime  @default(now())
+  trashedBy String?
+  trashedAt DateTime?
+
+  @@index([email])
+  @@index([id])
+  @@index([createdAt])
+  @@index([trashedAt])
+  @@index([trashedBy])
+  @@map("GetQuote")
+}
+
+enum consultationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model ConsultationBooking {
+  id          Int                @id @default(autoincrement())
+  name        String
+  email       String
+  phone       String
+  message     String
+  bookingDate DateTime           @unique
+  status      consultationStatus @default(PENDING)
+  subject     String
+  address     String
+  trashedBy   String?
+  trashedAt   DateTime?
+  createdAt   DateTime           @default(now())
+
+  @@index([id])
+  @@index([email])
+  @@index([bookingDate])
+  @@index([status])
+  @@index([trashedAt])
+  @@index([trashedBy])
+}
+
+model HireUs {
+  id        Int       @id @default(autoincrement())
+  name      String
+  email     String
+  phone     String
+  company   String?   @default("")
+  address   String
+  detail    String
+  docs      Json[]
+  createdAt DateTime  @default(now())
+  trashedBy String?
+  trashedAt DateTime?
+
+  @@index([email])
+  @@index([id])
+  @@index([createdAt])
+  @@index([trashedAt])
+  @@index([trashedBy])
+}
+
+model BlogPost {
+  blogId        Int      @id @default(autoincrement())
+  blogTitle     String   @unique
+  blogSlug      String   @unique
+  blogThumbnail String
+  blogOverview  String
+  blogBody      String
+  isPublished   Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  @@index([blogId])
+  @@index([blogTitle])
+  @@index([blogSlug])
+  @@index([createdAt])
+  @@index([blogBody])
+  @@map("blogposts")
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CARD
+  BANK_TRANSFER
+  WALLET
+}
+
+model Payment {
+  id     String  @id @default(uuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [uid])
+
+  // Project and Visitor relations
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id])
+  visitorId String?
+  visitor   Visitor? @relation(fields: [visitorId], references: [id])
+
+  // Stripe related fields
+  stripePaymentIntentId String? @unique
+  stripeSessionId       String? @unique
+  stripeCustomerId      String?
+
+  // Payment details
+  amount        Int // Amount in cents
+  currency      String        @default("usd")
+  status        PaymentStatus @default(PENDING)
+  paymentMethod PaymentMethod @default(CARD)
+
+  // Client information
+  clientEmail String
+  clientName  String?
+  clientPhone String?
+
+  // Payment metadata
+  description String?
+  metadata    Json?
+
+  // Timestamps
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  paidAt     DateTime?
+  refundedAt DateTime?
+
+  // Soft delete
+  trashedBy String?
+  trashedAt DateTime?
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([visitorId])
+  @@index([stripePaymentIntentId])
+  @@index([stripeSessionId])
+  @@index([clientEmail])
+  @@index([status])
+  @@index([createdAt])
+  @@index([trashedAt])
+  @@index([trashedBy])
+}
+
+// ============================================
+// VISITOR MODELS
+// ============================================
+
+enum ServiceCategory {
+  SOFTWARE_DEVELOPMENT
+  DATA_AND_ANALYTICS
+  CLOUD_AND_DEVOPS
+  EMERGING_TECHNOLOGIES
+  CREATIVE_AND_DESIGN
+  DIGITAL_MARKETING
+}
+
+enum IndustryCategory {
+  HEALTHCARE_AND_LIFE_SCIENCES
+  FINANCIAL_SERVICES
+  RETAIL_AND_ECOMMERCE
+  MANUFACTURING
+  EDUCATION
+  GOVERNMENT_AND_PUBLIC_SECTOR
+}
+
+enum IndustrySubIndustry {
+  // Healthcare & Life Sciences
+  HEALTHCARE_PROVIDERS
+  PHARMACEUTICALS
+  MEDICAL_DEVICES
+  BIOTECHNOLOGY
+  HEALTH_INSURANCE
+
+  // Financial Services
+  BANKING
+  INSURANCE
+  INVESTMENT_MANAGEMENT
+  PAYMENTS
+  LENDING
+  BLOCKCHAIN_AND_CRYPTO
+
+  // Retail & E-commerce
+  ONLINE_RETAIL
+  BRICK_AND_MORTAR
+  OMNICHANNEL
+  FASHION_AND_APPAREL
+  CONSUMER_GOODS
+
+  // Manufacturing
+  AUTOMOTIVE
+  INDUSTRIAL_EQUIPMENT
+  ELECTRONICS
+  AEROSPACE_AND_DEFENSE
+  CHEMICAL_AND_MATERIALS
+  SMART_MANUFACTURING
+
+  // Education
+  K_12_EDUCATION
+  HIGHER_EDUCATION
+  PROFESSIONAL_TRAINING
+  EDTECH
+  RESEARCH_AND_DEVELOPMENT
+
+  // Government & Public Sector
+  FEDERAL_GOVERNMENT
+  STATE_AND_LOCAL
+  PUBLIC_HEALTHCARE
+  PUBLIC_INFRASTRUCTURE
+  CIVIC_TECHNOLOGY
+}
+
+model Visitor {
+  id String @id @default(uuid())
+
+  // Link to client if visitor converted
+  clientId String?
+  client   User?   @relation(fields: [clientId], references: [uid])
+
+  // Conversion tracking
+  isConverted Boolean   @default(false)
+  convertedAt DateTime?
+
+  // Relations to visitor sub-tables
+  details          VisitorDetails?
+  services         VisitorService[]
+  industries       VisitorIndustries[]
+  technologies     VisitorTechnologies[]
+  features         VisitorFeatures[]
+  discount         VisitorDiscount?
+  timeline         VisitorTimeline?
+  estimate         VisitorEstimate?
+  serviceAgreement VisitorServiceAgreement?
+  projects         Project[]
+  payments         Payment[]
+
+  // Lead tracking
+  ipAddress String? @db.VarChar(45)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([clientId])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+model VisitorDetails {
+  id        String  @id @default(uuid())
+  visitorId String  @unique
+  visitor   Visitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+
+  fullName        String  @db.VarChar(200)
+  businessEmail   String  @db.VarChar(254)
+  phoneNumber     String? @db.VarChar(32)
+  companyName     String  @db.VarChar(200)
+  companyWebsite  String? @db.VarChar(2048)
+  businessAddress String? @db.Text
+  businessType    String  @db.VarChar(200)
+  referralSource  String  @db.VarChar(200)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([businessEmail])
+  @@index([phoneNumber])
+  @@index([companyName])
+}
+
+model VisitorService {
+  id        String  @id @default(uuid())
+  visitorId String
+  visitor   Visitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+
+  name          ServiceCategory
+  childServices String[]
+
+  selectedAt DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  @@index([visitorId])
+  @@index([deletedAt])
+}
+
+model VisitorIndustries {
+  id        String  @id @default(uuid())
+  visitorId String
+  visitor   Visitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+
+  category      IndustryCategory
+  subIndustries IndustrySubIndustry[]
+
+  selectedAt DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  @@index([visitorId])
+  @@index([deletedAt])
+  @@index([category])
+}
+
+enum TechnologyCategory {
+  FRONTEND
+  BACKEND
+  DATABASE
+  AI_AND_DATA_SCIENCE
+  DEVOPS_AND_INFRASTRUCTURE
+  MOBILE
+}
+
+enum TechnologyItem {
+  // Frontend
+  REACT
+  ANGULAR
+  VUE_JS
+  NEXT_JS
+  SVELTE
+  JQUERY
+
+  // Backend
+  NODE_JS
+  PYTHON_DJANGO
+  JAVA_SPRING
+  PHP_LARAVEL
+  RUBY_ON_RAILS
+  DOTNET_CORE
+
+  // Database
+  POSTGRESQL
+  MONGODB
+  MYSQL
+  REDIS
+  FIREBASE
+  SQL_SERVER
+
+  // AI & Data Science
+  TENSORFLOW
+  PYTORCH
+  OPENAI_API
+  SCIKIT_LEARN
+  PANDAS
+  COMPUTER_VISION
+
+  // DevOps & Infrastructure
+  AWS
+  DOCKER
+  KUBERNETES
+  GITHUB_ACTIONS
+  TERRAFORM
+  JENKINS
+
+  // Mobile
+  REACT_NATIVE
+  FLUTTER
+  SWIFT_IOS
+  KOTLIN_ANDROID
+  XAMARIN
+  IONIC
+}
+
+model VisitorTechnologies {
+  id        String  @id @default(uuid())
+  visitorId String
+  visitor   Visitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+
+  category     TechnologyCategory
+  technologies TechnologyItem[]
+
+  selectedAt DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  @@unique([visitorId, category])
+  @@index([visitorId])
+  @@index([deletedAt])
+  @@index([category])
+}
+
+enum FeatureCategory {
+  USER_MANAGEMENT
+  CONTENT_MANAGEMENT
+  ECOMMERCE
+  ANALYTICS_AND_REPORTING
+  COMMUNICATION
+  INTEGRATION_AND_API
+}
+
+enum FeatureItem {
+  // User Management
+  AUTHENTICATION
+  ROLE_BASED_ACCESS_CONTROL
+  USER_PROFILES
+  SOCIAL_LOGIN
+
+  // Content Management
+  RICH_TEXT_EDITOR
+  MEDIA_LIBRARY
+  CONTENT_VERSIONING
+  CONTENT_SCHEDULING
+
+  // E-commerce
+  PRODUCT_CATALOG
+  SHOPPING_CART
+  PAYMENT_PROCESSING
+  INVENTORY_MANAGEMENT
+
+  // Analytics & Reporting
+  DASHBOARD
+  CUSTOM_REPORTS
+  USER_ANALYTICS
+  PERFORMANCE_METRICS
+
+  // Communication
+  EMAIL_NOTIFICATIONS
+  IN_APP_MESSAGING
+  PUSH_NOTIFICATIONS
+  COMMENTS_AND_FEEDBACK
+
+  // Integration & API
+  RESTFUL_API
+  WEBHOOKS
+  THIRD_PARTY_INTEGRATIONS
+  DATA_IMPORT_EXPORT
+}
+
+model VisitorFeatures {
+  id        String  @id @default(uuid())
+  visitorId String
+  visitor   Visitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+
+  category FeatureCategory
+  features FeatureItem[]
+
+  selectedAt DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  @@unique([visitorId, category])
+  @@index([visitorId])
+  @@index([deletedAt])
+  @@index([category])
+}
+
+enum DiscountType {
+  STARTUP_FOUNDER
+  VETERAN_OWNED_BUSINESS
+  NONPROFIT_ORGANIZATION
+  NOT_ELIGIBLE
+}
+
+model VisitorDiscount {
+  id        String  @id @default(uuid())
+  visitorId String  @unique
+  visitor   Visitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+
+  type    DiscountType
+  percent Int          @db.SmallInt
+  notes   String?      @db.Text
+
+  selectedAt DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  @@index([deletedAt])
+}
+
+enum TimelineOption {
+  STANDARD_BUILD
+  PRIORITY_BUILD
+  ACCELERATED_BUILD
+  RAPID_BUILD
+  FAST_TRACK_BUILD
+}
+
+model VisitorTimeline {
+  id        String  @id @default(uuid())
+  visitorId String  @unique
+  visitor   Visitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+
+  option         TimelineOption
+  rushFeePercent Int            @db.SmallInt
+  estimatedDays  Int            @db.SmallInt
+
+  description String?   @db.Text
+  selectedAt  DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([deletedAt])
+}
+
+model VisitorEstimate {
+  id        String  @id @default(uuid())
+  visitorId String  @unique
+  visitor   Visitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+
+  estimateAccepted      Boolean
+  estimateFinalPriceMin Decimal @db.Decimal(18, 2)
+  estimateFinalPriceMax Decimal @db.Decimal(18, 2)
+
+  // Calculation tracking
+  isManuallyAdjusted Boolean  @default(false)
+  baseCost           Decimal? @db.Decimal(18, 2)
+  discountAmount     Decimal? @db.Decimal(18, 2)
+  rushFeeAmount      Decimal? @db.Decimal(18, 2)
+  calculatedTotal    Decimal? @db.Decimal(18, 2)
+
+  calculatedAt DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  @@index([deletedAt])
+}
+
+model VisitorServiceAgreement {
+  id        String  @id @default(uuid())
+  visitorId String  @unique
+  visitor   Visitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+
+  documentUrl      String  @db.VarChar(2048)
+  agreementVersion String? @db.VarChar(100)
+
+  accepted   Boolean  @default(true)
+  acceptedAt DateTime @default(now())
+
+  ipAddress String? @db.VarChar(45)
+  userAgent String? @db.Text
+  locale    String? @db.VarChar(35)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([acceptedAt])
+  @@index([deletedAt])
+}
+
+// ============================================
+// PROJECT MODELS
+// ============================================
+
+model Project {
+  id String @id @default(uuid())
+
+  // Link to the client who owns this project
+  clientId String
+  client   User   @relation(fields: [clientId], references: [uid])
+
+  // Optional link back to the originating visitor
+  visitorId String?
+  visitor   Visitor? @relation(fields: [visitorId], references: [id], onDelete: SetNull)
+
+  // Moderator assignment (one moderator per project)
+  assignedModeratorId String?
+  assignedModerator   User?   @relation("ProjectModerator", fields: [assignedModeratorId], references: [uid], onDelete: SetNull)
+
+  // Project-level sub tables
+  details          ProjectDetails?
+  services         ProjectService[]
+  industries       ProjectIndustries[]
+  technologies     ProjectTechnologies[]
+  features         ProjectFeatures[]
+  discount         ProjectDiscount?
+  timeline         ProjectTimeline?
+  estimate         ProjectEstimate?
+  serviceAgreement ProjectServiceAgreement?
+  milestones       Milestone[]
+  payments         Payment[]
+  paymentAgreements MilestonePaymentAgreement[] // Payment agreements for milestones
+
+  // Freelancer relations
+  bids                FreelancerBid[] // All bids from freelancers
+  selectedFreelancers Freelancer[]    @relation("SelectedFreelancers")
+
+  discordChatUrl String? @db.VarChar(2048)
+
+  // Payment tracking
+  paymentStatus PaymentStatus @default(PENDING)
+
+  // Bid Management - Control whether project is accepting new bids
+  acceptingBids Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([clientId])
+  @@index([visitorId])
+  @@index([assignedModeratorId])
+  @@index([createdAt])
+  @@index([deletedAt])
+  @@index([paymentStatus])
+  @@index([acceptingBids])
+}
+
+model ProjectDetails {
+  id        String  @id @default(uuid())
+  projectId String  @unique
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  fullName        String  @db.VarChar(200)
+  businessEmail   String  @db.VarChar(254)
+  phoneNumber     String? @db.VarChar(32)
+  companyName     String  @db.VarChar(200)
+  companyWebsite  String? @db.VarChar(2048)
+  businessAddress String? @db.Text
+  businessType    String  @db.VarChar(200)
+  referralSource  String  @db.VarChar(200)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([businessEmail])
+  @@index([phoneNumber])
+  @@index([companyName])
+}
+
+model ProjectService {
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name          ServiceCategory
+  childServices String[]
+
+  selectedAt DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  @@index([projectId])
+  @@index([deletedAt])
+}
+
+model ProjectIndustries {
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  category      IndustryCategory
+  subIndustries IndustrySubIndustry[]
+
+  selectedAt DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  @@index([projectId])
+  @@index([deletedAt])
+  @@index([category])
+}
+
+model ProjectTechnologies {
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  category     TechnologyCategory
+  technologies TechnologyItem[]
+
+  selectedAt DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  @@unique([projectId, category])
+  @@index([projectId])
+  @@index([deletedAt])
+  @@index([category])
+}
+
+model ProjectFeatures {
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  category FeatureCategory
+  features FeatureItem[]
+
+  selectedAt DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  @@unique([projectId, category])
+  @@index([projectId])
+  @@index([deletedAt])
+  @@index([category])
+}
+
+model ProjectDiscount {
+  id        String  @id @default(uuid())
+  projectId String  @unique
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  type    DiscountType
+  percent Int          @db.SmallInt
+  notes   String?      @db.Text
+
+  selectedAt DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  @@index([deletedAt])
+}
+
+model ProjectTimeline {
+  id        String  @id @default(uuid())
+  projectId String  @unique
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  option         TimelineOption
+  rushFeePercent Int            @db.SmallInt
+  estimatedDays  Int            @db.SmallInt
+
+  description String?   @db.Text
+  selectedAt  DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([deletedAt])
+}
+
+model ProjectEstimate {
+  id        String  @id @default(uuid())
+  projectId String  @unique
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  estimateAccepted      Boolean
+  estimateFinalPriceMin Decimal @db.Decimal(18, 2)
+  estimateFinalPriceMax Decimal @db.Decimal(18, 2)
+
+  // Calculation tracking
+  isManuallyAdjusted Boolean  @default(false)
+  baseCost           Decimal? @db.Decimal(18, 2)
+  discountAmount     Decimal? @db.Decimal(18, 2)
+  rushFeeAmount      Decimal? @db.Decimal(18, 2)
+  calculatedTotal    Decimal? @db.Decimal(18, 2)
+
+  calculatedAt DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  @@index([deletedAt])
+}
+
+model ProjectServiceAgreement {
+  id        String  @id @default(uuid())
+  projectId String  @unique
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  documentUrl      String  @db.VarChar(2048)
+  agreementVersion String? @db.VarChar(100)
+
+  accepted   Boolean  @default(true)
+  acceptedAt DateTime @default(now())
+
+  ipAddress String? @db.VarChar(45)
+  userAgent String? @db.Text
+  locale    String? @db.VarChar(35)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([acceptedAt])
+  @@index([deletedAt])
+}
+
+enum MilestoneStatus {
+  PLANNED
+  IN_PROGRESS
+  BLOCKED
+  COMPLETED
+  CANCELLED
+}
+
+enum MilestonePriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum MilestonePhase {
+  DISCOVERY
+  DESIGN
+  IMPLEMENTATION
+  TESTING
+  DEPLOYMENT
+}
+
+enum MilestoneRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model Milestone {
+  id String @id @default(uuid())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  milestoneName        String
+  description          String?
+  deadline             DateTime
+  progress             Int      @default(0)
+  isMilestoneCompleted Boolean  @default(false)
+
+  status      MilestoneStatus     @default(PLANNED)
+  startedAt   DateTime?
+  completedAt DateTime?
+  priority    MilestonePriority?
+  phase       MilestonePhase?
+  riskLevel   MilestoneRiskLevel?
+
+  blocked       Boolean @default(false)
+  blockerReason String?
+
+  deliverableUrl String?
+  tags           String[]
+
+  estimatedHours Int?
+  actualHours    Int?
+  budgetEstimate Decimal? @db.Decimal(18, 2)
+  actualCost     Decimal? @db.Decimal(18, 2)
+
+  // Freelancer assignment (NEW - proper relation)
+  assignedFreelancerId String?
+  assignedFreelancer   Freelancer? @relation(fields: [assignedFreelancerId], references: [id], onDelete: SetNull)
+
+  // Payment Agreement relation (one-to-one)
+  paymentAgreement MilestonePaymentAgreement?
+
+  // Legacy fields (kept for backward compatibility)
+  assigneeName  String?
+  assigneeEmail String?
+
+  notes String?
+
+  // Moderator approval workflow (NEW)
+  moderatorApprovalRequired Boolean   @default(true)
+  moderatorApproved         Boolean   @default(false)
+  moderatorApprovedBy       String? // Moderator/Admin UID
+  moderatorApprovedAt       DateTime?
+  moderatorNotes            String? // Moderator's review notes
+
+  // Legacy approval (kept for backward compatibility)
+  approvedBy String?
+  approvedAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([projectId, milestoneName])
+  @@index([projectId])
+  @@index([assignedFreelancerId])
+  @@index([status])
+  @@index([deadline])
+  @@index([moderatorApproved])
+  @@index([deletedAt])
+}
+
+// ============================================
+// MILESTONE PAYMENT AGREEMENT MODEL
+// ============================================
+
+enum AgreementStatus {
+  DRAFT      // Agreement created but not yet active
+  ACTIVE     // Agreement signed and active
+  COMPLETED  // Milestone completed, payment distributed
+  CANCELLED  // Agreement cancelled/voided
+}
+
+model MilestonePaymentAgreement {
+  id String @id @default(uuid())
+
+  // Links to milestone and project
+  milestoneId String    @unique
+  milestone   Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // DocuSign Agreement Details
+  agreementDocumentUrl String @db.VarChar(2048) // DocuSign link to signed document
+  milestoneAmount      Decimal @db.Decimal(18, 2) // Total amount for this milestone
+
+  // Distribution details stored as JSON
+  // Example: { "freelancer_1": {"id": "uuid", "name": "John", "percentage": 40, "amount": 4000}, ... }
+  distributionDetails Json
+
+  // Agreement metadata
+  status AgreementStatus @default(ACTIVE)
+  notes  String?         @db.Text // Additional notes about the agreement
+
+  // Audit trail
+  createdBy String // Admin/Moderator UID who created this
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime? // Soft delete
+
+  @@index([milestoneId])
+  @@index([projectId])
+  @@index([status])
+  @@index([createdBy])
+  @@index([deletedAt])
+}
+
+// ============================================
+// FREELANCER MODELS
+// ============================================
+
+enum FreelancerStatus {
+  PENDING_REVIEW
+  ACCEPTED
+  REJECTED
+}
+
+enum BidStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+model Freelancer {
+  id String @id @default(uuid())
+
+  // Registration Status & User Link
+  status FreelancerStatus @default(PENDING_REVIEW)
+  userId String?          @unique
+  user   User?            @relation(fields: [userId], references: [uid], onDelete: SetNull)
+
+  // Admin Review Tracking
+  reviewedBy      String? // Admin userId who reviewed
+  reviewedAt      DateTime? // When the review happened
+  rejectionReason String?   @db.Text // If rejected, why?
+
+  // Email Tracking
+  registrationEmailSent Boolean @default(false)
+  acceptanceEmailSent   Boolean @default(false)
+  rejectionEmailSent    Boolean @default(false)
+
+  // Relations to freelancer sub-tables
+  details              FreelancerDetails?
+  domainExperiences    FreelancerDomainExperience[]
+  availabilityWorkflow FreelancerAvailabilityWorkflow?
+  softSkills           FreelancerSoftSkills?
+  certifications       FreelancerCertification[]
+  projectBidding       FreelancerProjectBidding?
+  legalAgreements      LegalAgreements?
+
+  // Bidding system
+  bids FreelancerBid[]
+
+  // Many-to-Many relation with Projects (only selected projects)
+  selectedProjects Project[] @relation("SelectedFreelancers")
+
+  // Milestones assigned to this freelancer (NEW)
+  assignedMilestones Milestone[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([status])
+  @@index([userId])
+  @@index([reviewedBy])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+model FreelancerBid {
+  id String @id @default(uuid())
+
+  freelancerId String
+  freelancer   Freelancer @relation(fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  bidAmount    Decimal   @db.Decimal(18, 2)
+  proposalText String?   @db.Text
+  status       BidStatus @default(PENDING)
+
+  submittedAt DateTime  @default(now())
+  reviewedAt  DateTime?
+  reviewedBy  String? // Admin userId who reviewed
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([freelancerId, projectId]) // One bid per freelancer per project
+  @@index([freelancerId])
+  @@index([projectId])
+  @@index([status])
+  @@index([submittedAt])
+  @@index([deletedAt])
+}
+
+model FreelancerAvailabilityWorkflow {
+  id String @id @default(uuid())
+
+  freelancerId String     @unique
+  freelancer   Freelancer @relation(fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  // Weekly Commitment Capacity
+  weeklyCommitmentMinHours Int     @db.SmallInt
+  weeklyCommitmentMaxHours Int?    @db.SmallInt
+  weeklyCommitmentIsPlus   Boolean @default(false) // true for "50+"
+
+  // Timezone & Working Window
+  timeZone       String               @db.VarChar(100)
+  workingWindows AvailabilityWindow[]
+
+  // Collaboration Tools
+  collaborationTools CollaborationTool[]
+
+  // Preferred Team Style
+  preferredTeamStyle PreferredTeamStyle
+
+  // Live Screen Sharing preference
+  liveScreenSharingPreference LiveScreenSharingPreference
+  liveScreenSharingNotes      String?                     @db.Text
+
+  // Short-Term Availability Exceptions
+  shortTermAvailabilityExceptions String? @db.Text
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([preferredTeamStyle])
+  @@index([liveScreenSharingPreference])
+  @@index([deletedAt])
+}
+
+enum AvailabilityWindow {
+  EIGHT_AM_TO_TWELVE_PM
+  TWELVE_PM_TO_FOUR_PM
+  FOUR_PM_TO_EIGHT_PM
+  EIGHT_PM_TO_TWELVE_AM
+  TWELVE_AM_TO_SIX_AM
+}
+
+enum CollaborationTool {
+  SLACK
+  NOTION
+  GITHUB
+  JIRA
+  ZOOM
+  GOOGLE_MEET
+  DISCORD
+  TRELLO
+  ASANA
+  FIGMA
+  MIRO
+}
+
+enum PreferredTeamStyle {
+  ASYNC_ONLY
+  SCHEDULED_STANDUPS
+  REAL_TIME_RESPONSIVE
+}
+
+enum LiveScreenSharingPreference {
+  YES_COMFORTABLE
+  YES_SPECIFIC_HOURS
+  NO_OFFLINE_ASYNC
+}
+
+model FreelancerDetails {
+  id           String     @id @default(uuid())
+  freelancerId String     @unique
+  freelancer   Freelancer @relation(fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  country            String               @db.VarChar(100)
+  email              String               @db.VarChar(254)
+  fullName           String               @db.VarChar(200)
+  professionalLinks  String[] // array of URLs
+  timeZone           String               @db.VarChar(100)
+  eliteSkillCards    String[] // free-form list of elite skills
+  tools              ToolstackItem[] // tools selected
+  otherNote          String?              @db.Text
+  selectedIndustries FreelancerIndustry[]
+
+  primaryDomain String @db.VarChar(100)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([email])
+  @@index([country])
+  @@index([deletedAt])
+}
+
+enum ToolstackItem {
+  PROJECT_MANAGEMENT
+  COMMUNICATION
+  DOCUMENTATION
+  DESIGN
+  PRODUCTIVITY
+  VERSION_CONTROL
+  ANALYTICS
+  CRM
+  OTHER
+
+  // Project Management
+  JIRA
+  ASANA
+  TRELLO
+  MONDAY_COM
+  CLICKUP
+
+  // Communication
+  SLACK
+  MICROSOFT_TEAMS
+  DISCORD
+  ZOOM
+  GOOGLE_MEET
+
+  // Documentation
+  NOTION
+  CONFLUENCE
+  GOOGLE_DOCS
+  CODA
+  OBSIDIAN
+
+  // Design
+  FIGMA
+  ADOBE_CREATIVE_SUITE
+  CANVA
+  SKETCH
+  MIRO
+
+  // Productivity
+  TODOIST
+  EVERNOTE
+  ROAM_RESEARCH
+
+  // Version Control
+  GIT
+  GITHUB
+  GITLAB
+  BITBUCKET
+  AZURE_DEVOPS
+
+  // Analytics
+  GOOGLE_ANALYTICS
+  MIXPANEL
+  AMPLITUDE
+  HOTJAR
+  LOOKER
+
+  // CRM
+  SALESFORCE
+  HUBSPOT
+  ZOHO
+  PIPEDRIVE
+  MONDAY_SALES_CRM
+}
+
+model FreelancerDomainExperience {
+  id String @id @default(uuid())
+
+  freelancerId String
+  freelancer   Freelancer @relation(fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  roleTitle String @db.VarChar(200) // e.g., "Team Lead"
+  years     Int    @db.SmallInt // e.g., 2 (non-negative)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([freelancerId])
+  @@index([roleTitle])
+  @@index([deletedAt])
+}
+
+enum FreelancerIndustry {
+  FINTECH
+  HEALTHTECH
+  GOVTECH_FEMA_DEFENSE
+  E_COMMERCE
+  SAAS_B2B_B2C
+  EDTECH
+  AI_AND_MACHINE_LEARNING
+  REAL_ESTATE_PROPTECH
+  BLOCKCHAIN_WEB3
+  MEDIA_PUBLISHING
+  CLIMATETECH_ENERGY
+  MANUFACTURING_IOT
+  LEGALTECH
+  NGOS_NONPROFITS
+  MARKETING_ADTECH
+  TRANSPORTATION_LOGISTICS
+  TRAVEL_HOSPITALITY
+  SPORTSTECH_GAMING
+}
+
+enum PreferredCollaborationStyle {
+  AGILE_SCRUM
+  ASYNC_DOCUMENT_FIRST
+  STRUCTURED_PROCESS_ORIENTED
+  FLEXIBLE_CONTEXT_DRIVEN
+}
+
+enum CommunicationFrequencyPreference {
+  DAILY_CHECK_INS
+  WEEKLY_MILESTONE_REVIEWS
+  AD_HOC_ONLY
+  ADAPT_TO_PREFERENCE
+}
+
+enum ConflictResolutionStyle {
+  DIRECT_CLEAR
+  EMPATHIC_REFLECTIVE
+  NEUTRAL_SYSTEMIC
+  ADAPTIVE
+}
+
+enum LanguageFluency {
+  ENGLISH
+  HINDI_URDU
+  SPANISH
+  ARABIC
+  MANDARIN
+  FRENCH
+  GERMAN
+  KASHMIRI
+}
+
+enum TeamVsSoloPreference {
+  INDEPENDENT
+  TEAM_ORIENTED
+  FLEXIBLE_BOTH
+}
+
+model FreelancerSoftSkills {
+  id String @id @default(uuid())
+
+  freelancerId String     @unique
+  freelancer   Freelancer @relation(fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  preferredCollaborationStyle PreferredCollaborationStyle
+  communicationFrequency      CommunicationFrequencyPreference
+  conflictResolutionStyle     ConflictResolutionStyle
+
+  languages     LanguageFluency[]
+  otherLanguage String?           @db.VarChar(100) // free-text "Other Language"
+
+  teamVsSoloPreference TeamVsSoloPreference
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([deletedAt])
+}
+
+model FreelancerCertification {
+  id String @id @default(uuid())
+
+  freelancerId String
+  freelancer   Freelancer @relation(fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  certificateName String @db.VarChar(200)
+  certificateUrl  String @db.VarChar(2048)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([freelancerId, certificateName]) // prevent duplicates per freelancer
+  @@index([freelancerId])
+  @@index([deletedAt])
+}
+
+enum ProjectCompensationPreference {
+  FIXED_PRICE
+  OPEN_TO_BIDDING
+  HOURLY_OR_RETAINER_ONLY
+}
+
+enum MilestonePaymentTerms {
+  FIFTY_FIFTY
+  THIRTY_FORTY_THIRTY
+  CUSTOM
+}
+
+enum ProposalSubmissionPreference {
+  YES_HAVE_TEMPLATE
+  YES_NEED_HELP_FROM_PLS
+  NO_PRICING_ONLY
+}
+
+model FreelancerProjectBidding {
+  id String @id @default(uuid())
+
+  freelancerId String     @unique
+  freelancer   Freelancer @relation(fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  // Project-Based Compensation Preference
+  compensationPreference ProjectCompensationPreference
+
+  // Preferred Project-Based Price Range
+  smallProjectMin Decimal? @db.Decimal(18, 2) // 1–2 weeks
+  smallProjectMax Decimal? @db.Decimal(18, 2)
+  midProjectMin   Decimal? @db.Decimal(18, 2) // 3–5 weeks
+  midProjectMax   Decimal? @db.Decimal(18, 2)
+  longTermMin     Decimal? @db.Decimal(18, 2) // > 1 month
+  longTermMax     Decimal? @db.Decimal(18, 2)
+
+  // Preferred Milestone Payment Terms
+  milestonePaymentTerms MilestonePaymentTerms
+  customPaymentTerms    String?               @db.Text // if CUSTOM
+
+  // Scoped proposals per brief
+  proposalSubmission ProposalSubmissionPreference
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([deletedAt])
+}
+
+enum LegalIdentityDocType {
+  PASSPORT
+  NATIONAL_ID
+  DRIVERS_LICENSE
+  UTILITY_BILL
+}
+
+enum LegalTaxDocType {
+  W9
+  W8BEN
+}
+
+model LegalAgreements {
+  id String @id @default(uuid())
+
+  freelancerId String     @unique
+  freelancer   Freelancer @relation(fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  // Checklist items + document URLs
+  projectSpecificNdaAccepted Boolean @default(false)
+  projectSpecificNdaUrl      String  @db.VarChar(2048)
+
+  workForHireAccepted Boolean @default(false)
+  workForHireUrl      String  @db.VarChar(2048)
+
+  projectScopeDeliverablesAccepted Boolean @default(false)
+  projectScopeDeliverablesUrl      String  @db.VarChar(2048)
+
+  paymentTermsAccepted Boolean @default(false)
+  paymentTermsUrl      String  @db.VarChar(2048)
+
+  securityComplianceAccepted Boolean @default(false)
+  securityComplianceUrl      String? @db.VarChar(2048) // optional
+
+  nonSolicitationAccepted Boolean @default(false)
+  nonSolicitationUrl      String  @db.VarChar(2048)
+
+  codeOfConductAccepted Boolean @default(false)
+  codeOfConductUrl      String  @db.VarChar(2048)
+
+  projectIpBoundariesAccepted Boolean @default(false)
+  projectIpBoundariesUrl      String  @db.VarChar(2048)
+
+  // Proof of Identity (one of)
+  identityDocType LegalIdentityDocType?
+  identityDocUrl  String?               @db.VarChar(2048)
+
+  // Tax Documentation (one of)
+  taxDocType LegalTaxDocType?
+  taxDocUrl  String?          @db.VarChar(2048)
+
+  // Proof of Address (if required)
+  proofOfAddressProvided Boolean @default(false)
+  proofOfAddressUrl      String? @db.VarChar(2048)
+
+  // Work Authorization Pathway checkbox
+  interestedInWorkAuthorization Boolean @default(false)
+
+  // Final Certification (checkbox + timestamp)
+  finalCertificationAccepted   Boolean   @default(false)
+  finalCertificationAcceptedAt DateTime?
+
+  // Audit metadata
+  ipAddress String? @db.VarChar(45)
+  userAgent String? @db.Text
+  locale    String? @db.VarChar(35)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([deletedAt])
+}
+
+// ============================================
+// PRICING CONFIGURATION TABLES
+// ============================================
+
+model PricingServiceCategory {
+  id          String          @id @default(uuid())
+  category    ServiceCategory @unique
+  basePrice   Decimal         @db.Decimal(18, 2)
+  description String?         @db.Text
+  isActive    Boolean         @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([category])
+  @@index([isActive])
+}
+
+model PricingTechnology {
+  id             String  @id @default(uuid())
+  technology     String  @unique @db.VarChar(100)
+  additionalCost Decimal @db.Decimal(18, 2)
+  description    String? @db.Text
+  isActive       Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([technology])
+  @@index([isActive])
+}
+
+model PricingFeature {
+  id             String  @id @default(uuid())
+  feature        String  @unique @db.VarChar(100)
+  additionalCost Decimal @db.Decimal(18, 2)
+  description    String? @db.Text
+  isActive       Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([feature])
+  @@index([isActive])
+}
