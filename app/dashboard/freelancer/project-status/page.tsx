@@ -2,50 +2,75 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, ArrowRight } from "lucide-react"
+import { Loader2, ArrowRight, Briefcase } from "lucide-react"
+import { getAssignedProjects, getProjectMilestones } from "@/lib/api/freelancers"
+import { MilestoneCard } from "@/components/freelancer/MilestoneCard"
+import { toast } from "sonner"
 
-interface ProjectStatus {
+interface ProjectWithMilestones {
   id: string
-  projectName: string
-  projectDescription: string
-  status: string
-  currentMilestone?: number
-  totalMilestones?: number
-  progress?: number
+  details?: {
+    companyName: string
+    fullName: string
+  }
+  milestones?: any[]
+  paymentStatus?: string
 }
 
 export default function ProjectStatusPage() {
-  const [projects, setProjects] = useState<ProjectStatus[]>([])
+  const [projects, setProjects] = useState<ProjectWithMilestones[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const fetchProjects = async () => {
+    const fetchProjectsAndMilestones = async () => {
       try {
         setLoading(true)
-        const token = localStorage.getItem("authToken")
-        const response = await fetch("/api/project-status", {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        const data = await response.json()
+        setError(null)
+        
+        // Fetch assigned projects
+        const projectsResponse = await getAssignedProjects()
+        
+        if (projectsResponse.success && projectsResponse.data?.projects) {
+          // Filter for projects where freelancer has accepted bids
+          const assignedProjects = projectsResponse.data.projects.filter(
+            (p: any) => p.bids?.some((b: any) => b.status === "ACCEPTED")
+          )
 
-        if (data.success) {
-          setProjects(data.data)
+          // Fetch milestones for each project
+          const projectsWithMilestones = await Promise.all(
+            assignedProjects.map(async (project: any) => {
+              try {
+                const milestonesResponse = await getProjectMilestones(project.id)
+                return {
+                  ...project,
+                  milestones: milestonesResponse.success ? milestonesResponse.data : []
+                }
+              } catch (error) {
+                console.error(`Failed to fetch milestones for project ${project.id}:`, error)
+                return { ...project, milestones: [] }
+              }
+            })
+          )
+
+          setProjects(projectsWithMilestones)
         } else {
-          setError(data.error || "Failed to fetch projects")
+          throw new Error(projectsResponse.message || "Failed to fetch projects")
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to fetch projects")
-        console.error("[v0] Error fetching projects:", err)
+        const errorMsg = err instanceof Error ? err.message : "Failed to fetch projects"
+        setError(errorMsg)
+        toast.error(errorMsg)
+        console.error("Error fetching projects:", err)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchProjects()
+    fetchProjectsAndMilestones()
   }, [])
 
   const getStatusColor = (status: string) => {
@@ -70,8 +95,8 @@ export default function ProjectStatusPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Project Status</h1>
-        <p className="text-muted-foreground mt-2">Track your active projects and milestones</p>
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Project Status & Milestones</h1>
+        <p className="text-muted-foreground mt-2">Track your active projects and their milestones</p>
       </div>
 
       {error && (
@@ -81,57 +106,62 @@ export default function ProjectStatusPage() {
       {projects.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground">No active projects</p>
+            <Briefcase className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">No active projects assigned yet</p>
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-8">
           {projects.map((project) => (
-            <Card key={project.id} className="hover:shadow-lg transition-shadow">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-foreground">{project.projectName}</h3>
-                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{project.projectDescription}</p>
+            <div key={project.id} className="space-y-4">
+              <Card className="border-2 border-[#003087]/20">
+                <CardHeader className="bg-gradient-to-r from-[#003087]/5 to-[#FF6B35]/5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <CardTitle className="text-xl md:text-2xl text-[#003087]">
+                        {project.details?.companyName || "Project"}
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Client: {project.details?.fullName}
+                      </p>
+                    </div>
+                    <Badge className={project.paymentStatus === "SUCCEEDED" ? "bg-green-500" : "bg-yellow-500"}>
+                      {project.paymentStatus || "PENDING"}
+                    </Badge>
                   </div>
-                  <Badge className={getStatusColor(project.status)}>{project.status}</Badge>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Milestones</p>
+                      <p className="text-2xl font-bold text-[#003087]">
+                        {project.milestones?.filter((m: any) => m.isMilestoneCompleted).length || 0} / {project.milestones?.length || 0}
+                      </p>
+                    </div>
+                    <Link href={`/dashboard/freelancer/projects/${project.id}`}>
+                      <Button variant="outline">
+                        View Project <ArrowRight className="ml-2 w-4 h-4" />
+                      </Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Milestones */}
+              {project.milestones && project.milestones.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {project.milestones.map((milestone: any) => (
+                    <MilestoneCard key={milestone.id} milestone={milestone} />
+                  ))}
                 </div>
-
-                {project.progress !== undefined && (
-                  <>
-                    <div className="space-y-2 pt-4 border-t border-border">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-foreground">Progress</p>
-                        <p className="text-sm font-bold text-[#003087]">{project.progress}%</p>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-[#003087] h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${project.progress}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 pt-2">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Current Milestone</p>
-                        <p className="text-lg font-bold text-foreground">{project.currentMilestone}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Total Milestones</p>
-                        <p className="text-lg font-bold text-foreground">{project.totalMilestones}</p>
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                <Link href={`/dashboard/freelancer/project-status/${project.id}`} className="block pt-2">
-                  <Button className="w-full gap-2 bg-[#003087] hover:bg-[#002060]">
-                    View More <ArrowRight className="w-4 h-4" />
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+              ) : (
+                <Card>
+                  <CardContent className="py-8 text-center">
+                    <p className="text-sm text-muted-foreground">No milestones defined for this project yet</p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           ))}
         </div>
       )}

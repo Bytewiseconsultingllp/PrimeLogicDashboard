@@ -166,7 +166,7 @@ export default function AcceptedFreelancersPage() {
         return
       }
 
-      const response = await fetch("https://api.primelogicsol.com/api/v1/freelancer/registrations/accepted", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/freelancer/admin/freelancers`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",

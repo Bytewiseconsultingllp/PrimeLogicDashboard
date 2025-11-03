@@ -1,68 +1,66 @@
-import axios from "axios";
-import { authInstance } from "./axiosInstance";
-import { getUserDetails, removeUserDetails, setUserDetails } from "./storage";
+import axios from "axios"
+import { authInstance } from "./axiosInstance"
+import { getUserDetails, removeUserDetails, setUserDetails, getAuthToken, setFreelancerProfile, removeFreelancerProfile } from "./storage"
+import { getFreelancerProfile } from "./freelancers"
 
-const API_BASE = process.env.NEXT_PUBLIC_PLS_AUTH;
+const API_BASE = process.env.NEXT_PUBLIC_PLS_AUTH
 
 export const registerUser = async (userData: {
-  username: string;
-  fullName: string;
-  email: string;
-  password: string;
-  country: string;
+  username: string
+  fullName: string
+  email: string
+  password: string
+  country: string
 }) => {
   try {
-    const response = await authInstance.post("/register", userData);
+    const response = await authInstance.post("/register", userData)
 
     if (response.data.success) {
       // Store the received data in localStorage
-      localStorage.setItem("userData", JSON.stringify(response.data.data));
+      localStorage.setItem("userData", JSON.stringify(response.data.data))
     }
 
-    return response.data;
+    return response.data
   } catch (error) {
-    console.error("Registration failed:", error);
+    console.error("Registration failed:", error)
     if (axios.isAxiosError(error) && error.response) {
-      throw error.response.data;
+      throw error.response.data
     } else {
-      throw { message: "Registration failed" };
+      throw { message: "Registration failed" }
     }
   }
-};
+}
 
-export const verifyOtp = async (
-  email: string,
-  otp: string,
-) => {
+export const verifyOtp = async (email: string, otp: string) => {
   try {
     const response = await authInstance.post("/verifyEmail", {
       email,
       OTP: otp,
-    });
-    return response.data;
+    })
+    return response.data
   } catch (error) {
-    console.error("OTP Verification failed:", error);
+    console.error("OTP Verification failed:", error)
     if (axios.isAxiosError(error) && error.response) {
-      throw error.response.data;
+      throw error.response.data
     } else {
-      throw { message: "OTP Verification failed" };
+      throw { message: "OTP Verification failed" }
     }
   }
-};
+}
 
 export const login = async (username: string, password: string) => {
   try {
-    const response = await authInstance.post("/login", { username, password });
-    console.log(response);
+    const response = await authInstance.post("/login", { username, password })
+    console.log(response)
 
     if (response.data.success) {
-      const accessToken = response.data.data.accessToken;
+      const accessToken = response.data.data.accessToken
 
       // Decode the JWT token to get the role and other details
-      const decodedToken = JSON.parse(atob(accessToken.split(".")[1]));
+      const decodedToken = JSON.parse(atob(accessToken.split(".")[1]))
 
       // Log the decoded token to verify its contents
-      console.log("Decoded Token:", decodedToken);
+      console.log("Decoded Token:", decodedToken)
 
       const userData = {
         uid: response.data.data.uid,
@@ -70,34 +68,53 @@ export const login = async (username: string, password: string) => {
         accessToken,
         refreshToken: response.data.data.refreshToken,
         role: decodedToken.role, // Extract the role from the decoded token
-      };
+      }
 
-      setUserDetails(userData); // 🔐 Encrypt & Store user data in localStorage
-      return userData;
+      setUserDetails(userData) // 🔐 Encrypt & Store user data in localStorage
+      getAuthToken(accessToken) // Also store token separately for API calls
+      
+      // If user is a freelancer, fetch their profile immediately
+      if (decodedToken.role === "FREELANCER") {
+        try {
+          console.log("Fetching freelancer profile...")
+          const profileResponse = await getFreelancerProfile()
+          
+          if (profileResponse.success && profileResponse.data) {
+            setFreelancerProfile(profileResponse.data)
+            console.log("✅ Freelancer profile fetched and stored successfully")
+          }
+        } catch (profileError) {
+          console.warn("⚠️ Failed to fetch freelancer profile:", profileError)
+          // Still allow login but show warning - profile fetch is non-blocking
+        }
+      }
+      
+      return userData
     }
   } catch (error) {
-    console.error("Login failed:", error);
+    console.error("Login failed:", error)
     if (axios.isAxiosError(error) && error.response) {
-      throw error.response.data;
+      throw error.response.data
     } else {
-      throw { message: "Login failed" };
+      throw { message: "Login failed" }
     }
   }
-};
+}
 
 export const logout = () => {
-  removeUserDetails(); 
-};
+  removeUserDetails()
+  removeFreelancerProfile()
+}
 
 export async function sendOtp(email: string) {
   try {
     const response = await authInstance.post("/forgotPasswordRequestFromUser", {
       email,
-    });
-    console.log(response);
-    return response.data;
+    })
+    console.log(response)
+    return response.data
   } catch (error) {
-    throw error;
+    throw error
   }
 }
 
@@ -105,11 +122,11 @@ export async function sendOtpForVerifyingUser(email: string) {
   try {
     const response = await authInstance.post("/sendOTP", {
       email,
-    });
-    console.log(response);
-    return response.data;
+    })
+    console.log(response)
+    return response.data
   } catch (error) {
-    throw error;
+    throw error
   }
 }
 
@@ -117,11 +134,11 @@ export async function forgotPasswordVerifyOtp(otp: string) {
   try {
     const response = await authInstance.post("/verifyForgotPasswordRequest", {
       OTP: otp,
-    });
-    console.log(response);
-    return response.data;
+    })
+    console.log(response)
+    return response.data
   } catch (error) {
-    throw error;
+    throw error
   }
 }
 
@@ -129,105 +146,100 @@ export async function updatePassword(newPassword: string, uid: string) {
   try {
     const response = await authInstance.patch("/updateNewPasswordRequest", {
       newPassword,
-      uid, // Include UID in the request
-    });
-    return response.data;
+      uid,
+    })
+    return response.data
   } catch (error) {
-    throw error;
+    throw error
   }
 }
 
-export async function updateUserInfo(
-  username: string,
-  fullName: string,
-  address: string,
-  phone: string
-) {
+export async function updateUserInfo(username: string, fullName: string, address: string, phone: string) {
   try {
-    const userDetails = getUserDetails();
-    const uid = userDetails?.uid;
-    const accessToken = userDetails?.accessToken; // Fetch access token
+    const userDetails = getUserDetails()
+    const uid = userDetails?.uid
+    const accessToken = userDetails?.accessToken
 
     if (!uid || !accessToken) {
-      throw new Error("User not authenticated");
+      throw new Error("User not authenticated")
     }
 
     const response = await authInstance.patch(
       "/updateInfo",
-      { username, fullName, uid, address, phone }, // Send as request body
+      { username, fullName, uid, address, phone },
       {
         headers: {
-          Authorization: `Bearer ${accessToken}`, // Include access token
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
-      }
-    );
+      },
+    )
 
-    return response.data;
+    return response.data
   } catch (error) {
-    throw error;
+    throw error
   }
 }
 
 export async function updateUserEmail(email: string) {
   try {
-    const userDetails = getUserDetails();
-    const uid = userDetails?.uid;
-    const accessToken = userDetails?.accessToken; // Fetch access token
+    const userDetails = getUserDetails()
+    const uid = userDetails?.uid
+    const accessToken = userDetails?.accessToken
 
     if (!uid || !accessToken) {
-      throw new Error("User not authenticated");
+      throw new Error("User not authenticated")
     }
 
     const response = await authInstance.patch(
       "/updateEmail",
-      { email, uid }, // Send as request body
+      { email, uid },
       {
         headers: {
-          Authorization: `Bearer ${accessToken}`, // Include access token
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
-      }
-    );
+      },
+    )
 
-    return response.data;
+    return response.data
   } catch (error) {
-    throw error;
+    throw error
   }
 }
 
 export async function getCurrentUserDetails() {
-  const userDetails = getUserDetails();
-  const uid = userDetails?.uid;
-  const accessToken = userDetails?.accessToken; // Fetch access token
+  const userDetails = getUserDetails()
+  const uid = userDetails?.uid
+  const accessToken = userDetails?.accessToken
 
   if (!uid || !accessToken) {
-    throw new Error("User not authenticated");
+    throw new Error("User not authenticated")
   }
 
   const response = await authInstance.get("/getCurrentUser", {
     headers: {
-      Authorization: `Bearer ${accessToken}`, // Include access token
+      Authorization: `Bearer ${accessToken}`,
     },
     params: {
-      uid: uid, // Include uid as a query parameter
+      uid: uid,
     },
-  });
-  // Handle the response
-  return response.data;
+  })
+  return response.data
 }
+
 export async function verifyEmail(email: string, otp: string) {
   try {
     const response = await authInstance.post("/verifyEmail", {
       email,
-      OTP: otp, // Ensure correct key
-    });
-    return response.data;
+      OTP: otp,
+    })
+    return response.data
   } catch (error: any) {
     if (error.response) {
-      throw new Error(error.response.data.message || "OTP verification failed");
+      throw new Error(error.response.data.message || "OTP verification failed")
     } else {
-      throw new Error("Network error, please try again.");
+      throw new Error("Network error, please try again.")
     }
   }
 }

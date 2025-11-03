@@ -167,7 +167,7 @@ export default function FreelancerRegistrationsPage() {
         return
       }
 
-      const response = await fetch("https://api.primelogicsol.com/api/v1/freelancer/registrations", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/freelancer/admin/freelancers/{freelancerId}/review`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
