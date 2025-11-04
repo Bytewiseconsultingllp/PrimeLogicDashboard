@@ -191,7 +191,7 @@ import { useEffect, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { BarChart3, MessageCircle, Settings, ChevronDown, LogOut, Menu } from "lucide-react"
+import { Home, Briefcase, TrendingUp, Plus, MessageCircle, Settings, ChevronDown, LogOut, Menu } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -207,12 +207,22 @@ const navItems = [
   {
     title: "Home",
     href: "/dashboard/client",
-    icon: BarChart3,
+    icon: Home,
+  },
+  {
+    title: "My Projects",
+    href: "/dashboard/client/projects",
+    icon: Briefcase,
   },
   {
     title: "Project Status",
     href: "/dashboard/client/project-status",
-    icon: BarChart3,
+    icon: TrendingUp,
+  },
+  {
+    title: "Create Project",
+    href: "/dashboard/client/create-project",
+    icon: Plus,
   },
   {
     title: "Contact Us",
