@@ -99,7 +99,7 @@ export default function SettingsPage() {
       await updateUserInfo(data.username, data.fullName, data.address, data.phone)
       toast.success("Profile updated successfully!")
     } catch (error: any) {
-      console.error("[v0] Error updating profile:", error)
+      console.error("Error updating profile:", error)
       toast.error(error?.message || "Failed to update profile")
     } finally {
       setLoading(false)
