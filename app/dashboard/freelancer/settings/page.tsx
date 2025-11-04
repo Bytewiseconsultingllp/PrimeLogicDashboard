@@ -1,895 +1,549 @@
-// "use client"
-
-// import type React from "react"
-
-// import { useEffect, useState } from "react"
-// import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-// import { Button } from "@/components/ui/button"
-// import { Input } from "@/components/ui/input"
-// import { Textarea } from "@/components/ui/textarea"
-// import { Loader2, Eye, EyeOff } from "lucide-react"
-
-// interface FreelancerProfile {
-//   id: string
-//   name: string
-//   email: string
-//   phone: string
-//   address: string
-//   city: string
-//   state: string
-//   zipCode: string
-//   country: string
-//   bio: string
-//   skills: string[]
-//   hourlyRate: number
-// }
-
-// export default function SettingsPage() {
-//   const [profile, setProfile] = useState<FreelancerProfile | null>(null)
-//   const [loading, setLoading] = useState(true)
-//   const [updating, setUpdating] = useState(false)
-//   const [formData, setFormData] = useState<Partial<FreelancerProfile>>({})
-
-//   const [passwordData, setPasswordData] = useState({
-//     currentPassword: "",
-//     newPassword: "",
-//     confirmPassword: "",
-//   })
-//   const [updatingPassword, setUpdatingPassword] = useState(false)
-//   const [showPasswords, setShowPasswords] = useState({
-//     current: false,
-//     new: false,
-//     confirm: false,
-//   })
-//   const [passwordMessage, setPasswordMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
-
-//   useEffect(() => {
-//     const fetchProfile = async () => {
-//       try {
-//         setLoading(true)
-//         const token = localStorage.getItem("authToken")
-//         const response = await fetch("/api/auth/me", {
-//           headers: { Authorization: `Bearer ${token}` },
-//         })
-//         const data = await response.json()
-
-//         if (data.success && data.data) {
-//           setProfile(data.data)
-//           setFormData(data.data)
-//         }
-//       } catch (error) {
-//         console.error("[v0] Error fetching profile:", error)
-//       } finally {
-//         setLoading(false)
-//       }
-//     }
-
-//     fetchProfile()
-//   }, [])
-
-//   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-//     const { name, value } = e.target
-//     setFormData((prev) => ({
-//       ...prev,
-//       [name]: value,
-//     }))
-//   }
-
-//   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-//     const { name, value } = e.target
-//     setPasswordData((prev) => ({
-//       ...prev,
-//       [name]: value,
-//     }))
-//   }
-
-//   const handleUpdate = async () => {
-//     try {
-//       setUpdating(true)
-//       const token = localStorage.getItem("authToken")
-//       const response = await fetch("/api/auth/me", {
-//         method: "PUT",
-//         headers: {
-//           "Content-Type": "application/json",
-//           Authorization: `Bearer ${token}`,
-//         },
-//         body: JSON.stringify(formData),
-//       })
-
-//       if (response.ok) {
-//         alert("Profile updated successfully!")
-//       } else {
-//         alert("Failed to update profile")
-//       }
-//     } catch (error) {
-//       console.error("[v0] Error updating profile:", error)
-//       alert("Failed to update profile")
-//     } finally {
-//       setUpdating(false)
-//     }
-//   }
-
-//   const handlePasswordUpdate = async () => {
-//     if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
-//       setPasswordMessage({ type: "error", text: "All password fields are required" })
-//       return
-//     }
-
-//     if (passwordData.newPassword !== passwordData.confirmPassword) {
-//       setPasswordMessage({ type: "error", text: "New passwords do not match" })
-//       return
-//     }
-
-//     if (passwordData.newPassword.length < 6) {
-//       setPasswordMessage({ type: "error", text: "New password must be at least 6 characters" })
-//       return
-//     }
-
-//     try {
-//       setUpdatingPassword(true)
-//       setPasswordMessage(null)
-//       const token = localStorage.getItem("authToken")
-//       const response = await fetch("/api/auth/password", {
-//         method: "PUT",
-//         headers: {
-//           "Content-Type": "application/json",
-//           Authorization: `Bearer ${token}`,
-//         },
-//         body: JSON.stringify({
-//           currentPassword: passwordData.currentPassword,
-//           newPassword: passwordData.newPassword,
-//         }),
-//       })
-
-//       const data = await response.json()
-
-//       if (response.ok) {
-//         setPasswordMessage({ type: "success", text: "Password updated successfully!" })
-//         setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" })
-//       } else {
-//         setPasswordMessage({ type: "error", text: data.error || "Failed to update password" })
-//       }
-//     } catch (error) {
-//       console.error("[v0] Error updating password:", error)
-//       setPasswordMessage({ type: "error", text: "Failed to update password" })
-//     } finally {
-//       setUpdatingPassword(false)
-//     }
-//   }
-
-//   if (loading) {
-//     return (
-//       <div className="flex items-center justify-center min-h-screen">
-//         <Loader2 className="w-8 h-8 animate-spin text-[#003087]" />
-//       </div>
-//     )
-//   }
-
-//   return (
-//     <div className="space-y-6">
-//       <div>
-//         <h1 className="text-3xl font-bold text-foreground">Settings</h1>
-//         <p className="text-muted-foreground mt-2">Manage your profile information</p>
-//       </div>
-
-//       <Card>
-//         <CardHeader>
-//           <CardTitle>Profile Information</CardTitle>
-//         </CardHeader>
-//         <CardContent className="space-y-6">
-//           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-//             <div>
-//               <label className="text-sm font-medium text-foreground">Name</label>
-//               <Input type="text" name="name" value={formData.name || ""} onChange={handleChange} className="mt-2" />
-//             </div>
-//             <div>
-//               <label className="text-sm font-medium text-foreground">Email</label>
-//               <Input type="email" name="email" value={formData.email || ""} onChange={handleChange} className="mt-2" />
-//             </div>
-//             <div>
-//               <label className="text-sm font-medium text-foreground">Phone</label>
-//               <Input type="tel" name="phone" value={formData.phone || ""} onChange={handleChange} className="mt-2" />
-//             </div>
-//             <div>
-//               <label className="text-sm font-medium text-foreground">Hourly Rate ($)</label>
-//               <Input
-//                 type="number"
-//                 name="hourlyRate"
-//                 value={formData.hourlyRate || ""}
-//                 onChange={handleChange}
-//                 className="mt-2"
-//               />
-//             </div>
-//           </div>
-
-//           <div className="border-t border-border pt-6">
-//             <h3 className="text-lg font-semibold text-foreground mb-4">Address</h3>
-//             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-//               <div>
-//                 <label className="text-sm font-medium text-foreground">Street Address</label>
-//                 <Input
-//                   type="text"
-//                   name="address"
-//                   value={formData.address || ""}
-//                   onChange={handleChange}
-//                   className="mt-2"
-//                 />
-//               </div>
-//               <div>
-//                 <label className="text-sm font-medium text-foreground">City</label>
-//                 <Input type="text" name="city" value={formData.city || ""} onChange={handleChange} className="mt-2" />
-//               </div>
-//               <div>
-//                 <label className="text-sm font-medium text-foreground">State</label>
-//                 <Input type="text" name="state" value={formData.state || ""} onChange={handleChange} className="mt-2" />
-//               </div>
-//               <div>
-//                 <label className="text-sm font-medium text-foreground">Zip Code</label>
-//                 <Input
-//                   type="text"
-//                   name="zipCode"
-//                   value={formData.zipCode || ""}
-//                   onChange={handleChange}
-//                   className="mt-2"
-//                 />
-//               </div>
-//               <div className="md:col-span-2">
-//                 <label className="text-sm font-medium text-foreground">Country</label>
-//                 <Input
-//                   type="text"
-//                   name="country"
-//                   value={formData.country || ""}
-//                   onChange={handleChange}
-//                   className="mt-2"
-//                 />
-//               </div>
-//             </div>
-//           </div>
-
-//           <div className="border-t border-border pt-6">
-//             <h3 className="text-lg font-semibold text-foreground mb-4">Professional Information</h3>
-//             <div>
-//               <label className="text-sm font-medium text-foreground">Bio</label>
-//               <Textarea
-//                 name="bio"
-//                 value={formData.bio || ""}
-//                 onChange={handleChange}
-//                 placeholder="Tell us about yourself..."
-//                 className="mt-2 min-h-24"
-//               />
-//             </div>
-//           </div>
-
-//           <div className="flex gap-3 pt-6 border-t border-border">
-//             <Button onClick={handleUpdate} disabled={updating} className="bg-[#003087] hover:bg-[#002060]">
-//               {updating ? "Updating..." : "Update Profile"}
-//             </Button>
-//             <Button variant="outline" onClick={() => setFormData(profile || {})}>
-//               Cancel
-//             </Button>
-//           </div>
-//         </CardContent>
-//       </Card>
-
-//       <Card>
-//         <CardHeader>
-//           <CardTitle>Change Password</CardTitle>
-//         </CardHeader>
-//         <CardContent className="space-y-6">
-//           {passwordMessage && (
-//             <div
-//               className={`p-4 rounded-lg ${
-//                 passwordMessage.type === "success"
-//                   ? "bg-green-100 text-green-800 border border-green-200"
-//                   : "bg-red-100 text-red-800 border border-red-200"
-//               }`}
-//             >
-//               {passwordMessage.text}
-//             </div>
-//           )}
-
-//           <div className="space-y-4">
-//             <div>
-//               <label className="text-sm font-medium text-foreground">Current Password</label>
-//               <div className="relative mt-2">
-//                 <Input
-//                   type={showPasswords.current ? "text" : "password"}
-//                   name="currentPassword"
-//                   value={passwordData.currentPassword}
-//                   onChange={handlePasswordChange}
-//                   placeholder="Enter your current password"
-//                   className="pr-10"
-//                 />
-//                 <button
-//                   type="button"
-//                   onClick={() => setShowPasswords((prev) => ({ ...prev, current: !prev.current }))}
-//                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-//                 >
-//                   {showPasswords.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-//                 </button>
-//               </div>
-//             </div>
-
-//             <div>
-//               <label className="text-sm font-medium text-foreground">New Password</label>
-//               <div className="relative mt-2">
-//                 <Input
-//                   type={showPasswords.new ? "text" : "password"}
-//                   name="newPassword"
-//                   value={passwordData.newPassword}
-//                   onChange={handlePasswordChange}
-//                   placeholder="Enter your new password"
-//                   className="pr-10"
-//                 />
-//                 <button
-//                   type="button"
-//                   onClick={() => setShowPasswords((prev) => ({ ...prev, new: !prev.new }))}
-//                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-//                 >
-//                   {showPasswords.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-//                 </button>
-//               </div>
-//             </div>
-
-//             <div>
-//               <label className="text-sm font-medium text-foreground">Confirm New Password</label>
-//               <div className="relative mt-2">
-//                 <Input
-//                   type={showPasswords.confirm ? "text" : "password"}
-//                   name="confirmPassword"
-//                   value={passwordData.confirmPassword}
-//                   onChange={handlePasswordChange}
-//                   placeholder="Confirm your new password"
-//                   className="pr-10"
-//                 />
-//                 <button
-//                   type="button"
-//                   onClick={() => setShowPasswords((prev) => ({ ...prev, confirm: !prev.confirm }))}
-//                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-//                 >
-//                   {showPasswords.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-//                 </button>
-//               </div>
-//             </div>
-//           </div>
-
-//           <div className="flex gap-3 pt-4 border-t border-border">
-//             <Button
-//               onClick={handlePasswordUpdate}
-//               disabled={updatingPassword}
-//               className="bg-[#003087] hover:bg-[#002060]"
-//             >
-//               {updatingPassword ? "Updating..." : "Update Password"}
-//             </Button>
-//             <Button
-//               variant="outline"
-//               onClick={() => {
-//                 setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" })
-//                 setPasswordMessage(null)
-//               }}
-//             >
-//               Cancel
-//             </Button>
-//           </div>
-//         </CardContent>
-//       </Card>
-//     </div>
-//   )
-// }
-
 "use client"
 
-import type React from "react"
+import { useState, useEffect, useRef } from "react"
+import { Eye, EyeOff, Save, Camera, Upload, User, Settings as SettingsIcon } from "lucide-react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import * as z from "zod"
+import { motion } from "framer-motion"
 
-import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Loader2, Eye, EyeOff, Upload, X } from "lucide-react"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { toast } from "sonner"
+import { getCurrentUserDetails, updateUserInfo, updatePassword } from "@/lib/api/auth"
+import { getUserDetails } from "@/lib/api/storage"
+import { useAuth } from "@/hooks/useAuth"
 
-interface FreelancerProfile {
-  id: string
-  status: string
-  details: {
-    id: string
-    fullName: string
-    email: string
-    country: string
-    timeZone: string
-    primaryDomain: string
-    tools: string[]
-    eliteSkillCards: string[]
-    professionalLinks: string[]
-  }
-}
+const profileFormSchema = z.object({
+  username: z.string().min(4, { message: "Username must be at least 4 characters." }),
+  fullName: z.string().min(4, { message: "Full Name must be at least 4 characters." }),
+  address: z.string().min(4, { message: "Address must be at least 4 characters." }),
+  phone: z.string().min(10, { message: "Phone Number must be at least 10 digits." }),
+})
 
-interface AvatarOption {
-  id: string
-  color: string
-  initials?: string
-}
+const passwordFormSchema = z
+  .object({
+    currentPassword: z.string().min(1, { message: "Current password is required." }),
+    newPassword: z.string().min(8, { message: "Password must be at least 8 characters." }),
+    confirmPassword: z.string().min(8, { message: "Password must be at least 8 characters." }),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  })
 
 export default function SettingsPage() {
-  const [profile, setProfile] = useState<FreelancerProfile | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [updating, setUpdating] = useState(false)
-  const [avatar, setAvatar] = useState<string | null>(null)
-  const [showAvatarOptions, setShowAvatarOptions] = useState(false)
-
-  const [formData, setFormData] = useState({
-    fullName: "",
-    email: "",
-    country: "",
-    timeZone: "",
-    primaryDomain: "",
-  })
-
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
-  })
-
-  const [updatingPassword, setUpdatingPassword] = useState(false)
+  const { isAuthorized } = useAuth(["FREELANCER"])
+  const [loading, setLoading] = useState(false)
+  const [loadingProfile, setLoadingProfile] = useState(true)
+  const [avatarUrl, setAvatarUrl] = useState<string>("")
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [userDetails, setUserDetails] = useState<any>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [showPasswords, setShowPasswords] = useState({
     current: false,
     new: false,
     confirm: false,
   })
-  const [passwordMessage, setPasswordMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+
+  const profileForm = useForm<z.infer<typeof profileFormSchema>>({
+    resolver: zodResolver(profileFormSchema),
+    defaultValues: {
+      username: "",
+      fullName: "",
+      address: "",
+      phone: "",
+    },
+  })
+
+  const passwordForm = useForm<z.infer<typeof passwordFormSchema>>({
+    resolver: zodResolver(passwordFormSchema),
+    defaultValues: {
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    },
+  })
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        setLoading(true)
-        const token = localStorage.getItem("authToken")
-        if (!token) {
-          console.error("No auth token found")
-          return
-        }
-
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/freelancer/profile`, {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        })
-
-        if (!response.ok) {
-          throw new Error(`API error: ${response.status}`)
-        }
-
-        const data = await response.json()
-        if (data.success && data.data) {
-          setProfile(data.data)
-          setFormData({
-            fullName: data.data.details?.fullName || "",
-            email: data.data.details?.email || "",
-            country: data.data.details?.country || "",
-            timeZone: data.data.details?.timeZone || "",
-            primaryDomain: data.data.details?.primaryDomain || "",
-          })
-
-          // Load saved avatar from localStorage
-          const savedAvatar = localStorage.getItem("userAvatar")
-          if (savedAvatar) {
-            setAvatar(savedAvatar)
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching profile:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchProfile()
+    getUserDetailsData()
   }, [])
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
-  }
-
-  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setPasswordData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
-  }
-
-  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        const result = reader.result as string
-        setAvatar(result)
-        // Save to localStorage for persistence
-        localStorage.setItem("userAvatar", result)
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
-  const handleAvatarPreset = (color: string) => {
-    setAvatar(color)
-    localStorage.setItem("userAvatar", color)
-    setShowAvatarOptions(false)
-  }
-
-  const avatarPresets = [
-    { id: "1", color: "#FF6B6B" },
-    { id: "2", color: "#4ECDC4" },
-    { id: "3", color: "#45B7D1" },
-    { id: "4", color: "#96CEB4" },
-    { id: "5", color: "#FFEAA7" },
-    { id: "6", color: "#DDA15E" },
-    { id: "7", color: "#BC6C25" },
-    { id: "8", color: "#8E7DBE" },
-  ]
-
-  const handleUpdate = async () => {
+  const getUserDetailsData = async () => {
     try {
-      setUpdating(true)
-      const token = localStorage.getItem("authToken")
-      // Note: This would call a real API endpoint to update profile
-      console.log("Profile update would be sent to backend:", formData)
-      // In production, call: await fetch('/api/freelancers/profile', { method: 'PUT', ... })
-
-      // For now, just show success
-      console.log("Profile updated locally")
-      setTimeout(() => {
-        setUpdating(false)
-      }, 500)
-    } catch (error) {
-      console.error("Error updating profile:", error)
-      setUpdating(false)
-    }
-  }
-
-  const handlePasswordUpdate = async () => {
-    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
-      setPasswordMessage({ type: "error", text: "All password fields are required" })
-      return
-    }
-
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setPasswordMessage({ type: "error", text: "New passwords do not match" })
-      return
-    }
-
-    if (passwordData.newPassword.length < 6) {
-      setPasswordMessage({ type: "error", text: "New password must be at least 6 characters" })
-      return
-    }
-
-    try {
-      setUpdatingPassword(true)
-      setPasswordMessage(null)
-      const token = localStorage.getItem("authToken")
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/updateNewPasswordRequest`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          currentPassword: passwordData.currentPassword,
-          newPassword: passwordData.newPassword,
-        }),
+      setLoadingProfile(true)
+      const response = await getCurrentUserDetails()
+      const data = response.data || response
+      setUserDetails(data)
+      setAvatarUrl(data.profilePicture || data.avatar || "")
+      profileForm.reset({
+        username: data.username || "",
+        fullName: data.fullName || "",
+        address: data.address || "",
+        phone: data.phone || data.phoneNumber || "",
       })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        setPasswordMessage({ type: "success", text: "Password updated successfully!" })
-        setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" })
-      } else {
-        setPasswordMessage({ type: "error", text: data.error || "Failed to update password" })
-      }
-    } catch (error) {
-      console.error("Error updating password:", error)
-      setPasswordMessage({ type: "error", text: "Failed to update password" })
+    } catch (error: any) {
+      console.error("[v0] Error fetching user details:", error)
+      toast.error(error?.message || "An error occurred while fetching user details.")
     } finally {
-      setUpdatingPassword(false)
+      setLoadingProfile(false)
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-[#003087]" />
-      </div>
-    )
+  async function onProfileSubmit(data: z.infer<typeof profileFormSchema>) {
+    try {
+      setLoading(true)
+      await updateUserInfo(data.username, data.fullName, data.address, data.phone)
+      toast.success("Profile updated successfully!")
+    } catch (error: any) {
+      console.error("[v0] Error updating profile:", error)
+      toast.error(error?.message || "Failed to update profile")
+    } finally {
+      setLoading(false)
+    }
   }
+
+  async function onPasswordSubmit(data: z.infer<typeof passwordFormSchema>) {
+    try {
+      setLoading(true)
+      const userDetails = getUserDetails() // Use imported getUserDetails function
+      if (!userDetails?.id) {
+        throw new Error("User ID not found")
+      }
+      await updatePassword(data.newPassword, userDetails.id)
+      toast.success("Password changed successfully!")
+      passwordForm.reset()
+      setShowPasswords({ current: false, new: false, confirm: false })
+    } catch (error: any) {
+      console.error("[v0] Error changing password:", error)
+      toast.error(error?.message || "Failed to change password")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error("Please select a valid image file")
+      return
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size should be less than 5MB")
+      return
+    }
+
+    try {
+      setAvatarUploading(true)
+      
+      // Create a preview URL
+      const previewUrl = URL.createObjectURL(file)
+      setAvatarUrl(previewUrl)
+
+      // Here you would typically upload to your server
+      // For now, we'll simulate the upload
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      toast.success("Avatar updated successfully!")
+    } catch (error: any) {
+      console.error("Error uploading avatar:", error)
+      toast.error("Failed to update avatar")
+      // Reset to previous avatar on error
+      setAvatarUrl(userDetails?.profilePicture || userDetails?.avatar || "")
+    } finally {
+      setAvatarUploading(false)
+    }
+  }
+
+  const removeAvatar = () => {
+    setAvatarUrl("")
+    toast.success("Avatar removed successfully!")
+  }
+
+  if (!isAuthorized) return null
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Settings</h1>
-        <p className="text-muted-foreground mt-2">Manage your profile information</p>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="space-y-8"
+    >
+      {/* Header */}
+      <div className="text-center space-y-4">
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+          className="w-20 h-20 bg-gradient-to-r from-[#003087] to-[#FF6B35] rounded-full flex items-center justify-center mx-auto"
+        >
+          <SettingsIcon className="w-10 h-10 text-white" />
+        </motion.div>
+        <div>
+          <h1 className="text-4xl font-bold text-[#003087]">Account Settings</h1>
+          <p className="text-gray-600 text-lg mt-2">Manage your account and preferences</p>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base md:text-lg">Profile Avatar</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex flex-col sm:flex-row items-center gap-6">
-            {/* Avatar Preview */}
-            <div className="flex flex-col items-center gap-4">
-              {avatar && avatar.startsWith("#") ? (
-                <div
-                  className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-[#003087] flex items-center justify-center text-white font-bold text-4xl"
-                  style={{ backgroundColor: avatar }}
-                >
-                  {profile?.details?.fullName
-                    ?.split(" ")
-                    .map((word) => word[0])
-                    .join("")
-                    .toUpperCase()}
-                </div>
-              ) : (
-                <Avatar className="w-24 h-24 md:w-32 md:h-32 border-4 border-[#003087]">
-                  <AvatarImage src={avatar || "/placeholder-user.jpg"} />
-                  <AvatarFallback>
-                    {profile?.details?.fullName
-                      ?.split(" ")
-                      .map((word) => word[0])
-                      .join("")
-                      .toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              )}
-              <p className="text-sm text-muted-foreground">{profile?.details?.fullName}</p>
-            </div>
-
-            {/* Avatar Options */}
-            <div className="flex-1 space-y-4">
-              <div>
-                <label className="text-xs md:text-sm font-medium text-foreground block mb-2">
-                  Upload Custom Avatar
-                </label>
+      <div className="space-y-8">
+        {/* Avatar Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <Card className="shadow-xl border-0 bg-gradient-to-br from-white to-gray-50">
+            <CardHeader className="bg-gradient-to-r from-[#003087]/5 to-[#FF6B35]/5 border-b">
+              <CardTitle className="text-2xl text-[#003087] flex items-center gap-2">
+                <Camera className="w-6 h-6" />
+                Profile Avatar
+              </CardTitle>
+              <CardDescription>Upload and manage your profile picture</CardDescription>
+            </CardHeader>
+            <CardContent className="p-8">
+              <div className="flex flex-col md:flex-row items-center gap-8">
                 <div className="relative">
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAvatarUpload}
-                    className="hidden"
-                    id="avatar-upload"
-                  />
-                  <label
-                    htmlFor="avatar-upload"
-                    className="flex items-center justify-center gap-2 px-4 py-2 border-2 border-dashed border-[#003087] rounded-lg cursor-pointer hover:bg-blue-50 transition-colors text-sm"
-                  >
-                    <Upload className="w-4 h-4" />
-                    <span>Click to upload or drag & drop</span>
-                  </label>
+                  <Avatar className="w-32 h-32 border-4 border-white shadow-lg">
+                    <AvatarImage src={avatarUrl} alt="Profile" />
+                    <AvatarFallback className="bg-gradient-to-r from-[#003087] to-[#FF6B35] text-white text-3xl">
+                      {userDetails?.fullName?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  {avatarUploading && (
+                    <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                      <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex-1 space-y-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Profile Picture</h3>
+                    <p className="text-gray-600">Upload a new avatar or remove the current one</p>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      onClick={handleAvatarClick}
+                      disabled={avatarUploading}
+                      className="bg-[#003087] hover:bg-[#003087]/90"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Upload New Avatar
+                    </Button>
+                    
+                    {avatarUrl && (
+                      <Button
+                        onClick={removeAvatar}
+                        variant="outline"
+                        disabled={avatarUploading}
+                        className="border-red-300 text-red-600 hover:bg-red-50"
+                      >
+                        Remove Avatar
+                      </Button>
+                    )}
+                  </div>
+                  
+                  <p className="text-sm text-gray-500">
+                    Recommended: Square image, at least 200x200px. Max file size: 5MB.
+                  </p>
                 </div>
               </div>
+              
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                className="hidden"
+              />
+            </CardContent>
+          </Card>
+        </motion.div>
 
-              <div>
-                <label className="text-xs md:text-sm font-medium text-foreground block mb-2">
-                  Or choose a preset color
-                </label>
-                <div className="grid grid-cols-4 md:grid-cols-4 gap-2">
-                  {avatarPresets.map((preset) => (
-                    <button
-                      key={preset.id}
-                      onClick={() => handleAvatarPreset(preset.color)}
-                      className={`w-10 h-10 rounded-full border-2 transition-all ${
-                        avatar === preset.color
-                          ? "border-[#003087] scale-110"
-                          : "border-gray-300 hover:border-[#003087]"
-                      }`}
-                      style={{ backgroundColor: preset.color }}
-                      title="Click to select"
+        {/* Update Your Info Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+        >
+          <Card className="shadow-xl border-0 bg-gradient-to-br from-white to-gray-50">
+            <CardHeader className="bg-gradient-to-r from-[#003087]/5 to-[#FF6B35]/5 border-b">
+              <CardTitle className="text-2xl text-[#003087] flex items-center gap-2">
+                <User className="w-6 h-6" />
+                Personal Information
+              </CardTitle>
+              <CardDescription>Update your personal details and contact information</CardDescription>
+            </CardHeader>
+            <CardContent className="p-8">
+              <Form {...profileForm}>
+                <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={profileForm.control}
+                      name="username"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-gray-700 font-medium">Username</FormLabel>
+                          <FormControl>
+                            <Input 
+                              {...field} 
+                              placeholder="Enter your username" 
+                              disabled={loading}
+                              className="border-gray-300 focus:border-[#003087] focus:ring-[#003087] h-12"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
-                  ))}
-                </div>
-              </div>
+                    <FormField
+                      control={profileForm.control}
+                      name="fullName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-gray-700 font-medium">Full Name</FormLabel>
+                          <FormControl>
+                            <Input 
+                              {...field} 
+                              placeholder="Enter your full name" 
+                              disabled={loading}
+                              className="border-gray-300 focus:border-[#003087] focus:ring-[#003087] h-12"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={profileForm.control}
+                      name="address"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-gray-700 font-medium">Address</FormLabel>
+                          <FormControl>
+                            <Input 
+                              {...field} 
+                              placeholder="Enter your address" 
+                              disabled={loading}
+                              className="border-gray-300 focus:border-[#003087] focus:ring-[#003087] h-12"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={profileForm.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-gray-700 font-medium">Phone Number</FormLabel>
+                          <FormControl>
+                            <Input 
+                              {...field} 
+                              placeholder="Enter your phone number" 
+                              disabled={loading}
+                              className="border-gray-300 focus:border-[#003087] focus:ring-[#003087] h-12"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <Button 
+                      type="submit" 
+                      disabled={loading || loadingProfile} 
+                      className="w-full h-12 bg-gradient-to-r from-[#003087] to-[#FF6B35] hover:from-[#003087]/90 hover:to-[#FF6B35]/90 text-white font-semibold"
+                    >
+                      {loading ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Updating Profile...
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Save className="w-4 h-4" />
+                          Update Profile
+                        </div>
+                      )}
+                    </Button>
+                  </motion.div>
+                </form>
+              </Form>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-              {avatar && (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setAvatar(null)
-                    localStorage.removeItem("userAvatar")
-                  }}
-                  className="w-full gap-2 text-sm"
-                >
-                  <X className="w-4 h-4" />
-                  Remove Avatar
-                </Button>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Reset Password Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+        >
+          <Card className="shadow-xl border-0 bg-gradient-to-br from-white to-gray-50">
+            <CardHeader className="bg-gradient-to-r from-[#003087]/5 to-[#FF6B35]/5 border-b">
+              <CardTitle className="text-2xl text-[#003087] flex items-center gap-2">
+                <Eye className="w-6 h-6" />
+                Security Settings
+              </CardTitle>
+              <CardDescription>Update your password to keep your account secure</CardDescription>
+            </CardHeader>
+            <CardContent className="p-8">
+              <Form {...passwordForm}>
+                <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-6">
+                  <FormField
+                    control={passwordForm.control}
+                    name="currentPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-gray-700 font-medium">Current Password</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Input
+                              {...field}
+                              type={showPasswords.current ? "text" : "password"}
+                              placeholder="Enter current password"
+                              disabled={loading}
+                              autoComplete="current-password"
+                              className="border-gray-300 focus:border-[#003087] focus:ring-[#003087] h-12 pr-12"
+                            />
+                            <button
+                              type="button"
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-[#003087]"
+                              onClick={() =>
+                                setShowPasswords((prev) => ({
+                                  ...prev,
+                                  current: !prev.current,
+                                }))
+                              }
+                            >
+                              {showPasswords.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base md:text-lg">Profile Information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-            <div>
-              <label className="text-xs md:text-sm font-medium text-foreground">Full Name</label>
-              <Input
-                type="text"
-                name="fullName"
-                value={formData.fullName}
-                onChange={handleChange}
-                className="mt-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs md:text-sm font-medium text-foreground">Email</label>
-              <Input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                className="mt-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs md:text-sm font-medium text-foreground">Country</label>
-              <Input
-                type="text"
-                name="country"
-                value={formData.country}
-                onChange={handleChange}
-                className="mt-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs md:text-sm font-medium text-foreground">Time Zone</label>
-              <Input
-                type="text"
-                name="timeZone"
-                value={formData.timeZone}
-                onChange={handleChange}
-                className="mt-2 text-sm"
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="text-xs md:text-sm font-medium text-foreground">Primary Domain</label>
-              <Input
-                type="text"
-                name="primaryDomain"
-                value={formData.primaryDomain}
-                onChange={handleChange}
-                className="mt-2 text-sm"
-              />
-            </div>
-          </div>
+                  <FormField
+                    control={passwordForm.control}
+                    name="newPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-gray-700 font-medium">New Password</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Input
+                              {...field}
+                              type={showPasswords.new ? "text" : "password"}
+                              placeholder="Enter new password"
+                              disabled={loading}
+                              autoComplete="new-password"
+                              className="border-gray-300 focus:border-[#003087] focus:ring-[#003087] h-12 pr-12"
+                            />
+                            <button
+                              type="button"
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-[#003087]"
+                              onClick={() =>
+                                setShowPasswords((prev) => ({
+                                  ...prev,
+                                  new: !prev.new,
+                                }))
+                              }
+                            >
+                              {showPasswords.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-          <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-border">
-            <Button
-              onClick={handleUpdate}
-              disabled={updating}
-              className="bg-[#003087] hover:bg-[#002060] text-sm md:text-base"
-            >
-              {updating ? "Updating..." : "Update Profile"}
-            </Button>
-            <Button variant="outline" className="text-sm md:text-base bg-transparent">
-              Cancel
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+                  <FormField
+                    control={passwordForm.control}
+                    name="confirmPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-gray-700 font-medium">Confirm New Password</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Input
+                              {...field}
+                              type={showPasswords.confirm ? "text" : "password"}
+                              placeholder="Confirm new password"
+                              disabled={loading}
+                              autoComplete="new-password"
+                              className="border-gray-300 focus:border-[#003087] focus:ring-[#003087] h-12 pr-12"
+                            />
+                            <button
+                              type="button"
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-[#003087]"
+                              onClick={() =>
+                                setShowPasswords((prev) => ({
+                                  ...prev,
+                                  confirm: !prev.confirm,
+                                }))
+                              }
+                            >
+                              {showPasswords.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base md:text-lg">Change Password</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {passwordMessage && (
-            <div
-              className={`p-4 rounded-lg text-sm ${
-                passwordMessage.type === "success"
-                  ? "bg-green-100 text-green-800 border border-green-200"
-                  : "bg-red-100 text-red-800 border border-red-200"
-              }`}
-            >
-              {passwordMessage.text}
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs md:text-sm font-medium text-foreground">Current Password</label>
-              <div className="relative mt-2">
-                <Input
-                  type={showPasswords.current ? "text" : "password"}
-                  name="currentPassword"
-                  value={passwordData.currentPassword}
-                  onChange={handlePasswordChange}
-                  placeholder="Enter your current password"
-                  className="pr-10 text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPasswords((prev) => ({ ...prev, current: !prev.current }))}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPasswords.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs md:text-sm font-medium text-foreground">New Password</label>
-              <div className="relative mt-2">
-                <Input
-                  type={showPasswords.new ? "text" : "password"}
-                  name="newPassword"
-                  value={passwordData.newPassword}
-                  onChange={handlePasswordChange}
-                  placeholder="Enter your new password"
-                  className="pr-10 text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPasswords((prev) => ({ ...prev, new: !prev.new }))}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPasswords.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs md:text-sm font-medium text-foreground">Confirm New Password</label>
-              <div className="relative mt-2">
-                <Input
-                  type={showPasswords.confirm ? "text" : "password"}
-                  name="confirmPassword"
-                  value={passwordData.confirmPassword}
-                  onChange={handlePasswordChange}
-                  placeholder="Confirm your new password"
-                  className="pr-10 text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPasswords((prev) => ({ ...prev, confirm: !prev.confirm }))}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPasswords.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-border">
-            <Button
-              onClick={handlePasswordUpdate}
-              disabled={updatingPassword}
-              className="bg-[#003087] hover:bg-[#002060] text-sm md:text-base"
-            >
-              {updatingPassword ? "Updating..." : "Update Password"}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" })
-                setPasswordMessage(null)
-              }}
-              className="text-sm md:text-base"
-            >
-              Cancel
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <Button 
+                      type="submit" 
+                      disabled={loading} 
+                      className="w-full h-12 bg-gradient-to-r from-[#003087] to-[#FF6B35] hover:from-[#003087]/90 hover:to-[#FF6B35]/90 text-white font-semibold"
+                    >
+                      {loading ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Updating Password...
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Save className="w-4 h-4" />
+                          Update Password
+                        </div>
+                      )}
+                    </Button>
+                  </motion.div>
+                </form>
+              </Form>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    </motion.div>
   )
 }

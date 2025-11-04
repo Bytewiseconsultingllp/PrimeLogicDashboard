@@ -539,7 +539,7 @@ export default function DashboardHome() {
   return (
     <div className="space-y-6">
       {/* Greeting Card */}
-      <div className="bg-gradient-to-r from-[#4C63D2] to-[#6B5DD6] rounded-xl p-6 md:p-8 text-white grid md:grid-cols-2 gap-6 items-center shadow-lg">
+      <div className="bg-gradient-to-r from-[#003087] to-[#FF6B35] text-white rounded-xl p-6 md:p-8 text-white grid md:grid-cols-2 gap-6 items-center shadow-lg">
         <div className="space-y-3">
           <div>
             <p className="text-blue-100 text-sm md:text-base font-medium">Welcome back,</p>
