@@ -212,6 +212,8 @@ export default function DashboardHome() {
   const [error, setError] = useState<string | null>(null)
   const [feedbackText, setFeedbackText] = useState("")
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false)
+  const [paymentProcessing, setPaymentProcessing] = useState<string | null>(null)
+  const [paymentCompleted, setPaymentCompleted] = useState<string | null>(null)
 
   // Use KPI data if available, otherwise calculate from projects
   const totalProjects = clientKPI?.totalProjects ?? projects.length
@@ -244,6 +246,48 @@ export default function DashboardHome() {
     }
 
     fetchClientProfile()
+  }, [])
+
+  // Handle payment redirect results
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const paymentStatus = urlParams.get('payment')
+    const projectId = urlParams.get('projectId')
+    
+    if (paymentStatus && projectId) {
+      if (paymentStatus === 'success') {
+        setPaymentCompleted(projectId)
+        setPaymentProcessing(null)
+        toast.success("Payment completed successfully!")
+        
+        // Update project payment status in state
+        setProjects(prev => prev.map(p => 
+          p.id === projectId 
+            ? { 
+                ...p, 
+                paymentStatus: "SUCCEEDED" as const,
+                paymentDetails: {
+                  id: p.paymentDetails?.id || projectId,
+                  amount: p.paymentDetails?.amount || parseFloat(p.calculatedTotal?.toString() || "0"),
+                  status: "SUCCEEDED",
+                  paidAt: new Date().toISOString(),
+                  amountPaid: parseFloat(p.calculatedTotal?.toString() || "0"),
+                  amountRemaining: 0
+                }
+              }
+            : p
+        ))
+        
+        // Clear URL parameters
+        window.history.replaceState({}, '', '/dashboard/client')
+      } else if (paymentStatus === 'cancelled') {
+        setPaymentProcessing(null)
+        toast.error("Payment was cancelled")
+        
+        // Clear URL parameters
+        window.history.replaceState({}, '', '/dashboard/client')
+      }
+    }
   }, [])
 
   // Fetch projects and payments
@@ -444,11 +488,18 @@ export default function DashboardHome() {
     }
   }
 
-  // Handle payment redirect
+  // Handle payment redirect with processing states
   const handlePaymentRedirect = async (projectId: string) => {
     try {
+      setPaymentProcessing(projectId)
+      toast.info("Processing payment...")
+      
       const userDetails = getUserDetails()
-      if (!userDetails) return
+      if (!userDetails) {
+        setPaymentProcessing(null)
+        toast.error("Authentication required")
+        return
+      }
       
       const token = userDetails.accessToken
 
@@ -460,20 +511,24 @@ export default function DashboardHome() {
         },
         body: JSON.stringify({
           projectId,
-          successUrl: `${window.location.origin}/dashboard/client?payment=success`,
-          cancelUrl: `${window.location.origin}/dashboard/client?payment=cancelled`
+          successUrl: `${window.location.origin}/dashboard/client?payment=success&projectId=${projectId}`,
+          cancelUrl: `${window.location.origin}/dashboard/client?payment=cancelled&projectId=${projectId}`
         })
       })
       
       if (response.ok) {
         const data = await response.json()
+        toast.success("Redirecting to payment page...")
         window.location.href = data.data.url
       } else {
-        toast.error("Failed to create payment session")
+        const errorData = await response.json()
+        toast.error(errorData.message || "Failed to create payment session")
+        setPaymentProcessing(null)
       }
     } catch (error) {
       console.error("Payment redirect error:", error)
       toast.error("Failed to redirect to payment")
+      setPaymentProcessing(null)
     }
   }
 
@@ -804,13 +859,7 @@ export default function DashboardHome() {
               <div className="text-center py-8">
                 <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <p className="text-muted-foreground mb-2">No projects found</p>
-                <div className="text-xs text-muted-foreground mb-4 space-y-1">
-                  <p>API Endpoint: /api/v1/projects/my-projects</p>
-                  <p>Check browser console for detailed logs</p>
-                  <p>Client Profile: {clientProfile ? '✅ Loaded' : '❌ Not loaded'}</p>
-                  <p>Auth Status: {getUserDetails() ? '✅ Authenticated' : '❌ Not authenticated'}</p>
-                  <p>User Role: {getUserDetails()?.role || 'Unknown'}</p>
-                </div>
+                
                 <Link href="/dashboard/client/create-project">
                   <Button className="mt-4 bg-[#003087] hover:bg-[#003087]/90">
                     Create Your First Project
@@ -950,7 +999,7 @@ export default function DashboardHome() {
                     </svg>
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="text-center">
-                        <div className="text-4xl font-bold text-[#003087] mb-1">
+                        <div className="text-2xl font-bold text-[#003087] mb-1">
                           {selectedProject?.paymentDetails?.status === "SUCCEEDED" 
                             ? "100%" 
                             : selectedProject?.paymentDetails?.amountPaid && (selectedProject?.calculatedTotal || selectedProject?.paymentDetails?.amount)
@@ -1042,10 +1091,25 @@ export default function DashboardHome() {
                   {selectedProject.paymentDetails?.status !== "SUCCEEDED" && (
                     <Button
                       onClick={() => handlePaymentRedirect(selectedProject.id)}
-                      className="w-full bg-gradient-to-r from-[#003087] to-[#FF6B35] hover:from-[#003087]/90 hover:to-[#FF6B35]/90 text-white font-medium py-3"
+                      disabled={paymentProcessing === selectedProject.id}
+                      className="w-full bg-gradient-to-r from-[#003087] to-[#FF6B35] hover:from-[#003087]/90 hover:to-[#FF6B35]/90 text-white font-medium py-3 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <CreditCard className="w-4 h-4 mr-2" />
-                      Complete Payment
+                      {paymentProcessing === selectedProject.id ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Processing Payment...
+                        </>
+                      ) : paymentCompleted === selectedProject.id ? (
+                        <>
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Payment Completed!
+                        </>
+                      ) : (
+                        <>
+                          <CreditCard className="w-4 h-4 mr-2" />
+                          Complete Payment
+                        </>
+                      )}
                     </Button>
                   )}
                   
