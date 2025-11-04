@@ -542,7 +542,7 @@ export default function DashboardHome() {
       <div className="bg-gradient-to-r from-[#003087] to-[#FF6B35] text-white rounded-xl p-6 md:p-8 text-white grid md:grid-cols-2 gap-6 items-center shadow-lg">
         <div className="space-y-3">
           <div>
-            <p className="text-blue-100 text-sm md:text-base font-medium">Welcome back,</p>
+            <p className="text-blue-100 text-sm md:text-base font-medium">Welcome back</p>
             <h1 className="text-3xl md:text-4xl font-bold mt-1">
               {clientProfile?.fullName || "Client"}
             </h1>
