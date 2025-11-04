@@ -1,3 +1,3 @@
 prime logic dashboard
 
-completed
+completed.
