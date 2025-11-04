@@ -1,0 +1,629 @@
+paths:
+  /payment/create-payment-intent:
+    post:
+      tags:
+        - Payment
+      summary: Create a payment intent
+      description: Create a Stripe payment intent for processing payment
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentIntent"
+      responses:
+        "200":
+          description: Payment intent created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      paymentIntentId:
+                        type: string
+                        example: pi_1234567890
+                      clientSecret:
+                        type: string
+                        example: pi_1234567890_secret_abcdef123456
+                      amount:
+                        type: number
+                        example: 1000
+                      currency:
+                        type: string
+                        example: usd
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /payment/payment-intent/{paymentIntentId}/status:
+    get:
+      tags:
+        - Payment
+      summary: Get payment intent status
+      description: Retrieve the status of a payment intent
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: paymentIntentId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Payment Intent ID
+      responses:
+        "200":
+          description: Payment intent status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      paymentIntentId:
+                        type: string
+                        example: pi_1234567890
+                      status:
+                        type: string
+                        enum:
+                          [
+                            requires_payment_method,
+                            requires_confirmation,
+                            requires_action,
+                            processing,
+                            requires_capture,
+                            canceled,
+                            succeeded,
+                          ]
+                        example: succeeded
+                      amount:
+                        type: number
+                        example: 1000
+                      currency:
+                        type: string
+                        example: usd
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /payment/create-checkout-session:
+    post:
+      tags:
+        - Payment
+      summary: Create a checkout session
+      description: Create a Stripe checkout session
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amount
+                - currency
+                - successUrl
+                - cancelUrl
+              properties:
+                amount:
+                  type: number
+                  example: 1000
+                  description: Amount in cents
+                currency:
+                  type: string
+                  example: usd
+                description:
+                  type: string
+                  example: Payment for project milestone
+                successUrl:
+                  type: string
+                  format: uri
+                  example: https://example.com/success
+                cancelUrl:
+                  type: string
+                  format: uri
+                  example: https://example.com/cancel
+      responses:
+        "200":
+          description: Checkout session created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      sessionId:
+                        type: string
+                        example: cs_test_1234567890
+                      url:
+                        type: string
+                        example: https://checkout.stripe.com/pay/cs_test_1234567890
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /payment/checkout-session/{sessionId}/status:
+    get:
+      tags:
+        - Payment
+      summary: Get checkout session status
+      description: Retrieve the status of a checkout session
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Checkout Session ID
+      responses:
+        "200":
+          description: Checkout session status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      sessionId:
+                        type: string
+                        example: cs_test_1234567890
+                      status:
+                        type: string
+                        enum: [open, complete, expired]
+                        example: complete
+                      paymentStatus:
+                        type: string
+                        enum: [paid, unpaid, no_payment_required]
+                        example: paid
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /payment/webhook:
+    post:
+      tags:
+        - Payment
+      summary: Stripe webhook handler
+      description: Handle Stripe webhook events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Stripe webhook event object
+      responses:
+        "200":
+          description: Webhook processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received:
+                    type: boolean
+                    example: true
+        "400":
+          description: Invalid webhook signature
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /payment/create-refund:
+    post:
+      tags:
+        - Payment
+      summary: Create a refund
+      description: Issue a refund for a payment
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - paymentIntentId
+              properties:
+                paymentIntentId:
+                  type: string
+                  example: pi_1234567890
+                amount:
+                  type: number
+                  example: 500
+                  description: Amount to refund in cents (optional, full refund if not specified)
+                reason:
+                  type: string
+                  enum: [duplicate, fraudulent, requested_by_customer]
+                  example: requested_by_customer
+      responses:
+        "200":
+          description: Refund created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      refundId:
+                        type: string
+                        example: re_1234567890
+                      amount:
+                        type: number
+                        example: 500
+                      status:
+                        type: string
+                        enum: [pending, succeeded, failed, canceled]
+                        example: succeeded
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /payment/history:
+    get:
+      tags:
+        - Payment
+      summary: Get payment history
+      description: Retrieve payment history for the current user
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Payment history retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      payments:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                            paymentIntentId:
+                              type: string
+                              example: pi_1234567890
+                            amount:
+                              type: number
+                              example: 1000
+                            currency:
+                              type: string
+                              example: usd
+                            status:
+                              type: string
+                              example: succeeded
+                            description:
+                              type: string
+                              example: Payment for project milestone
+                            createdAt:
+                              type: string
+                              format: date-time
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /payment/project/create-checkout-session:
+    post:
+      tags:
+        - Payment
+        - Project Payment
+      summary: Create project payment checkout session
+      description: Create a Stripe checkout session for a project payment using the project's calculated total from the estimate
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - projectId
+                - successUrl
+                - cancelUrl
+              properties:
+                projectId:
+                  type: string
+                  format: uuid
+                  example: "403f90bd-0f1f-4bde-a701-adc37ab35252"
+                  description: The ID of the project to create payment for
+                successUrl:
+                  type: string
+                  format: uri
+                  example: "http://localhost:3000/payment/success?session_id={CHECKOUT_SESSION_ID}"
+                  description: URL to redirect to after successful payment (use {CHECKOUT_SESSION_ID} placeholder)
+                cancelUrl:
+                  type: string
+                  format: uri
+                  example: "http://localhost:3000/payment/cancel"
+                  description: URL to redirect to if payment is cancelled
+            examples:
+              default:
+                summary: Default example
+                value:
+                  projectId: "403f90bd-0f1f-4bde-a701-adc37ab35252"
+                  successUrl: "http://localhost:3000/payment/success?session_id={CHECKOUT_SESSION_ID}"
+                  cancelUrl: "http://localhost:3000/payment/cancel"
+      responses:
+        "200":
+          description: Checkout session created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  statusCode:
+                    type: number
+                    example: 200
+                  message:
+                    type: string
+                    example: "Project checkout session created successfully"
+                  data:
+                    type: object
+                    properties:
+                      sessionId:
+                        type: string
+                        example: "cs_test_a1b2c3d4e5f6g7h8i9j0"
+                        description: Stripe checkout session ID
+                      url:
+                        type: string
+                        format: uri
+                        example: "https://checkout.stripe.com/c/pay/cs_test_a1b2c3d4e5f6g7h8i9j0"
+                        description: Stripe hosted checkout page URL - redirect user to this URL
+                      paymentId:
+                        type: string
+                        format: uuid
+                        example: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                        description: Internal payment record ID
+                  requestInfo:
+                    type: object
+                    properties:
+                      url:
+                        type: string
+                        example: "/api/v1/payment/project/create-checkout-session"
+                      method:
+                        type: string
+                        example: "POST"
+              examples:
+                success:
+                  summary: Successful response
+                  value:
+                    success: true
+                    statusCode: 200
+                    message: "Project checkout session created successfully"
+                    data:
+                      sessionId: "cs_test_a1b2c3d4e5f6g7h8i9j0"
+                      url: "https://checkout.stripe.com/c/pay/cs_test_a1b2c3d4e5f6g7h8i9j0"
+                      paymentId: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+        "400":
+          description: Bad request - Invalid input or project has no estimate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                missingFields:
+                  summary: Missing required fields
+                  value:
+                    success: false
+                    message: "Project ID, successUrl, and cancelUrl are required"
+                noEstimate:
+                  summary: Project has no estimate
+                  value:
+                    success: false
+                    message: "Failed to create checkout session"
+                    error: "Project estimate not found"
+                invalidAmount:
+                  summary: Invalid payment amount
+                  value:
+                    success: false
+                    message: "Failed to create checkout session"
+                    error: "Invalid payment amount: 0 dollars (0 cents)"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                notFound:
+                  summary: Project not found
+                  value:
+                    success: false
+                    message: "Failed to create checkout session"
+                    error: "Project not found"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /payment/project/{projectId}/status:
+    get:
+      tags:
+        - Payment
+        - Project Payment
+      summary: Get project payment status
+      description: Retrieve the current payment status and amount for a project
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The ID of the project
+          example: "403f90bd-0f1f-4bde-a701-adc37ab35252"
+      responses:
+        "200":
+          description: Payment status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  statusCode:
+                    type: number
+                    example: 200
+                  message:
+                    type: string
+                    example: "Project payment status retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum: [PENDING, SUCCEEDED, FAILED, CANCELED, REFUNDED]
+                        example: "SUCCEEDED"
+                        description: Current payment status of the project
+                      amount:
+                        type: number
+                        example: 1500.00
+                        description: Payment amount in dollars
+                      currency:
+                        type: string
+                        example: "usd"
+                        description: Currency code
+                  requestInfo:
+                    type: object
+                    properties:
+                      url:
+                        type: string
+                        example: "/api/v1/payment/project/403f90bd-0f1f-4bde-a701-adc37ab35252/status"
+                      method:
+                        type: string
+                        example: "GET"
+              examples:
+                pending:
+                  summary: Payment pending
+                  value:
+                    success: true
+                    statusCode: 200
+                    message: "Project payment status retrieved successfully"
+                    data:
+                      status: "PENDING"
+                      amount: 1500.00
+                      currency: "usd"
+                succeeded:
+                  summary: Payment succeeded
+                  value:
+                    success: true
+                    statusCode: 200
+                    message: "Project payment status retrieved successfully"
+                    data:
+                      status: "SUCCEEDED"
+                      amount: 1500.00
+                      currency: "usd"
+                failed:
+                  summary: Payment failed
+                  value:
+                    success: true
+                    statusCode: 200
+                    message: "Project payment status retrieved successfully"
+                    data:
+                      status: "FAILED"
+                      amount: 1500.00
+                      currency: "usd"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                notFound:
+                  summary: Project not found
+                  value:
+                    success: false
+                    message: "Project not found"
+        "500":
+          $ref: "#/components/responses/InternalServerError"

@@ -1,0 +1,892 @@
+paths:
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register a new user
+      description: Create a new user account with email verification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - fullName
+                - email
+                - password
+              properties:
+                username:
+                  type: string
+                  example: john_doe123
+                  minLength: 3
+                  maxLength: 50
+                  pattern: "^[a-z0-9_.]{1,20}$"
+                  description: Username (lowercase letters, numbers, underscores, periods only)
+                fullName:
+                  type: string
+                  example: John Doe
+                  minLength: 3
+                  maxLength: 50
+                  pattern: "^[a-zA-Z ]{3,20}$"
+                  description: Full name (letters and spaces only)
+                email:
+                  type: string
+                  format: email
+                  example: john.doe@example.com
+                  minLength: 3
+                  maxLength: 150
+                  description: Email address
+                password:
+                  type: string
+                  format: password
+                  example: SecurePass123!
+                  minLength: 6
+                  maxLength: 50
+                  description: Password (6-50 characters)
+      responses:
+        "201":
+          description: User registered successfully. Verification email sent.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+              example:
+                success: true
+                message: User registered successfully. Please verify your email.
+                data:
+                  uid: "123e4567-e89b-12d3-a456-426614174000"
+                  email: "john.doe@example.com"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "409":
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                message: User with this email already exists
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/verifyEmail:
+    post:
+      tags:
+        - Authentication
+      summary: Verify user email with OTP
+      description: Verify user email address using OTP sent during registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - OTP
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: john.doe@example.com
+                  description: Email address used during registration
+                OTP:
+                  type: string
+                  example: "123456"
+                  minLength: 6
+                  maxLength: 6
+                  description: 6-digit OTP code sent to email
+      responses:
+        "200":
+          description: Email verified successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          description: Invalid or expired OTP
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/sendOTP:
+    post:
+      tags:
+        - Authentication
+      summary: Send OTP to user email
+      description: Send or resend OTP for email verification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: john.doe@example.com
+                  description: Email address to send OTP to
+      responses:
+        "200":
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user and receive access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: john_doe123
+                  maxLength: 100
+                  description: Username or email address
+                password:
+                  type: string
+                  format: password
+                  example: SecurePass123!
+                  maxLength: 100
+                  description: User password
+      responses:
+        "200":
+          description: Login successful
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: accessToken=eyJhbGc...; HttpOnly; Secure; SameSite=Strict
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Login successful
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: "#/components/schemas/User"
+                      accessToken:
+                        type: string
+                        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                      refreshToken:
+                        type: string
+                        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Email not verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/logoutUser:
+    get:
+      tags:
+        - Authentication
+      summary: Logout current user
+      description: Logout user from current session
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/logoutUserForceFully:
+    post:
+      tags:
+        - Authentication
+      summary: Force logout user from all devices
+      description: Logout user from all sessions/devices
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Force logout successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/refreshAcessToken:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: Get a new access token using refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+                  example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+      responses:
+        "200":
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+                        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        "401":
+          description: Invalid refresh token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/updateInfo:
+    patch:
+      tags:
+        - Users
+      summary: Update user information
+      description: Update current user's basic information
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fullName:
+                  type: string
+                  example: John Doe Updated
+                phoneNumber:
+                  type: string
+                  example: "+1234567890"
+      responses:
+        "200":
+          description: User information updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/updateEmail:
+    patch:
+      tags:
+        - Users
+      summary: Update user email
+      description: Update current user's email address (requires verification)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: newemail@example.com
+      responses:
+        "200":
+          description: Email update initiated. Verification email sent.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "409":
+          description: Email already in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/updatePassword:
+    patch:
+      tags:
+        - Users
+      summary: Update user password
+      description: Update current user's password
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - currentPassword
+                - newPassword
+              properties:
+                currentPassword:
+                  type: string
+                  format: password
+                  example: OldPass123!
+                newPassword:
+                  type: string
+                  format: password
+                  example: NewPass123!
+      responses:
+        "200":
+          description: Password updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          description: Current password is incorrect
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/updateRole:
+    patch:
+      tags:
+        - Users
+      summary: Update user role
+      description: Update user role (Admin functionality)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+                - role
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                role:
+                  type: string
+                  enum: [CLIENT, FREELANCER, ADMIN, MODERATOR]
+      responses:
+        "200":
+          description: User role updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/getSingleUser:
+    get:
+      tags:
+        - Users
+      summary: Get single user details
+      description: Retrieve details of a specific user
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: User ID
+      responses:
+        "200":
+          description: User details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/getAllUsers:
+    get:
+      tags:
+        - Users
+      summary: Get all users
+      description: Retrieve list of all users (Admin/Moderator only)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Users retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      users:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/User"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/searchUsers:
+    get:
+      tags:
+        - Users
+      summary: Search users
+      description: Search users by name or email
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/getCurrentUser:
+    get:
+      tags:
+        - Users
+      summary: Get current logged-in user details
+      description: Retrieve details of the currently authenticated user
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Current user details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/deleteUser/{uid}:
+    delete:
+      tags:
+        - Users
+      summary: Delete a user permanently
+      description: Permanently delete a user (Admin only)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: User ID
+      responses:
+        "200":
+          description: User deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/trashTheUser:
+    patch:
+      tags:
+        - Users
+      summary: Move user to trash
+      description: Soft delete user by moving to trash (Admin/Moderator)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: User moved to trash successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/unTrashTheUser:
+    patch:
+      tags:
+        - Users
+      summary: Restore user from trash
+      description: Restore a trashed user (Admin only)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: User restored successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/forgotPasswordRequestFromUser:
+    post:
+      tags:
+        - Authentication
+      summary: Request password reset
+      description: Request password reset via email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: john.doe@example.com
+                  minLength: 3
+                  maxLength: 150
+                  description: Email address for password reset
+      responses:
+        "200":
+          description: Password reset email sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/verifyForgotPasswordRequest:
+    post:
+      tags:
+        - Authentication
+      summary: Verify forgot password OTP
+      description: Verify OTP for password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - OTP
+              properties:
+                OTP:
+                  type: string
+                  example: "123456"
+                  minLength: 6
+                  maxLength: 6
+                  description: 6-digit OTP code sent to email
+      responses:
+        "200":
+          description: OTP verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      resetToken:
+                        type: string
+                        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          description: Invalid or expired OTP
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/updateNewPasswordRequest:
+    patch:
+      tags:
+        - Authentication
+      summary: Update new password after reset
+      description: Set new password after verification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - newPassword
+              properties:
+                newPassword:
+                  type: string
+                  format: password
+                  example: NewSecurePass123!
+                  minLength: 6
+                  maxLength: 50
+                  description: New password (6-50 characters)
+      responses:
+        "200":
+          description: Password updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          description: Invalid or expired reset token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/getAllClients:
+    get:
+      tags:
+        - Users
+      summary: Get all client users
+      description: Retrieve list of all users with CLIENT role (Admin/Moderator only)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Clients retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      clients:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/User"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
