@@ -1,0 +1,1930 @@
+paths:
+  # ============================================
+  # CLIENT PROJECT MANAGEMENT (NEW SYSTEM)
+  # ============================================
+
+  /projects:
+    post:
+      tags:
+        - Client Projects
+      summary: Create a new project (existing clients)
+      description: |
+        Allows an authenticated client to create a new project. This endpoint is for existing clients who want to add additional projects to their account.
+
+        **Key Features:**
+        - Client ID is automatically extracted from authentication token
+        - **All fields required** - same as visitor flow (details, services, industries, technologies, features, discount, timeline, estimate, service agreement)
+        - Complete project information must be provided upfront
+
+        **What's Different from Visitor Flow:**
+        - No visitor conversion needed - client already registered
+        - visitorId will be null (this is a direct client project)
+        - Same comprehensive data requirements as visitor flow
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientProjectCreate"
+            examples:
+              complete:
+                summary: Complete project with all details
+                value:
+                  details:
+                    fullName: "John Doe"
+                    businessEmail: "john@example.com"
+                    phoneNumber: "+1234567890"
+                    companyName: "Acme Corp"
+                    companyWebsite: "https://acmecorp.com"
+                    businessAddress: "123 Main St, New York, NY 10001"
+                    businessType: "Technology"
+                    referralSource: "Google Search"
+                  services:
+                    - name: "SOFTWARE_DEVELOPMENT"
+                      childServices: ["Web Development", "Mobile Development"]
+                  industries:
+                    - category: "RETAIL_AND_ECOMMERCE"
+                      subIndustries: ["ONLINE_RETAIL", "FASHION_AND_APPAREL"]
+                  technologies:
+                    - category: "FRONTEND"
+                      technologies: ["REACT", "NEXT_JS"]
+                    - category: "BACKEND"
+                      technologies: ["NODE_JS", "PYTHON_DJANGO"]
+                  features:
+                    - category: "USER_MANAGEMENT"
+                      features: ["AUTHENTICATION", "USER_PROFILES"]
+                    - category: "ECOMMERCE"
+                      features: ["SHOPPING_CART", "PAYMENT_PROCESSING"]
+                  discount:
+                    type: "STARTUP_FOUNDER"
+                    percent: 15
+                    notes: "Early stage startup discount"
+                  timeline:
+                    option: "STANDARD_BUILD"
+                    rushFeePercent: 0
+                    estimatedDays: 45
+                    description: "Standard development timeline"
+                  estimate:
+                    estimateAccepted: true
+                    estimateFinalPriceMin: 5000
+                    estimateFinalPriceMax: 7000
+                  serviceAgreement:
+                    documentUrl: "https://example.com/agreements/service-agreement.pdf"
+                    agreementVersion: "v1.0"
+                    accepted: true
+                    ipAddress: "192.168.1.1"
+                    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                    locale: "en-US"
+      responses:
+        "200":
+          description: Project created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Project created successfully"
+                  data:
+                    $ref: "#/components/schemas/ProjectComplete"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /projects/my-projects:
+    get:
+      tags:
+        - Client Projects
+      summary: Get all my projects
+      description: |
+        Retrieve all projects belonging to the authenticated client with pagination support.
+
+        **Returns:**
+        - List of all projects created by the client
+        - Includes project details, services, technologies, milestones, etc.
+        - Paginated results for better performance
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Projects retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Success"
+                  data:
+                    type: object
+                    properties:
+                      projects:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ProjectComplete"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /projects/{id}:
+    get:
+      tags:
+        - Client Projects
+      summary: Get single project by ID
+      description: |
+        Retrieve detailed information about a specific project by its ID.
+
+        **Authorization:**
+        - Clients can only view their own projects
+        - Admins can view any project
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project ID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Project retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Success"
+                  data:
+                    $ref: "#/components/schemas/ProjectComplete"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    patch:
+      tags:
+        - Client Projects
+      summary: Update project details
+      description: |
+        Update project details with partial updates. You can update any combination of fields.
+
+        **Key Features:**
+        - Partial updates supported - only send fields you want to update
+        - Arrays (services, industries, technologies, features) will be completely replaced if provided
+        - Details can be partially updated (only changed fields)
+        - Authorization: Only project owner or admin can update
+
+        **Examples:**
+        - Update only company name: Send `{ "details": { "companyName": "New Name" } }`
+        - Update only services: Send `{ "services": [...] }`
+        - Update multiple fields at once
+
+        **Note:** serviceAgreement cannot be updated (legal document)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project ID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientProjectUpdate"
+            examples:
+              updateDetails:
+                summary: Update only company details
+                value:
+                  details:
+                    companyName: "Updated Corp Name"
+                    companyWebsite: "https://updated-corp.com"
+              updateServices:
+                summary: Update services only
+                value:
+                  services:
+                    - name: "SOFTWARE_DEVELOPMENT"
+                      childServices: ["API Development", "Database Design"]
+                    - name: "CLOUD_AND_DEVOPS"
+                      childServices: ["AWS", "Docker"]
+              updateEstimate:
+                summary: Update estimate only
+                value:
+                  estimate:
+                    estimateAccepted: true
+                    estimateFinalPriceMin: 8000
+                    estimateFinalPriceMax: 12000
+              updateMultiple:
+                summary: Update multiple sections
+                value:
+                  details:
+                    businessEmail: "newemail@example.com"
+                    phoneNumber: "+1987654321"
+                  discount:
+                    type: "NONPROFIT_ORGANIZATION"
+                    percent: 20
+                    notes: "Updated discount for nonprofit"
+                  timeline:
+                    option: "PRIORITY_BUILD"
+                    rushFeePercent: 15
+                    estimatedDays: 30
+      responses:
+        "200":
+          description: Project updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Project updated successfully"
+                  data:
+                    $ref: "#/components/schemas/ProjectComplete"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    delete:
+      tags:
+        - Client Projects
+      summary: Delete project (soft delete)
+      description: |
+        Soft delete a project. The project will be marked as deleted but not removed from the database.
+
+        **Authorization:**
+        - Clients can only delete their own projects
+        - Admins can delete any project
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project ID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Project deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Project deleted successfully"
+                  data:
+                    type: "null"
+                    example: null
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+
+  /projects/{id}/accepting-bids:
+    patch:
+      tags:
+        - Client Projects
+      summary: Toggle accepting bids status
+      description: |
+        Control whether a project is accepting new bids from freelancers.
+
+        **Key Features:**
+        - When `acceptingBids = true`: Project is visible to all freelancers who meet requirements
+        - When `acceptingBids = false`: Project is hidden from freelancers who are not already assigned
+
+        **Visibility Logic for Freelancers:**
+        - **Assigned freelancers**: Can ALWAYS see the project (regardless of `acceptingBids` status)
+        - **Non-assigned freelancers**: Can only see if `acceptingBids = true` AND `paymentStatus = "SUCCEEDED"`
+
+        **Authorization:**
+        - Client: Can toggle their own projects
+        - Moderator: Can toggle any project
+        - Admin: Can toggle any project
+
+        **Use Cases:**
+        - Close bidding after finding enough freelancers
+        - Reopen bidding if more freelancers are needed
+        - Temporarily pause bidding while evaluating current applicants
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - acceptingBids
+              properties:
+                acceptingBids:
+                  type: boolean
+                  description: Set to true to accept new bids, false to stop accepting
+            examples:
+              open:
+                summary: Open project for new bids
+                value:
+                  acceptingBids: true
+              close:
+                summary: Stop accepting new bids
+                value:
+                  acceptingBids: false
+      responses:
+        "200":
+          description: Accepting bids status updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Project is now accepting bids"
+                  data:
+                    $ref: "#/components/schemas/ProjectComplete"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /projects/from-visitor:
+    post:
+      tags:
+        - Client Projects
+      summary: Create project from visitor data
+      description: |
+        Internal endpoint used when a visitor registers as a client. This automatically converts all visitor data into a project.
+
+        **Flow:**
+        1. Visitor fills out project details through the visitor flow
+        2. Visitor registers as a client
+        3. This endpoint is called automatically to convert visitor data to project
+
+        **Note:** This is typically called by the backend during the registration process, not directly by the frontend.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - visitorId
+              properties:
+                visitorId:
+                  type: string
+                  format: uuid
+                  description: The ID of the visitor to convert
+                  example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Project created successfully from visitor data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Project created successfully from visitor data"
+                  data:
+                    $ref: "#/components/schemas/ProjectComplete"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          description: Visitor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /projects/{id}/discord-url:
+    patch:
+      tags:
+        - Client Projects
+      summary: Update project Discord chat URL
+      description: |
+        Update or set the Discord chat URL for project communication.
+
+        **Use Case:** When a project team wants to use Discord for communication
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project ID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - discordChatUrl
+              properties:
+                discordChatUrl:
+                  type: string
+                  format: uri
+                  description: Discord channel or server invitation URL
+                  example: "https://discord.gg/abc123xyz"
+      responses:
+        "200":
+          description: Discord URL updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Discord URL updated successfully"
+                  data:
+                    $ref: "#/components/schemas/ProjectComplete"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ============================================
+  # MILESTONE MANAGEMENT (NEW SYSTEM)
+  # ============================================
+
+  /projects/{id}/milestones:
+    post:
+      tags:
+        - Client Projects
+      summary: Add milestone to project
+      description: |
+        Add a new milestone to a specific project.
+
+        **Authorization:**
+        - Client (project owner) can add milestones to their own projects
+        - Admin can add milestones to any project
+
+        **Payment Requirement:**
+        - ⚠️ **Payment must be SUCCEEDED** before creating milestones
+        - Projects with pending payments will be rejected
+
+        **Key Features:**
+        - Assign freelancer to milestone (optional)
+        - Set priority, phase, risk level
+        - Track budget and time estimates
+        - Flexible status and progress tracking
+        - Moderator approval workflow
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MilestoneCreate"
+            examples:
+              basic:
+                summary: Basic milestone
+                value:
+                  milestoneName: "Initial Design Phase"
+                  description: "Complete the initial design mockups and wireframes"
+                  deadline: "2025-12-31T23:59:59Z"
+                  progress: 0
+              withFreelancer:
+                summary: Milestone assigned to freelancer
+                value:
+                  milestoneName: "Backend API Development"
+                  description: "Develop RESTful API endpoints"
+                  deadline: "2026-01-15T23:59:59Z"
+                  priority: "HIGH"
+                  status: "PLANNED"
+                  assignedFreelancerId: "cm1abc123xyz456"
+                  estimatedHours: 120
+                  budgetEstimate: 6000
+              complete:
+                summary: Complete milestone with all fields
+                value:
+                  milestoneName: "Frontend Development"
+                  description: "Build responsive UI components"
+                  deadline: "2026-02-01T23:59:59Z"
+                  progress: 0
+                  status: "PLANNED"
+                  priority: "CRITICAL"
+                  phase: "IMPLEMENTATION"
+                  riskLevel: "MEDIUM"
+                  assignedFreelancerId: "cm1abc123xyz456"
+                  estimatedHours: 160
+                  budgetEstimate: 8000
+                  tags: ["frontend", "react", "ui/ux"]
+                  notes: "Focus on mobile-first design"
+      responses:
+        "200":
+          description: Milestone added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  statusCode:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Milestone added successfully"
+                  data:
+                    $ref: "#/components/schemas/Milestone"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+
+  /projects/{id}/milestones/{milestoneId}:
+    patch:
+      tags:
+        - Client Projects
+      summary: Update milestone
+      description: |
+        Update an existing milestone. All fields are optional for partial updates.
+
+        **Authorization:**
+        - Client (project owner) can update milestones in their own projects
+        - Admin can update any milestone
+        - Freelancer can update milestones assigned to them (progress, notes, etc.)
+
+        **Key Features:**
+        - Partial updates supported (only send fields you want to change)
+        - Update progress, status, priority
+        - Change freelancer assignment
+        - Add deliverable URLs
+        - Mark as blocked with reason
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project ID
+        - name: milestoneId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Milestone ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MilestoneUpdate"
+            examples:
+              updateProgress:
+                summary: Update progress only
+                value:
+                  progress: 75
+              updateStatus:
+                summary: Update status and progress
+                value:
+                  status: "IN_PROGRESS"
+                  progress: 50
+                  actualHours: 60
+              assignFreelancer:
+                summary: Assign to freelancer
+                value:
+                  assignedFreelancerId: "cm1abc123xyz456"
+                  status: "IN_PROGRESS"
+              markBlocked:
+                summary: Mark as blocked
+                value:
+                  blocked: true
+                  blockerReason: "Waiting for client approval on design mockups"
+                  status: "BLOCKED"
+              addDeliverable:
+                summary: Add deliverable URL
+                value:
+                  deliverableUrl: "https://example.com/deliverables/milestone-1.zip"
+                  progress: 100
+      responses:
+        "200":
+          description: Milestone updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  statusCode:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Milestone updated successfully"
+                  data:
+                    $ref: "#/components/schemas/Milestone"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+
+    delete:
+      tags:
+        - Client Projects
+      summary: Delete milestone
+      description: |
+        Soft delete a milestone (marks as deleted, doesn't permanently remove from database).
+
+        **Authorization:**
+        - Client (project owner) can delete milestones from their own projects
+        - Admin can delete any milestone
+
+        **Note:** This is a soft delete - the milestone is marked as deleted but not removed from the database.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project ID
+        - name: milestoneId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Milestone ID
+      responses:
+        "200":
+          description: Milestone deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  statusCode:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Milestone deleted successfully"
+                  data:
+                    type: null
+                    example: null
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+
+  /projects/{id}/milestones/{milestoneId}/approve:
+    post:
+      tags:
+        - Client Projects
+      summary: Moderator approve/disapprove milestone
+      description: |
+        Moderator or Admin can approve or disapprove a milestone.
+
+        **Authorization:**
+        - Only MODERATOR or ADMIN roles can approve milestones
+
+        **Key Features:**
+        - When approved: milestone is marked as complete
+        - When disapproved: approval is revoked
+        - Moderator can add review notes
+        - Tracks who approved and when
+
+        **Workflow:**
+        1. Freelancer completes milestone work
+        2. Moderator reviews the work
+        3. Moderator approves or requests changes
+        4. If approved, milestone is automatically marked as complete
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project ID
+        - name: milestoneId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Milestone ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MilestoneModeratorApproval"
+            examples:
+              approve:
+                summary: Approve milestone
+                value:
+                  moderatorApproved: true
+                  moderatorNotes: "Excellent work! All requirements met."
+              approveWithoutNotes:
+                summary: Approve without notes
+                value:
+                  moderatorApproved: true
+              disapprove:
+                summary: Disapprove milestone
+                value:
+                  moderatorApproved: false
+                  moderatorNotes: "Please revise the API documentation and add unit tests."
+      responses:
+        "200":
+          description: Milestone approval status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  statusCode:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Milestone approved successfully"
+                  data:
+                    $ref: "#/components/schemas/Milestone"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          description: Forbidden - Only moderators and admins can approve milestones
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                status: 403
+                message: "Only moderators and admins can approve milestones"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+
+components:
+  schemas:
+    # ============================================
+    # PROJECT SCHEMAS
+    # ============================================
+
+    ClientProjectCreate:
+      type: object
+      required:
+        - details
+        - services
+        - industries
+        - technologies
+        - features
+        - discount
+        - timeline
+        - estimate
+        - serviceAgreement
+      properties:
+        details:
+          $ref: "#/components/schemas/ProjectDetails"
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectService"
+          minItems: 1
+          description: "Required: At least one service must be selected"
+        industries:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectIndustry"
+          minItems: 1
+          description: "Required: At least one industry must be selected"
+        technologies:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectTechnology"
+          minItems: 1
+          description: "Required: At least one technology category must be selected"
+        features:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectFeature"
+          minItems: 1
+          description: "Required: At least one feature category must be selected"
+        discount:
+          $ref: "#/components/schemas/ProjectDiscount"
+        timeline:
+          $ref: "#/components/schemas/ProjectTimeline"
+        estimate:
+          $ref: "#/components/schemas/ProjectEstimate"
+        serviceAgreement:
+          $ref: "#/components/schemas/ProjectServiceAgreement"
+        discordChatUrl:
+          type: string
+          format: uri
+          description: "Optional: Discord chat URL for project communication"
+          example: "https://discord.gg/abc123xyz"
+
+    ClientProjectUpdate:
+      type: object
+      description: |
+        Schema for updating project details. All fields are optional - only provide fields you want to update.
+
+        **Note:** Arrays (services, industries, technologies, features) will completely replace existing data if provided.
+      properties:
+        details:
+          type: object
+          description: "Optional: Update project details (partial update supported)"
+          properties:
+            fullName:
+              type: string
+              minLength: 2
+              maxLength: 200
+              example: "Updated Name"
+            businessEmail:
+              type: string
+              format: email
+              example: "updated@example.com"
+            phoneNumber:
+              type: string
+              minLength: 10
+              maxLength: 32
+              example: "+1987654321"
+            companyName:
+              type: string
+              minLength: 2
+              maxLength: 200
+              example: "Updated Corp"
+            companyWebsite:
+              type: string
+              format: uri
+              maxLength: 2048
+              example: "https://updated.com"
+            businessAddress:
+              type: string
+              maxLength: 500
+              example: "456 New St, Boston, MA"
+            businessType:
+              type: string
+              maxLength: 200
+              example: "SaaS"
+            referralSource:
+              type: string
+              maxLength: 200
+              example: "Referral"
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectService"
+          minItems: 1
+          description: "Optional: Replace all services"
+        industries:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectIndustry"
+          minItems: 1
+          description: "Optional: Replace all industries"
+        technologies:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectTechnology"
+          minItems: 1
+          description: "Optional: Replace all technologies"
+        features:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectFeature"
+          minItems: 1
+          description: "Optional: Replace all features"
+        discount:
+          $ref: "#/components/schemas/ProjectDiscount"
+        timeline:
+          $ref: "#/components/schemas/ProjectTimeline"
+        estimate:
+          $ref: "#/components/schemas/ProjectEstimate"
+        discordChatUrl:
+          type: string
+          format: uri
+          description: "Optional: Update Discord chat URL"
+          example: "https://discord.gg/newurl"
+
+    ProjectDetails:
+      type: object
+      required:
+        - fullName
+        - businessEmail
+        - companyName
+        - businessType
+        - referralSource
+      properties:
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 200
+          example: "John Doe"
+          description: "Full name of the contact person"
+        businessEmail:
+          type: string
+          format: email
+          example: "john@example.com"
+          description: "Business email address"
+        phoneNumber:
+          type: string
+          minLength: 10
+          maxLength: 32
+          example: "+1234567890"
+          description: "Optional: Phone number"
+        companyName:
+          type: string
+          minLength: 2
+          maxLength: 200
+          example: "Acme Corp"
+          description: "Company name"
+        companyWebsite:
+          type: string
+          format: uri
+          maxLength: 2048
+          example: "https://acmecorp.com"
+          description: "Optional: Company website URL"
+        businessAddress:
+          type: string
+          maxLength: 500
+          example: "123 Main St, New York, NY 10001"
+          description: "Optional: Business address"
+        businessType:
+          type: string
+          maxLength: 200
+          example: "Technology"
+          description: "Type of business"
+        referralSource:
+          type: string
+          maxLength: 200
+          example: "Google Search"
+          description: "How did you hear about us?"
+
+    ProjectService:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          enum:
+            - SOFTWARE_DEVELOPMENT
+            - DATA_AND_ANALYTICS
+            - CLOUD_AND_DEVOPS
+            - EMERGING_TECHNOLOGIES
+            - CREATIVE_AND_DESIGN
+            - DIGITAL_MARKETING
+          example: "SOFTWARE_DEVELOPMENT"
+          description: "Service category"
+        childServices:
+          type: array
+          items:
+            type: string
+          default: []
+          example: ["Web Development", "Mobile Development"]
+          description: "Specific services within the category"
+
+    ProjectIndustry:
+      type: object
+      required:
+        - category
+      properties:
+        category:
+          type: string
+          enum:
+            - HEALTHCARE_AND_LIFE_SCIENCES
+            - FINANCIAL_SERVICES
+            - RETAIL_AND_ECOMMERCE
+            - MANUFACTURING
+            - EDUCATION
+            - GOVERNMENT_AND_PUBLIC_SECTOR
+          example: "RETAIL_AND_ECOMMERCE"
+        subIndustries:
+          type: array
+          items:
+            type: string
+          default: []
+          example: ["ONLINE_RETAIL", "FASHION_AND_APPAREL"]
+
+    ProjectTechnology:
+      type: object
+      required:
+        - category
+        - technologies
+      properties:
+        category:
+          type: string
+          enum:
+            - FRONTEND
+            - BACKEND
+            - DATABASE
+            - AI_AND_DATA_SCIENCE
+            - DEVOPS_AND_INFRASTRUCTURE
+            - MOBILE
+          example: "FRONTEND"
+        technologies:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          example: ["REACT", "NEXT_JS"]
+
+    ProjectFeature:
+      type: object
+      required:
+        - category
+        - features
+      properties:
+        category:
+          type: string
+          enum:
+            - USER_MANAGEMENT
+            - CONTENT_MANAGEMENT
+            - ECOMMERCE
+            - ANALYTICS_AND_REPORTING
+            - COMMUNICATION
+            - INTEGRATION_AND_API
+          example: "USER_MANAGEMENT"
+        features:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          example: ["AUTHENTICATION", "USER_PROFILES"]
+
+    ProjectDiscount:
+      type: object
+      required:
+        - type
+        - percent
+      properties:
+        type:
+          type: string
+          enum:
+            - STARTUP_FOUNDER
+            - VETERAN_OWNED_BUSINESS
+            - NONPROFIT_ORGANIZATION
+            - NOT_ELIGIBLE
+          example: "STARTUP_FOUNDER"
+        percent:
+          type: number
+          minimum: 0
+          maximum: 100
+          example: 15
+        notes:
+          type: string
+          maxLength: 500
+          example: "Early stage startup discount"
+
+    ProjectTimeline:
+      type: object
+      required:
+        - option
+        - rushFeePercent
+        - estimatedDays
+      properties:
+        option:
+          type: string
+          enum:
+            - STANDARD_BUILD
+            - PRIORITY_BUILD
+            - ACCELERATED_BUILD
+            - RAPID_BUILD
+            - FAST_TRACK_BUILD
+          example: "STANDARD_BUILD"
+        rushFeePercent:
+          type: number
+          minimum: 0
+          maximum: 100
+          example: 0
+        estimatedDays:
+          type: number
+          minimum: 1
+          example: 45
+        description:
+          type: string
+          maxLength: 500
+          example: "Standard development timeline"
+
+    ProjectEstimate:
+      type: object
+      required:
+        - estimateAccepted
+        - estimateFinalPriceMin
+        - estimateFinalPriceMax
+      properties:
+        estimateAccepted:
+          type: boolean
+          example: true
+        estimateFinalPriceMin:
+          type: number
+          minimum: 0
+          example: 5000
+          description: "Minimum estimated price"
+        estimateFinalPriceMax:
+          type: number
+          minimum: 0
+          example: 7000
+          description: "Maximum estimated price"
+
+    ProjectServiceAgreement:
+      type: object
+      required:
+        - documentUrl
+      properties:
+        documentUrl:
+          type: string
+          format: uri
+          maxLength: 2048
+          example: "https://example.com/agreements/service-agreement.pdf"
+        agreementVersion:
+          type: string
+          maxLength: 100
+          example: "v1.0"
+        accepted:
+          type: boolean
+          default: true
+          example: true
+        ipAddress:
+          type: string
+          maxLength: 45
+          example: "192.168.1.1"
+        userAgent:
+          type: string
+          example: "Mozilla/5.0..."
+        locale:
+          type: string
+          maxLength: 35
+          example: "en-US"
+
+    ProjectComplete:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        clientId:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440001"
+        visitorId:
+          type: string
+          format: uuid
+          nullable: true
+          example: null
+          description: "Will be null for direct client projects"
+        discordChatUrl:
+          type: string
+          format: uri
+          nullable: true
+          example: "https://discord.gg/abc123xyz"
+        paymentStatus:
+          type: string
+          enum:
+            - PENDING
+            - SUCCEEDED
+            - FAILED
+            - CANCELED
+            - REFUNDED
+          example: "PENDING"
+        details:
+          $ref: "#/components/schemas/ProjectDetails"
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectService"
+        industries:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectIndustry"
+        technologies:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectTechnology"
+        features:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectFeature"
+        discount:
+          $ref: "#/components/schemas/ProjectDiscount"
+        timeline:
+          $ref: "#/components/schemas/ProjectTimeline"
+        estimate:
+          $ref: "#/components/schemas/ProjectEstimate"
+        serviceAgreement:
+          $ref: "#/components/schemas/ProjectServiceAgreement"
+        milestones:
+          type: array
+          items:
+            $ref: "#/components/schemas/Milestone"
+        client:
+          type: object
+          properties:
+            uid:
+              type: string
+              format: uuid
+            username:
+              type: string
+            fullName:
+              type: string
+            email:
+              type: string
+              format: email
+            role:
+              type: string
+              enum: [CLIENT, ADMIN, MODERATOR, FREELANCER]
+        selectedFreelancers:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              details:
+                type: object
+                properties:
+                  fullName:
+                    type: string
+                  email:
+                    type: string
+                  primaryDomain:
+                    type: string
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-10-31T10:00:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-10-31T10:00:00.000Z"
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+
+    Pagination:
+      type: object
+      properties:
+        currentPage:
+          type: integer
+          example: 1
+          minimum: 1
+        totalPages:
+          type: integer
+          example: 10
+        totalCount:
+          type: integer
+          example: 100
+        limit:
+          type: integer
+          example: 10
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        status:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: "Error message"
+        data:
+          type: object
+          nullable: true
+
+    # ============================================
+    # MILESTONE SCHEMAS
+    # ============================================
+
+    MilestoneCreate:
+      type: object
+      required:
+        - milestoneName
+        - deadline
+      properties:
+        milestoneName:
+          type: string
+          minLength: 3
+          maxLength: 100
+          example: "Backend API Development"
+        description:
+          type: string
+          example: "Develop RESTful API endpoints for user management"
+        deadline:
+          type: string
+          format: date-time
+          example: "2026-01-15T23:59:59Z"
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+          default: 0
+          example: 0
+        isMilestoneCompleted:
+          type: boolean
+          default: false
+          example: false
+        status:
+          type: string
+          enum:
+            - PLANNED
+            - IN_PROGRESS
+            - BLOCKED
+            - COMPLETED
+            - CANCELLED
+          example: "PLANNED"
+        priority:
+          type: string
+          enum:
+            - LOW
+            - MEDIUM
+            - HIGH
+            - CRITICAL
+          example: "HIGH"
+        phase:
+          type: string
+          enum:
+            - DISCOVERY
+            - DESIGN
+            - IMPLEMENTATION
+            - TESTING
+            - DEPLOYMENT
+          example: "IMPLEMENTATION"
+        riskLevel:
+          type: string
+          enum:
+            - LOW
+            - MEDIUM
+            - HIGH
+          example: "MEDIUM"
+        assignedFreelancerId:
+          type: string
+          format: uuid
+          example: "cm1abc123xyz456"
+        estimatedHours:
+          type: number
+          minimum: 0
+          example: 120
+        actualHours:
+          type: number
+          minimum: 0
+          example: 0
+        budgetEstimate:
+          type: number
+          minimum: 0
+          example: 6000
+        actualCost:
+          type: number
+          minimum: 0
+          example: 0
+        blocked:
+          type: boolean
+          default: false
+          example: false
+        blockerReason:
+          type: string
+          example: "Waiting for client approval"
+        deliverableUrl:
+          type: string
+          format: uri
+          example: "https://example.com/deliverables/milestone-1.zip"
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["backend", "api", "nodejs"]
+        notes:
+          type: string
+          example: "Focus on authentication and authorization first"
+        assigneeName:
+          type: string
+          example: "John Doe"
+        assigneeEmail:
+          type: string
+          format: email
+          example: "john@example.com"
+
+    MilestoneUpdate:
+      type: object
+      properties:
+        milestoneName:
+          type: string
+          minLength: 3
+          maxLength: 100
+          example: "Updated Milestone Name"
+        description:
+          type: string
+          example: "Updated description"
+        deadline:
+          type: string
+          format: date-time
+          example: "2026-02-01T23:59:59Z"
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+          example: 75
+        isMilestoneCompleted:
+          type: boolean
+          example: false
+        status:
+          type: string
+          enum:
+            - PLANNED
+            - IN_PROGRESS
+            - BLOCKED
+            - COMPLETED
+            - CANCELLED
+          example: "IN_PROGRESS"
+        priority:
+          type: string
+          enum:
+            - LOW
+            - MEDIUM
+            - HIGH
+            - CRITICAL
+          example: "CRITICAL"
+        phase:
+          type: string
+          enum:
+            - DISCOVERY
+            - DESIGN
+            - IMPLEMENTATION
+            - TESTING
+            - DEPLOYMENT
+          example: "TESTING"
+        riskLevel:
+          type: string
+          enum:
+            - LOW
+            - MEDIUM
+            - HIGH
+          example: "HIGH"
+        assignedFreelancerId:
+          type: string
+          format: uuid
+          example: "cm1abc123xyz456"
+        estimatedHours:
+          type: number
+          minimum: 0
+          example: 150
+        actualHours:
+          type: number
+          minimum: 0
+          example: 100
+        budgetEstimate:
+          type: number
+          minimum: 0
+          example: 7500
+        actualCost:
+          type: number
+          minimum: 0
+          example: 5000
+        blocked:
+          type: boolean
+          example: true
+        blockerReason:
+          type: string
+          example: "Waiting for design approval"
+        deliverableUrl:
+          type: string
+          format: uri
+          example: "https://example.com/deliverables/updated.zip"
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["updated", "in-progress"]
+        notes:
+          type: string
+          example: "Progress update notes"
+        assigneeName:
+          type: string
+          example: "Jane Smith"
+        assigneeEmail:
+          type: string
+          format: email
+          example: "jane@example.com"
+
+    MilestoneModeratorApproval:
+      type: object
+      required:
+        - moderatorApproved
+      properties:
+        moderatorApproved:
+          type: boolean
+          example: true
+        moderatorNotes:
+          type: string
+          example: "Excellent work! All requirements met."
+
+    Milestone:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "cm1milestone123"
+        projectId:
+          type: string
+          format: uuid
+          example: "cm1project456"
+        milestoneName:
+          type: string
+          example: "Backend API Development"
+        description:
+          type: string
+          example: "Develop RESTful API endpoints"
+        deadline:
+          type: string
+          format: date-time
+          example: "2026-01-15T23:59:59.000Z"
+        progress:
+          type: integer
+          example: 50
+        isMilestoneCompleted:
+          type: boolean
+          example: false
+        status:
+          type: string
+          enum:
+            - PLANNED
+            - IN_PROGRESS
+            - BLOCKED
+            - COMPLETED
+            - CANCELLED
+          example: "IN_PROGRESS"
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2025-11-01T09:00:00.000Z"
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        priority:
+          type: string
+          enum:
+            - LOW
+            - MEDIUM
+            - HIGH
+            - CRITICAL
+          example: "HIGH"
+        phase:
+          type: string
+          enum:
+            - DISCOVERY
+            - DESIGN
+            - IMPLEMENTATION
+            - TESTING
+            - DEPLOYMENT
+          example: "IMPLEMENTATION"
+        riskLevel:
+          type: string
+          enum:
+            - LOW
+            - MEDIUM
+            - HIGH
+          example: "MEDIUM"
+        blocked:
+          type: boolean
+          example: false
+        blockerReason:
+          type: string
+          nullable: true
+        deliverableUrl:
+          type: string
+          format: uri
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["backend", "api"]
+        estimatedHours:
+          type: number
+          nullable: true
+          example: 120
+        actualHours:
+          type: number
+          nullable: true
+          example: 60
+        budgetEstimate:
+          type: number
+          nullable: true
+          example: 6000
+        actualCost:
+          type: number
+          nullable: true
+          example: 3000
+        assignedFreelancerId:
+          type: string
+          format: uuid
+          nullable: true
+          example: "cm1freelancer789"
+        assignedFreelancer:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            details:
+              type: object
+              properties:
+                fullName:
+                  type: string
+                email:
+                  type: string
+        assigneeName:
+          type: string
+          nullable: true
+        assigneeEmail:
+          type: string
+          format: email
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        moderatorApprovalRequired:
+          type: boolean
+          default: true
+          example: true
+        moderatorApproved:
+          type: boolean
+          default: false
+          example: false
+        moderatorApprovedBy:
+          type: string
+          format: uuid
+          nullable: true
+        moderatorApprovedAt:
+          type: string
+          format: date-time
+          nullable: true
+        moderatorNotes:
+          type: string
+          nullable: true
+        approvedBy:
+          type: string
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-10-31T20:00:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-10-31T20:30:00.000Z"
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+  responses:
+    UnauthorizedError:
+      description: Authentication token is missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            success: false
+            status: 401
+            message: "Unauthorized - Invalid or missing token"
+
+    ForbiddenError:
+      description: User does not have permission to access this resource
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            success: false
+            status: 403
+            message: "Forbidden - You don't have permission to view this project"
+
+    NotFoundError:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            success: false
+            status: 404
+            message: "Project not found"
+
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            success: false
+            status: 400
+            message: "Validation error"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            success: false
+            status: 500
+            message: "Internal server error"
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      description: Page number for pagination
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      example: 1
+
+    LimitParam:
+      name: limit
+      in: query
+      description: Number of items per page
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+      example: 10

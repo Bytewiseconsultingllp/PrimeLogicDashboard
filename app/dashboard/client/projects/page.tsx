@@ -1,25 +1,25 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import React, { useState, useEffect } from "react"
 import Link from "next/link"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Input } from "@/components/ui/input"
 import { 
-  ArrowRight, 
-  Loader2, 
+  Search, 
+  Filter, 
+  Plus, 
   Briefcase, 
-  Zap, 
-  Code, 
+  Calendar, 
+  DollarSign, 
   Users, 
-  Calendar,
-  DollarSign,
-  CheckCircle,
   Clock,
+  CheckCircle,
   AlertCircle,
   Eye,
-  Target
+  Loader2
 } from "lucide-react"
 import { getMyProjects } from "@/lib/api/client-projects"
 import { toast } from "sonner"
@@ -72,50 +72,52 @@ interface Project {
   updatedAt: string
 }
 
-export default function ProjectStatusPage() {
+export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [filterStatus, setFilterStatus] = useState<string>("all")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
 
   useEffect(() => {
-    const fetchProjects = async () => {
-      try {
-        setLoading(true)
-        const response = await getMyProjects(1, 20)
-        
-        if (response.success) {
-          setProjects(response.data.projects || [])
-          
-          if (response.data.projects?.length > 0) {
-            toast.success(`Loaded ${response.data.projects.length} projects`)
-          }
-        } else {
-          throw new Error("Failed to fetch projects")
-        }
-
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "An error occurred")
-        console.error("Projects fetch error:", err)
-        toast.error("Failed to load projects")
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchProjects()
-  }, [])
+  }, [currentPage])
+
+  const fetchProjects = async () => {
+    try {
+      setLoading(true)
+      const response = await getMyProjects(currentPage, 12)
+      
+      if (response.success) {
+        setProjects(response.data.projects || [])
+        setTotalPages(Math.ceil((response.data.pagination?.total || 0) / 12))
+        
+        if (response.data.projects?.length > 0) {
+          toast.success(`Loaded ${response.data.projects.length} projects`)
+        }
+      } else {
+        toast.error("Failed to load projects")
+      }
+    } catch (error) {
+      console.error("Error fetching projects:", error)
+      toast.error("Failed to load projects")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case "SUCCEEDED":
-        return "bg-green-100 text-green-800"
+        return "bg-green-100 text-green-800 border-green-200"
       case "PENDING":
-        return "bg-yellow-100 text-yellow-800"
+        return "bg-yellow-100 text-yellow-800 border-yellow-200"
       case "FAILED":
       case "CANCELED":
-        return "bg-red-100 text-red-800"
+        return "bg-red-100 text-red-800 border-red-200"
       default:
-        return "bg-gray-100 text-gray-800"
+        return "bg-gray-100 text-gray-800 border-gray-200"
     }
   }
 
@@ -139,53 +141,109 @@ export default function ProjectStatusPage() {
     return Math.round(totalProgress / milestones.length)
   }
 
+  const filteredProjects = projects.filter(project => {
+    const matchesSearch = project.details.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         project.details.businessType.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    const matchesFilter = filterStatus === "all" || project.paymentStatus === filterStatus
+    
+    return matchesSearch && matchesFilter
+  })
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <Loader2 className="w-8 h-8 animate-spin text-[#003087]" />
-        <p className="ml-3 text-muted-foreground">Loading project status...</p>
+        <p className="ml-3 text-muted-foreground">Loading your projects...</p>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-[#003087]">Project Status</h1>
-          <p className="text-muted-foreground mt-2">Monitor progress and manage all your projects</p>
+          <h1 className="text-3xl font-bold text-[#003087]">My Projects</h1>
+          <p className="text-muted-foreground">
+            Manage and track all your projects in one place
+          </p>
         </div>
-        <Link href="/dashboard/client/projects">
-          <Button variant="outline" className="text-[#003087] border-[#003087] hover:bg-[#003087] hover:text-white">
-            <Eye className="w-4 h-4 mr-2" />
-            View All Projects
+        <Link href="/dashboard/client/create-project">
+          <Button className="bg-gradient-to-r from-[#003087] to-[#FF6B35] hover:from-[#003087]/90 hover:to-[#FF6B35]/90">
+            <Plus className="w-4 h-4 mr-2" />
+            Create New Project
           </Button>
         </Link>
       </div>
 
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-          <AlertCircle className="w-4 h-4 inline mr-2" />
-          {error}
-        </div>
-      )}
+      {/* Filters and Search */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  placeholder="Search projects by company name or type..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant={filterStatus === "all" ? "default" : "outline"}
+                onClick={() => setFilterStatus("all")}
+                size="sm"
+              >
+                All Projects
+              </Button>
+              <Button
+                variant={filterStatus === "SUCCEEDED" ? "default" : "outline"}
+                onClick={() => setFilterStatus("SUCCEEDED")}
+                size="sm"
+              >
+                Completed
+              </Button>
+              <Button
+                variant={filterStatus === "PENDING" ? "default" : "outline"}
+                onClick={() => setFilterStatus("PENDING")}
+                size="sm"
+              >
+                In Progress
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      {projects.length === 0 ? (
+      {/* Projects Grid */}
+      {filteredProjects.length === 0 ? (
         <Card>
-          <CardContent className="py-12 text-center">
+          <CardContent className="p-12 text-center">
             <Briefcase className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No Projects Found</h3>
-            <p className="text-gray-500 mb-6">You haven't created any projects yet. Get started by creating your first project!</p>
-            <Link href="/dashboard/client/create-project">
-              <Button className="bg-[#003087] hover:bg-[#003087]/90">
-                Create Your First Project
-              </Button>
-            </Link>
+            <p className="text-gray-500 mb-6">
+              {searchTerm || filterStatus !== "all" 
+                ? "No projects match your current filters. Try adjusting your search criteria."
+                : "You haven't created any projects yet. Get started by creating your first project!"
+              }
+            </p>
+            {!searchTerm && filterStatus === "all" && (
+              <Link href="/dashboard/client/create-project">
+                <Button className="bg-[#003087] hover:bg-[#003087]/90">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Your First Project
+                </Button>
+              </Link>
+            )}
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.map((project) => {
+          {filteredProjects.map((project) => {
             const progress = calculateProjectProgress(project.milestones)
             const estimatedValue = project.estimate 
               ? (project.estimate.estimateFinalPriceMin + project.estimate.estimateFinalPriceMax) / 2
@@ -205,7 +263,9 @@ export default function ProjectStatusPage() {
                         <CardTitle className="text-lg text-gray-900 line-clamp-1">
                           {project.details.companyName}
                         </CardTitle>
-                        <p className="text-sm text-gray-600">{project.details.businessType}</p>
+                        <CardDescription className="text-sm">
+                          {project.details.businessType}
+                        </CardDescription>
                       </div>
                     </div>
                     <Badge className={getStatusColor(project.paymentStatus)}>
@@ -222,7 +282,7 @@ export default function ProjectStatusPage() {
                   {/* Progress Bar */}
                   <div>
                     <div className="flex justify-between text-sm mb-2">
-                      <span className="text-gray-600">Overall Progress</span>
+                      <span className="text-gray-600">Progress</span>
                       <span className="font-medium text-[#003087]">{progress}%</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
@@ -237,31 +297,25 @@ export default function ProjectStatusPage() {
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div className="flex items-center gap-2">
                       <DollarSign className="w-4 h-4 text-green-600" />
-                      <div>
-                        <p className="text-xs text-gray-500">Estimated Value</p>
-                        <p className="font-medium">${estimatedValue.toLocaleString()}</p>
-                      </div>
+                      <span className="text-gray-600">Value:</span>
+                      <span className="font-medium">${estimatedValue.toLocaleString()}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Users className="w-4 h-4 text-blue-600" />
-                      <div>
-                        <p className="text-xs text-gray-500">Team Size</p>
-                        <p className="font-medium">{project.selectedFreelancers?.length || 0}</p>
-                      </div>
+                      <span className="text-gray-600">Team:</span>
+                      <span className="font-medium">{project.selectedFreelancers?.length || 0}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Target className="w-4 h-4 text-purple-600" />
-                      <div>
-                        <p className="text-xs text-gray-500">Milestones</p>
-                        <p className="font-medium">{project.milestones?.length || 0}</p>
-                      </div>
+                      <Briefcase className="w-4 h-4 text-purple-600" />
+                      <span className="text-gray-600">Tasks:</span>
+                      <span className="font-medium">{project.milestones?.length || 0}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-orange-600" />
-                      <div>
-                        <p className="text-xs text-gray-500">Created</p>
-                        <p className="font-medium">{new Date(project.createdAt).toLocaleDateString()}</p>
-                      </div>
+                      <span className="text-gray-600">Created:</span>
+                      <span className="font-medium">
+                        {new Date(project.createdAt).toLocaleDateString()}
+                      </span>
                     </div>
                   </div>
 
@@ -270,33 +324,14 @@ export default function ProjectStatusPage() {
                     <div>
                       <p className="text-sm text-gray-600 mb-2">Technologies:</p>
                       <div className="flex flex-wrap gap-1">
-                        {project.technologies.slice(0, 2).map((tech, index) => (
+                        {project.technologies.slice(0, 3).map((tech, index) => (
                           <Badge key={index} variant="secondary" className="text-xs">
-                            {tech.category.replace(/_/g, ' ')}
+                            {tech.category}
                           </Badge>
                         ))}
-                        {project.technologies.length > 2 && (
+                        {project.technologies.length > 3 && (
                           <Badge variant="secondary" className="text-xs">
-                            +{project.technologies.length - 2} more
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Services */}
-                  {project.services && project.services.length > 0 && (
-                    <div>
-                      <p className="text-sm text-gray-600 mb-2">Services:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {project.services.slice(0, 2).map((service, index) => (
-                          <Badge key={index} variant="outline" className="text-xs">
-                            {service.name.replace(/_/g, ' ')}
-                          </Badge>
-                        ))}
-                        {project.services.length > 2 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{project.services.length - 2} more
+                            +{project.technologies.length - 3} more
                           </Badge>
                         )}
                       </div>
@@ -306,7 +341,7 @@ export default function ProjectStatusPage() {
                   {/* Action Button */}
                   <Link href={`/dashboard/client/projects/${project.id}`}>
                     <Button className="w-full bg-[#003087] hover:bg-[#003087]/90">
-                      <ArrowRight className="w-4 h-4 mr-2" />
+                      <Eye className="w-4 h-4 mr-2" />
                       View Details
                     </Button>
                   </Link>
@@ -314,6 +349,38 @@ export default function ProjectStatusPage() {
               </Card>
             )
           })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex justify-center gap-2 mt-8">
+          <Button
+            variant="outline"
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+          >
+            Previous
+          </Button>
+          
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+            <Button
+              key={page}
+              variant={currentPage === page ? "default" : "outline"}
+              onClick={() => setCurrentPage(page)}
+              className={currentPage === page ? "bg-[#003087]" : ""}
+            >
+              {page}
+            </Button>
+          ))}
+          
+          <Button
+            variant="outline"
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            disabled={currentPage === totalPages}
+          >
+            Next
+          </Button>
         </div>
       )}
     </div>
