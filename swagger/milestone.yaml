@@ -1,0 +1,306 @@
+paths:
+  /milestone/createMilestone/{projectId}:
+    post:
+      tags:
+        - Milestone
+      summary: Create a single milestone for project
+      description: Create a new milestone for a specific project (Admin/Moderator)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - description
+                - dueDate
+              properties:
+                title:
+                  type: string
+                  example: Initial Design Phase
+                description:
+                  type: string
+                  example: Complete the initial design mockups and wireframes
+                dueDate:
+                  type: string
+                  format: date
+                  example: "2025-12-31"
+      responses:
+        "201":
+          description: Milestone created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Milestone"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /milestone/createMultipleMilestones/{projectId}:
+    post:
+      tags:
+        - Milestone
+      summary: Create multiple milestones for project
+      description: Create multiple milestones at once for a specific project (Admin/Moderator)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - milestones
+              properties:
+                milestones:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - title
+                      - description
+                      - dueDate
+                    properties:
+                      title:
+                        type: string
+                        example: Initial Design Phase
+                      description:
+                        type: string
+                        example: Complete the initial design mockups
+                      dueDate:
+                        type: string
+                        format: date
+      responses:
+        "201":
+          description: Milestones created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Milestone"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /milestone/updateMilestone/{milestoneId}:
+    patch:
+      tags:
+        - Milestone
+      summary: Update a milestone
+      description: Update milestone details (Admin/Moderator)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: milestoneId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Milestone ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  example: Updated Design Phase
+                description:
+                  type: string
+                  example: Updated description
+                dueDate:
+                  type: string
+                  format: date
+      responses:
+        "200":
+          description: Milestone updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Milestone"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /milestone/deleteMilestone/{milestoneId}:
+    delete:
+      tags:
+        - Milestone
+      summary: Delete a milestone
+      description: Permanently delete a milestone (Admin/Moderator)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: milestoneId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Milestone ID
+      responses:
+        "200":
+          description: Milestone deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /milestone/completeMilestone/{milestoneId}:
+    patch:
+      tags:
+        - Milestone
+      summary: Mark milestone as completed
+      description: Mark a milestone as completed (Admin/Moderator/Freelancer)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: milestoneId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Milestone ID
+      responses:
+        "200":
+          description: Milestone marked as completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /milestone/updateMilestoneProgress/{milestoneId}:
+    patch:
+      tags:
+        - Milestone
+      summary: Update milestone progress
+      description: Update the progress percentage of a milestone (Admin/Moderator/Freelancer)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: milestoneId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Milestone ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - progress
+              properties:
+                progress:
+                  type: number
+                  minimum: 0
+                  maximum: 100
+                  example: 75
+      responses:
+        "200":
+          description: Milestone progress updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Milestone"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"

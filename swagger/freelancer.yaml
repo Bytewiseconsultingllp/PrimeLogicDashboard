@@ -1,0 +1,2708 @@
+paths:
+  /freelancer/accept-platform-agreement:
+    post:
+      tags:
+        - Freelancer
+      summary: Accept platform agreement with PDF generation
+      description: |
+        **Step 1 of freelancer registration** - Accept platform agreement. System automatically generates a personalized PDF agreement, uploads it to Cloudinary, and emails a copy to the freelancer.
+
+        **What happens:**
+        1. Generates PDF with freelancer platform agreement including:
+           - Freelancer name and country
+           - Independent contractor status
+           - Payment terms
+           - Professional conduct expectations
+           - IP ownership rules
+           - Confidentiality & NDA
+           - Non-solicitation & non-circumvention
+           - Work authorization & compliance
+           - Liability limitations
+           - Dispute resolution
+           - Account suspension/termination rules
+        2. Uploads PDF to Cloudinary
+        3. Stores document URL with audit trail (IP, timestamp, user agent)
+        4. Emails copy to freelancer
+
+        **Note:** This should be completed BEFORE the full freelancer registration. The frontend can store the documentUrl and include it in the registration payload.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - freelancerEmail
+                - fullName
+                - country
+                - accepted
+              properties:
+                freelancerEmail:
+                  type: string
+                  format: email
+                  example: john.doe@example.com
+                  description: Freelancer's email address
+                fullName:
+                  type: string
+                  example: John Doe
+                  minLength: 2
+                  maxLength: 200
+                  description: Freelancer's full name
+                country:
+                  type: string
+                  example: USA
+                  minLength: 2
+                  maxLength: 100
+                  description: Freelancer's country of residence
+                accepted:
+                  type: boolean
+                  example: true
+                  description: Must be true to proceed. Freelancer confirms they have read and agree to the platform agreement.
+      responses:
+        "200":
+          description: Platform agreement accepted successfully. PDF generated, sent via email, and available for download.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Platform agreement accepted successfully. PDF generated and sent to your email.
+                  data:
+                    type: object
+                    properties:
+                      documentUrl:
+                        type: string
+                        example: https://res.cloudinary.com/your-cloud/raw/upload/legal_agreements/FREELANCER_PLATFORM_AGREEMENT_john_example_com_1698765432.pdf
+                        description: Cloudinary URL to the generated PDF agreement
+                      agreementVersion:
+                        type: string
+                        example: "1.0"
+                        description: Version of the agreement template
+                      pdfBase64:
+                        type: string
+                        example: JVBERi0xLjMKJcTl8uXrp/Og0MTGCjQgMCBvYmoKPDwgL0xlbmd0aCA1...
+                        description: Base64-encoded PDF file for immediate download by frontend
+                      fileName:
+                        type: string
+                        example: FREELANCER-PLATFORM-AGREEMENT_john_example_com_1698765432.pdf
+                        description: Suggested filename for download
+                      acceptedAt:
+                        type: string
+                        format: date-time
+                        example: "2025-11-02T10:30:00.000Z"
+                        description: Timestamp when agreement was accepted
+                      message:
+                        type: string
+                        example: You can now proceed with your freelancer registration.
+        "400":
+          description: Bad request - missing required fields or agreement not accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    examples:
+                      - Email, full name, and country are required
+                      - You must accept the platform agreement to proceed
+        "500":
+          description: Server error during PDF generation or upload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Failed to process platform agreement
+
+  /freelancer/register:
+    post:
+      tags:
+        - Freelancer
+      summary: Register as a new freelancer
+      description: Submit a complete freelancer profile for admin review. Sends a confirmation email upon successful registration.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - details
+                - availabilityWorkflow
+                - domainExperiences
+                - softSkills
+                - projectBidding
+                - legalAgreements
+              properties:
+                details:
+                  type: object
+                  required:
+                    - country
+                    - email
+                    - fullName
+                    - timeZone
+                    - primaryDomain
+                  properties:
+                    country:
+                      type: string
+                      example: "USA"
+                      minLength: 2
+                      maxLength: 100
+                    email:
+                      type: string
+                      format: email
+                      example: "john.doe@example.com"
+                    fullName:
+                      type: string
+                      example: "John Doe"
+                      minLength: 1
+                      maxLength: 200
+                    professionalLinks:
+                      type: array
+                      items:
+                        type: string
+                        format: uri
+                      example:
+                        [
+                          "https://github.com/johndoe",
+                          "https://linkedin.com/in/johndoe",
+                        ]
+                    timeZone:
+                      type: string
+                      example: "America/New_York"
+                    eliteSkillCards:
+                      type: array
+                      items:
+                        type: string
+                      example: ["React Expert", "Node.js Pro"]
+                    tools:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                          [
+                            SLACK,
+                            GITHUB,
+                            JIRA,
+                            FIGMA,
+                            TRELLO,
+                            NOTION,
+                            ZOOM,
+                            DISCORD,
+                          ]
+                      example: ["SLACK", "GITHUB", "JIRA"]
+                    otherNote:
+                      type: string
+                      example: "Passionate developer with 5+ years experience"
+                    selectedIndustries:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                          [
+                            FINTECH,
+                            HEALTHTECH,
+                            E_COMMERCE,
+                            SAAS_B2B_B2C,
+                            EDTECH,
+                          ]
+                      example: ["FINTECH", "SAAS_B2B_B2C"]
+                    primaryDomain:
+                      type: string
+                      example: "Full Stack Web Development"
+                availabilityWorkflow:
+                  type: object
+                  required:
+                    - weeklyCommitmentMinHours
+                    - timeZone
+                    - workingWindows
+                    - collaborationTools
+                    - preferredTeamStyle
+                    - liveScreenSharingPreference
+                  properties:
+                    weeklyCommitmentMinHours:
+                      type: integer
+                      minimum: 0
+                      maximum: 168
+                      example: 30
+                    weeklyCommitmentMaxHours:
+                      type: integer
+                      minimum: 0
+                      maximum: 168
+                      example: 40
+                    weeklyCommitmentIsPlus:
+                      type: boolean
+                      default: false
+                    timeZone:
+                      type: string
+                      example: "America/New_York"
+                    workingWindows:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                          [
+                            EIGHT_AM_TO_TWELVE_PM,
+                            TWELVE_PM_TO_FOUR_PM,
+                            FOUR_PM_TO_EIGHT_PM,
+                          ]
+                      minItems: 1
+                      example: ["EIGHT_AM_TO_TWELVE_PM", "TWELVE_PM_TO_FOUR_PM"]
+                    collaborationTools:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                          [
+                            SLACK,
+                            NOTION,
+                            GITHUB,
+                            JIRA,
+                            ZOOM,
+                            GOOGLE_MEET,
+                            DISCORD,
+                          ]
+                      minItems: 1
+                      example: ["SLACK", "ZOOM", "GITHUB"]
+                    preferredTeamStyle:
+                      type: string
+                      enum:
+                        [ASYNC_ONLY, SCHEDULED_STANDUPS, REAL_TIME_RESPONSIVE]
+                      example: "SCHEDULED_STANDUPS"
+                    liveScreenSharingPreference:
+                      type: string
+                      enum:
+                        [YES_COMFORTABLE, YES_SPECIFIC_HOURS, NO_OFFLINE_ASYNC]
+                      example: "YES_COMFORTABLE"
+                    liveScreenSharingNotes:
+                      type: string
+                      example: "Available for screen sharing during working hours"
+                    shortTermAvailabilityExceptions:
+                      type: string
+                      example: "Available immediately"
+                domainExperiences:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required:
+                      - roleTitle
+                      - years
+                    properties:
+                      roleTitle:
+                        type: string
+                        example: "Senior Full Stack Developer"
+                        minLength: 1
+                        maxLength: 200
+                      years:
+                        type: integer
+                        minimum: 0
+                        maximum: 100
+                        example: 5
+                softSkills:
+                  type: object
+                  required:
+                    - preferredCollaborationStyle
+                    - communicationFrequency
+                    - conflictResolutionStyle
+                    - languages
+                    - teamVsSoloPreference
+                  properties:
+                    preferredCollaborationStyle:
+                      type: string
+                      enum:
+                        [
+                          AGILE_SCRUM,
+                          ASYNC_DOCUMENT_FIRST,
+                          STRUCTURED_PROCESS_ORIENTED,
+                          FLEXIBLE_CONTEXT_DRIVEN,
+                        ]
+                      example: "AGILE_SCRUM"
+                    communicationFrequency:
+                      type: string
+                      enum:
+                        [
+                          DAILY_CHECK_INS,
+                          WEEKLY_MILESTONE_REVIEWS,
+                          AD_HOC_ONLY,
+                          ADAPT_TO_PREFERENCE,
+                        ]
+                      example: "DAILY_CHECK_INS"
+                    conflictResolutionStyle:
+                      type: string
+                      enum:
+                        [
+                          DIRECT_CLEAR,
+                          EMPATHIC_REFLECTIVE,
+                          NEUTRAL_SYSTEMIC,
+                          ADAPTIVE,
+                        ]
+                      example: "DIRECT_CLEAR"
+                    languages:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                          [
+                            ENGLISH,
+                            HINDI_URDU,
+                            SPANISH,
+                            ARABIC,
+                            MANDARIN,
+                            FRENCH,
+                            GERMAN,
+                          ]
+                      minItems: 1
+                      example: ["ENGLISH"]
+                    otherLanguage:
+                      type: string
+                      example: "Portuguese (intermediate)"
+                    teamVsSoloPreference:
+                      type: string
+                      enum: [INDEPENDENT, TEAM_ORIENTED, FLEXIBLE_BOTH]
+                      example: "FLEXIBLE_BOTH"
+                certifications:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - certificateName
+                      - certificateUrl
+                    properties:
+                      certificateName:
+                        type: string
+                        example: "AWS Certified Solutions Architect"
+                      certificateUrl:
+                        type: string
+                        format: uri
+                        example: "https://example.com/cert.pdf"
+                projectBidding:
+                  type: object
+                  required:
+                    - compensationPreference
+                    - milestonePaymentTerms
+                    - proposalSubmission
+                  properties:
+                    compensationPreference:
+                      type: string
+                      enum:
+                        [FIXED_PRICE, OPEN_TO_BIDDING, HOURLY_OR_RETAINER_ONLY]
+                      example: "FIXED_PRICE"
+                    smallProjectMin:
+                      type: number
+                      example: 5000
+                    smallProjectMax:
+                      type: number
+                      example: 15000
+                    midProjectMin:
+                      type: number
+                      example: 15000
+                    midProjectMax:
+                      type: number
+                      example: 50000
+                    longTermMin:
+                      type: number
+                      example: 50000
+                    longTermMax:
+                      type: number
+                      example: 200000
+                    milestonePaymentTerms:
+                      type: string
+                      enum: [FIFTY_FIFTY, THIRTY_FORTY_THIRTY, CUSTOM]
+                      example: "FIFTY_FIFTY"
+                    customPaymentTerms:
+                      type: string
+                      example: "Custom payment schedule"
+                    proposalSubmission:
+                      type: string
+                      enum:
+                        [
+                          YES_HAVE_TEMPLATE,
+                          YES_NEED_HELP_FROM_PLS,
+                          NO_PRICING_ONLY,
+                        ]
+                      example: "YES_HAVE_TEMPLATE"
+                legalAgreements:
+                  type: object
+                  required:
+                    - projectSpecificNdaAccepted
+                    - projectSpecificNdaUrl
+                    - workForHireAccepted
+                    - workForHireUrl
+                    - projectScopeDeliverablesAccepted
+                    - projectScopeDeliverablesUrl
+                    - paymentTermsAccepted
+                    - paymentTermsUrl
+                    - securityComplianceAccepted
+                    - nonSolicitationAccepted
+                    - nonSolicitationUrl
+                    - codeOfConductAccepted
+                    - codeOfConductUrl
+                    - projectIpBoundariesAccepted
+                    - projectIpBoundariesUrl
+                    - finalCertificationAccepted
+                  properties:
+                    projectSpecificNdaAccepted:
+                      type: boolean
+                      example: true
+                    projectSpecificNdaUrl:
+                      type: string
+                      format: uri
+                      example: "https://example.com/nda.pdf"
+                    workForHireAccepted:
+                      type: boolean
+                      example: true
+                    workForHireUrl:
+                      type: string
+                      format: uri
+                      example: "https://example.com/work-for-hire.pdf"
+                    projectScopeDeliverablesAccepted:
+                      type: boolean
+                      example: true
+                    projectScopeDeliverablesUrl:
+                      type: string
+                      format: uri
+                      example: "https://example.com/scope.pdf"
+                    paymentTermsAccepted:
+                      type: boolean
+                      example: true
+                    paymentTermsUrl:
+                      type: string
+                      format: uri
+                      example: "https://example.com/payment.pdf"
+                    securityComplianceAccepted:
+                      type: boolean
+                      example: true
+                    securityComplianceUrl:
+                      type: string
+                      format: uri
+                      example: "https://example.com/security.pdf"
+                    nonSolicitationAccepted:
+                      type: boolean
+                      example: true
+                    nonSolicitationUrl:
+                      type: string
+                      format: uri
+                      example: "https://example.com/non-solicitation.pdf"
+                    codeOfConductAccepted:
+                      type: boolean
+                      example: true
+                    codeOfConductUrl:
+                      type: string
+                      format: uri
+                      example: "https://example.com/code.pdf"
+                    projectIpBoundariesAccepted:
+                      type: boolean
+                      example: true
+                    projectIpBoundariesUrl:
+                      type: string
+                      format: uri
+                      example: "https://example.com/ip.pdf"
+                    finalCertificationAccepted:
+                      type: boolean
+                      example: true
+      responses:
+        "201":
+          description: Freelancer registered successfully. Confirmation email sent.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Registration successful! We will review your profile and get back to you via email."
+                  data:
+                    type: object
+                    properties:
+                      freelancerId:
+                        type: string
+                        format: uuid
+                        example: "a9bab9c6-2590-43e2-b317-db75212b389c"
+                      status:
+                        type: string
+                        enum: [PENDING_REVIEW]
+                        example: "PENDING_REVIEW"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Validation error"
+                  errors:
+                    type: array
+                    items:
+                      type: object
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Failed to register freelancer"
+
+  /freelancer/profile:
+    get:
+      tags:
+        - Freelancer
+      summary: Get current freelancer's profile
+      description: Retrieve complete profile information for the authenticated freelancer including all sub-details (domain experiences, skills, availability, etc.)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                        example: "a9bab9c6-2590-43e2-b317-db75212b389c"
+                      status:
+                        type: string
+                        enum: [PENDING_REVIEW, ACCEPTED, REJECTED]
+                        example: "ACCEPTED"
+                      userId:
+                        type: string
+                        format: uuid
+                        example: "cmheq8aif00003b9gx4owc5a5"
+                      reviewedBy:
+                        type: string
+                        format: uuid
+                        nullable: true
+                      reviewedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      rejectionReason:
+                        type: string
+                        nullable: true
+                      createdAt:
+                        type: string
+                        format: date-time
+                      updatedAt:
+                        type: string
+                        format: date-time
+                      details:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          freelancerId:
+                            type: string
+                            format: uuid
+                          country:
+                            type: string
+                            example: "USA"
+                          email:
+                            type: string
+                            format: email
+                            example: "john.doe@example.com"
+                          fullName:
+                            type: string
+                            example: "John Doe"
+                          professionalLinks:
+                            type: array
+                            items:
+                              type: string
+                          timeZone:
+                            type: string
+                            example: "America/New_York"
+                          eliteSkillCards:
+                            type: array
+                            items:
+                              type: string
+                          tools:
+                            type: array
+                            items:
+                              type: string
+                          primaryDomain:
+                            type: string
+                            example: "Full Stack Development"
+                      availabilityWorkflow:
+                        type: object
+                        description: Freelancer availability and workflow preferences
+                      domainExperiences:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            roleTitle:
+                              type: string
+                            years:
+                              type: integer
+                      softSkills:
+                        type: object
+                        description: Communication and collaboration preferences
+                      certifications:
+                        type: array
+                        items:
+                          type: object
+                      projectBidding:
+                        type: object
+                        description: Bidding and compensation preferences
+                      legalAgreements:
+                        type: object
+                        description: Legal agreements and documentation
+        "401":
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Unauthorized - Invalid or missing token"
+        "404":
+          description: Freelancer profile not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Freelancer not found"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Failed to fetch profile"
+
+  /freelancer/projects:
+    get:
+      tags:
+        - Freelancer
+      summary: Get all available projects for bidding
+      description: |
+        Retrieve a list of all available projects that freelancers can bid on.
+
+        **Visibility Rules:** 
+        - **Assigned freelancers**: Can see their projects at all times (regardless of payment/bid status)
+        - **Non-assigned freelancers**: Can only see projects where:
+          - `paymentStatus = "SUCCEEDED"` **AND**
+          - `acceptingBids = true` (project is open for new bids)
+
+        **Additional Notes:**
+        - Project pricing/estimates are intentionally hidden from freelancers
+        - Projects with pending payments or closed bidding will not appear (unless you're assigned)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          example: 10
+      responses:
+        "200":
+          description: Projects retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      projects:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                              example: "b4c9ca8b-01e4-4389-abce-d450dafa3ad8"
+                            createdAt:
+                              type: string
+                              format: date-time
+                            updatedAt:
+                              type: string
+                              format: date-time
+                            details:
+                              type: object
+                              properties:
+                                fullName:
+                                  type: string
+                                  example: "John Smith"
+                                businessEmail:
+                                  type: string
+                                  example: "john@company.com"
+                                companyName:
+                                  type: string
+                                  example: "Tech Innovations Inc"
+                                businessType:
+                                  type: string
+                                  example: "STARTUP"
+                            services:
+                              type: object
+                              description: Project services and requirements
+                            industries:
+                              type: object
+                              description: Target industries for the project
+                            technologies:
+                              type: object
+                              description: Technologies required
+                            features:
+                              type: object
+                              description: Project features
+                            timeline:
+                              type: object
+                              description: Project timeline information
+                            bids:
+                              type: array
+                              description: List of bids on this project (status only)
+                              items:
+                                type: object
+                                properties:
+                                  id:
+                                    type: string
+                                    format: uuid
+                                  status:
+                                    type: string
+                                    enum:
+                                      [PENDING, ACCEPTED, REJECTED, WITHDRAWN]
+                      pagination:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                            example: 25
+                          page:
+                            type: integer
+                            example: 1
+                          limit:
+                            type: integer
+                            example: 10
+                          totalPages:
+                            type: integer
+                            example: 3
+        "401":
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Unauthorized - Invalid or missing token"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Failed to fetch available projects"
+
+  /freelancer/projects/{projectId}:
+    get:
+      tags:
+        - Freelancer
+      summary: Get a single project by ID for bidding
+      description: |
+        Retrieve detailed information about a specific project for bidding purposes.
+
+        **Visibility Rules:** 
+        - **Assigned freelancers**: Can see their projects at all times (regardless of payment/bid status)
+        - **Non-assigned freelancers**: Can only see projects where:
+          - `paymentStatus = "SUCCEEDED"` **AND**
+          - `acceptingBids = true` (project is open for new bids)
+
+        **Additional Notes:**
+        - Project pricing/estimates are intentionally hidden from freelancers
+        - Client personal information is hidden (only business info is shown)
+        - Returns 404 if project doesn't exist or is not available for bidding
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          description: UUID of the project to retrieve
+          schema:
+            type: string
+            format: uuid
+          example: "b4c9ca8b-01e4-4389-abce-d450dafa3ad8"
+      responses:
+        "200":
+          description: Project retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                        example: "b4c9ca8b-01e4-4389-abce-d450dafa3ad8"
+                      createdAt:
+                        type: string
+                        format: date-time
+                      updatedAt:
+                        type: string
+                        format: date-time
+                      paymentStatus:
+                        type: string
+                        enum: [PENDING, SUCCEEDED, FAILED]
+                        example: "SUCCEEDED"
+                      acceptingBids:
+                        type: boolean
+                        example: true
+                      discordChatUrl:
+                        type: string
+                        nullable: true
+                        example: "https://discord.gg/example"
+                      details:
+                        type: object
+                        description: Project details (client personal info is hidden)
+                        properties:
+                          companyName:
+                            type: string
+                            example: "Tech Innovations Inc"
+                          companyWebsite:
+                            type: string
+                            nullable: true
+                            example: "https://techinnovations.com"
+                          businessAddress:
+                            type: string
+                            nullable: true
+                            example: "123 Tech Street, San Francisco, CA"
+                          businessType:
+                            type: string
+                            example: "STARTUP"
+                          referralSource:
+                            type: string
+                            nullable: true
+                            example: "LinkedIn"
+                      services:
+                        type: object
+                        description: Project services and requirements
+                      industries:
+                        type: object
+                        description: Target industries for the project
+                      technologies:
+                        type: object
+                        description: Technologies required
+                      features:
+                        type: object
+                        description: Project features
+                      timeline:
+                        type: object
+                        description: Project timeline information
+                      selectedFreelancers:
+                        type: array
+                        description: List of freelancers already assigned to this project
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                            details:
+                              type: object
+                              properties:
+                                fullName:
+                                  type: string
+        "401":
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Unauthorized - No user ID found"
+        "404":
+          description: Project not found or not available for bidding
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Project not found or not available for bidding (payment not completed or not accepting bids)"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Failed to fetch project details"
+
+  /freelancer/bids:
+    post:
+      tags:
+        - Freelancer
+      summary: Submit a bid on a project
+      description: |
+        Submit a bid with your proposed amount and proposal text.
+        **Note:** System prevents duplicate bids on the same project.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - projectId
+                - bidAmount
+              properties:
+                projectId:
+                  type: string
+                  format: uuid
+                  description: UUID of the project to bid on
+                  example: "b4c9ca8b-01e4-4389-abce-d450dafa3ad8"
+                bidAmount:
+                  type: number
+                  minimum: 0
+                  description: Your bid amount in USD
+                  example: 25000
+                proposalText:
+                  type: string
+                  description: Optional proposal/cover letter for your bid
+                  example: "I am excited to work on this project. I have 5+ years of experience in full-stack development and can deliver high-quality results within the timeline."
+      responses:
+        "201":
+          description: Bid submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Bid submitted successfully"
+                  data:
+                    type: object
+                    properties:
+                      bid:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                            example: "5dc66dca-282b-4704-b62f-bd55dc9c4f84"
+                          freelancerId:
+                            type: string
+                            format: uuid
+                          projectId:
+                            type: string
+                            format: uuid
+                          bidAmount:
+                            type: string
+                            example: "25000"
+                          proposalText:
+                            type: string
+                            nullable: true
+                          status:
+                            type: string
+                            enum: [PENDING]
+                            example: "PENDING"
+                          submittedAt:
+                            type: string
+                            format: date-time
+                          createdAt:
+                            type: string
+                            format: date-time
+        "400":
+          description: Validation error or duplicate bid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "You have already submitted a bid for this project"
+        "401":
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Unauthorized - Invalid or missing token"
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Project not found"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Failed to submit bid"
+    get:
+      tags:
+        - Freelancer
+      summary: Get all bids submitted by current freelancer
+      description: Retrieve a list of all bids you have submitted with their current status
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          example: 10
+        - name: status
+          in: query
+          description: Filter by bid status
+          schema:
+            type: string
+            enum: [PENDING, ACCEPTED, REJECTED, WITHDRAWN]
+          example: "PENDING"
+      responses:
+        "200":
+          description: Bids retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      bids:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                            freelancerId:
+                              type: string
+                              format: uuid
+                            projectId:
+                              type: string
+                              format: uuid
+                            bidAmount:
+                              type: string
+                              example: "25000"
+                            proposalText:
+                              type: string
+                              nullable: true
+                            status:
+                              type: string
+                              enum: [PENDING, ACCEPTED, REJECTED, WITHDRAWN]
+                              example: "PENDING"
+                            submittedAt:
+                              type: string
+                              format: date-time
+                            reviewedAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            reviewedBy:
+                              type: string
+                              format: uuid
+                              nullable: true
+                            project:
+                              type: object
+                              description: Basic project information
+                      pagination:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                            example: 5
+                          page:
+                            type: integer
+                            example: 1
+                          limit:
+                            type: integer
+                            example: 10
+                          totalPages:
+                            type: integer
+                            example: 1
+        "401":
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Unauthorized - Invalid or missing token"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Failed to fetch bids"
+
+  /freelancer/bids/{bidId}:
+    get:
+      tags:
+        - Freelancer
+      summary: Get details of a specific bid
+      description: Retrieve detailed information about a specific bid you submitted
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bidId
+          in: path
+          required: true
+          description: UUID of the bid
+          schema:
+            type: string
+            format: uuid
+          example: "5dc66dca-282b-4704-b62f-bd55dc9c4f84"
+      responses:
+        "200":
+          description: Bid details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      freelancerId:
+                        type: string
+                        format: uuid
+                      projectId:
+                        type: string
+                        format: uuid
+                      bidAmount:
+                        type: string
+                        example: "25000"
+                      proposalText:
+                        type: string
+                        nullable: true
+                      status:
+                        type: string
+                        enum: [PENDING, ACCEPTED, REJECTED, WITHDRAWN]
+                        example: "PENDING"
+                      submittedAt:
+                        type: string
+                        format: date-time
+                      reviewedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      reviewedBy:
+                        type: string
+                        format: uuid
+                        nullable: true
+                      project:
+                        type: object
+                        description: Project information
+        "401":
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Unauthorized - Invalid or missing token"
+        "404":
+          description: Bid not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Bid not found"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Failed to fetch bid details"
+    delete:
+      tags:
+        - Freelancer
+      summary: Withdraw a pending bid
+      description: |
+        Withdraw a bid you previously submitted.
+        **Note:** Only PENDING bids can be withdrawn.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bidId
+          in: path
+          required: true
+          description: UUID of the bid to withdraw
+          schema:
+            type: string
+            format: uuid
+          example: "5dc66dca-282b-4704-b62f-bd55dc9c4f84"
+      responses:
+        "200":
+          description: Bid withdrawn successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Bid withdrawn successfully"
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      status:
+                        type: string
+                        enum: [WITHDRAWN]
+                        example: "WITHDRAWN"
+                      updatedAt:
+                        type: string
+                        format: date-time
+        "400":
+          description: Cannot withdraw - Bid not in PENDING status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Only pending bids can be withdrawn"
+        "401":
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Unauthorized - Invalid or missing token"
+        "404":
+          description: Bid not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Bid not found"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Failed to withdraw bid"
+
+  /freelancer/admin/freelancers:
+    get:
+      tags:
+        - Freelancer Admin
+      summary: Get all freelancers (Admin)
+      description: |
+        Retrieve a list of all freelancers with optional filtering by status.
+        **Requires:** ADMIN or MODERATOR role
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: Filter by freelancer status
+          schema:
+            type: string
+            enum: [PENDING_REVIEW, ACCEPTED, REJECTED]
+          example: "PENDING_REVIEW"
+        - name: page
+          in: query
+          description: Page number for pagination
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          example: 10
+        - name: search
+          in: query
+          description: Search by name or email
+          schema:
+            type: string
+          example: "john"
+      responses:
+        "200":
+          description: Freelancers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        status:
+                          type: string
+                          enum: [PENDING_REVIEW, ACCEPTED, REJECTED]
+                        userId:
+                          type: string
+                          format: uuid
+                          nullable: true
+                        reviewedBy:
+                          type: string
+                          format: uuid
+                          nullable: true
+                        reviewedAt:
+                          type: string
+                          format: date-time
+                          nullable: true
+                        rejectionReason:
+                          type: string
+                          nullable: true
+                        createdAt:
+                          type: string
+                          format: date-time
+                        details:
+                          type: object
+                          properties:
+                            email:
+                              type: string
+                            fullName:
+                              type: string
+                            primaryDomain:
+                              type: string
+                        user:
+                          type: object
+                          nullable: true
+                  pagination:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+                      totalPages:
+                        type: integer
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Unauthorized"
+        "403":
+          description: Forbidden - Requires admin or moderator role
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Forbidden - Insufficient permissions"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Failed to fetch freelancers"
+
+  /freelancer/admin/freelancers/stats:
+    get:
+      tags:
+        - Freelancer Admin
+      summary: Get freelancer statistics (Admin)
+      description: |
+        Get statistics about freelancers (counts by status, etc.)
+        **Requires:** ADMIN or MODERATOR role
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      freelancers:
+                        type: object
+                        properties:
+                          pending:
+                            type: integer
+                            example: 5
+                          accepted:
+                            type: integer
+                            example: 25
+                          rejected:
+                            type: integer
+                            example: 3
+                          total:
+                            type: integer
+                            example: 33
+                      bids:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                            example: 150
+                          pending:
+                            type: integer
+                            example: 45
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Unauthorized"
+        "403":
+          description: Forbidden - Requires admin or moderator role
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Forbidden - Insufficient permissions"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Failed to fetch statistics"
+
+  /freelancer/admin/freelancers/{freelancerId}:
+    get:
+      tags:
+        - Freelancer Admin
+      summary: Get freelancer details (Admin)
+      description: |
+        Get complete profile information for a specific freelancer
+        **Requires:** ADMIN or MODERATOR role
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: freelancerId
+          in: path
+          required: true
+          description: UUID of the freelancer
+          schema:
+            type: string
+            format: uuid
+          example: "a9bab9c6-2590-43e2-b317-db75212b389c"
+      responses:
+        "200":
+          description: Freelancer details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    description: Complete freelancer profile with all sub-details
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Unauthorized"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Forbidden"
+        "404":
+          description: Freelancer not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Freelancer not found"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Failed to fetch freelancer details"
+
+  /freelancer/admin/freelancers/{freelancerId}/review:
+    post:
+      tags:
+        - Freelancer Admin
+      summary: Accept or reject a freelancer (Admin)
+      description: |
+        Review a freelancer application and accept or reject them.
+        **When ACCEPTING:**
+        - Creates a User account with FREELANCER role
+        - Generates temporary credentials
+        - Sends email with credentials ✉️
+
+        **When REJECTING:**
+        - Soft deletes the freelancer
+        - Sends rejection email with optional feedback ✉️
+
+        **Requires:** ADMIN or MODERATOR role
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: freelancerId
+          in: path
+          required: true
+          description: UUID of the freelancer to review
+          schema:
+            type: string
+            format: uuid
+          example: "a9bab9c6-2590-43e2-b317-db75212b389c"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - action
+              properties:
+                action:
+                  type: string
+                  enum: [ACCEPT, REJECT]
+                  description: Accept or reject the freelancer
+                  example: "ACCEPT"
+                rejectionReason:
+                  type: string
+                  description: Optional reason for rejection (shown in email)
+                  example: "Need more experience in required technologies"
+      responses:
+        "200":
+          description: Freelancer reviewed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Freelancer accepted successfully"
+                  data:
+                    type: object
+                    properties:
+                      freelancer:
+                        type: object
+                        description: Updated freelancer details
+                      credentials:
+                        type: object
+                        description: Only present when accepting
+                        properties:
+                          username:
+                            type: string
+                            example: "johndoe_1761907493172"
+                          tempPassword:
+                            type: string
+                            example: "W@CdRPeJ!GXS"
+                          email:
+                            type: string
+                            example: "john@example.com"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Validation error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Unauthorized"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Forbidden"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Failed to review freelancer"
+
+  /freelancer/admin/projects/{projectId}/bids:
+    get:
+      tags:
+        - Freelancer Admin
+      summary: Get all bids for a project (Admin)
+      description: |
+        Retrieve all bids submitted for a specific project with freelancer details
+        **Requires:** ADMIN or MODERATOR role
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          description: UUID of the project
+          schema:
+            type: string
+            format: uuid
+          example: "b4c9ca8b-01e4-4389-abce-d450dafa3ad8"
+        - name: status
+          in: query
+          description: Filter by bid status
+          schema:
+            type: string
+            enum: [PENDING, ACCEPTED, REJECTED, WITHDRAWN]
+          example: "PENDING"
+        - name: page
+          in: query
+          description: Page number
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: Bids retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      bids:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                            bidAmount:
+                              type: string
+                            proposalText:
+                              type: string
+                            status:
+                              type: string
+                            submittedAt:
+                              type: string
+                              format: date-time
+                            freelancer:
+                              type: object
+                              description: Complete freelancer profile
+                      pagination:
+                        type: object
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+
+  /freelancer/admin/bids/{bidId}:
+    get:
+      tags:
+        - Freelancer Admin
+      summary: Get bid details (Admin)
+      description: |
+        Get complete details about a specific bid including freelancer profile
+        **Requires:** ADMIN or MODERATOR role
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bidId
+          in: path
+          required: true
+          description: UUID of the bid
+          schema:
+            type: string
+            format: uuid
+          example: "5dc66dca-282b-4704-b62f-bd55dc9c4f84"
+      responses:
+        "200":
+          description: Bid details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      bidAmount:
+                        type: string
+                        example: "25000"
+                      proposalText:
+                        type: string
+                      status:
+                        type: string
+                        enum: [PENDING, ACCEPTED, REJECTED, WITHDRAWN]
+                      submittedAt:
+                        type: string
+                        format: date-time
+                      reviewedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      freelancer:
+                        type: object
+                        description: Complete freelancer profile
+                      project:
+                        type: object
+                        description: Project details
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+        "404":
+          description: Bid not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+
+  /freelancer/admin/bids/{bidId}/review:
+    post:
+      tags:
+        - Freelancer Admin
+      summary: Accept or reject a bid (Admin)
+      description: |
+        Review a bid and accept or reject it.
+        **When ACCEPTING:**
+        - Updates bid status to ACCEPTED
+        - Adds freelancer to project's selectedProjects
+        - Records review timestamp and admin ID
+
+        **Requires:** ADMIN or MODERATOR role
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bidId
+          in: path
+          required: true
+          description: UUID of the bid to review
+          schema:
+            type: string
+            format: uuid
+          example: "5dc66dca-282b-4704-b62f-bd55dc9c4f84"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - action
+              properties:
+                action:
+                  type: string
+                  enum: [ACCEPT, REJECT]
+                  description: Accept or reject the bid
+                  example: "ACCEPT"
+                rejectionReason:
+                  type: string
+                  description: Optional reason for rejection
+                  example: "Budget constraints"
+      responses:
+        "200":
+          description: Bid reviewed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Bid accepted successfully. Freelancer added to project."
+                  data:
+                    type: object
+                    properties:
+                      bid:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          status:
+                            type: string
+                            enum: [ACCEPTED, REJECTED]
+                          reviewedAt:
+                            type: string
+                            format: date-time
+                          reviewedBy:
+                            type: string
+                            format: uuid
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+        "404":
+          description: Bid not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+
+  # ============================================
+  # FREELANCER SELECTED PROJECTS & MILESTONES
+  # ============================================
+
+  /freelancer/my-projects:
+    get:
+      tags:
+        - Freelancer - Selected Projects
+      summary: Get all projects where freelancer is selected/assigned
+      description: |
+        Retrieves all projects where the freelancer has been selected through bid approval.
+        These are the projects the freelancer is actively working on.
+
+        **Only shows projects where:**
+        - The freelancer's bid was accepted by admin
+        - The freelancer is in the project's selectedFreelancers list
+
+        **Response includes:**
+        - Project details (without client personal info or pricing)
+        - All milestones for each project (summary)
+        - Other selected freelancers on the project
+
+        **Requires:** FREELANCER role with valid authentication
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Page number for pagination
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+          example: 1
+        - name: limit
+          in: query
+          required: false
+          description: Number of items per page
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+          example: 10
+      responses:
+        "200":
+          description: Successfully retrieved selected projects
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      projects:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                            createdAt:
+                              type: string
+                              format: date-time
+                            updatedAt:
+                              type: string
+                              format: date-time
+                            paymentStatus:
+                              type: string
+                              enum:
+                                [PENDING, SUCCEEDED, FAILED, CANCELED, REFUNDED]
+                            acceptingBids:
+                              type: boolean
+                            discordChatUrl:
+                              type: string
+                              nullable: true
+                            details:
+                              type: object
+                              properties:
+                                companyName:
+                                  type: string
+                                companyWebsite:
+                                  type: string
+                                  nullable: true
+                                businessAddress:
+                                  type: string
+                                  nullable: true
+                                businessType:
+                                  type: string
+                                referralSource:
+                                  type: string
+                            milestones:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  id:
+                                    type: string
+                                    format: uuid
+                                  milestoneName:
+                                    type: string
+                                  status:
+                                    type: string
+                                    enum:
+                                      [
+                                        PLANNED,
+                                        IN_PROGRESS,
+                                        BLOCKED,
+                                        COMPLETED,
+                                        CANCELLED,
+                                      ]
+                                  progress:
+                                    type: integer
+                                  deadline:
+                                    type: string
+                                    format: date-time
+                                  isMilestoneCompleted:
+                                    type: boolean
+                                  assignedFreelancerId:
+                                    type: string
+                                    nullable: true
+                      pagination:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                          page:
+                            type: integer
+                          limit:
+                            type: integer
+                          totalPages:
+                            type: integer
+        "401":
+          description: Unauthorized - Invalid or missing token
+        "404":
+          description: Freelancer profile not found
+        "500":
+          description: Internal server error
+
+  /freelancer/my-projects/{projectId}:
+    get:
+      tags:
+        - Freelancer - Selected Projects
+      summary: Get detailed view of a selected project
+      description: |
+        Retrieves detailed information about a specific project the freelancer is working on.
+
+        **Includes:**
+        - Full project details (without pricing/estimates)
+        - All milestones with detailed information
+        - Other team members (selected freelancers)
+        - Services, technologies, features, timeline
+
+        **Authorization:**
+        - Only accessible if freelancer is in project's selectedFreelancers list
+
+        **Requires:** FREELANCER role with valid authentication
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          description: UUID of the project
+          schema:
+            type: string
+            format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+      responses:
+        "200":
+          description: Successfully retrieved project details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    description: Project details with milestones
+        "401":
+          description: Unauthorized - Invalid or missing token
+        "404":
+          description: Project not found or freelancer not assigned to this project
+        "500":
+          description: Internal server error
+
+  /freelancer/my-projects/{projectId}/milestones:
+    get:
+      tags:
+        - Freelancer - Selected Projects
+      summary: Get all milestones for a selected project
+      description: |
+        Retrieves all milestones for a project the freelancer is working on.
+
+        **Shows:**
+        - All milestones for the project (not just assigned to this freelancer)
+        - Milestone status, progress, deadlines
+        - Budget estimates and actual costs
+        - Assigned freelancer for each milestone
+        - Moderator approval status
+
+        **Sorted by:** Deadline (ascending)
+
+        **Authorization:**
+        - Only accessible if freelancer is in project's selectedFreelancers list
+
+        **Requires:** FREELANCER role with valid authentication
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          description: UUID of the project
+          schema:
+            type: string
+            format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+      responses:
+        "200":
+          description: Successfully retrieved milestones
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        milestoneName:
+                          type: string
+                        description:
+                          type: string
+                          nullable: true
+                        status:
+                          type: string
+                          enum:
+                            [
+                              PLANNED,
+                              IN_PROGRESS,
+                              BLOCKED,
+                              COMPLETED,
+                              CANCELLED,
+                            ]
+                        progress:
+                          type: integer
+                          minimum: 0
+                          maximum: 100
+                        deadline:
+                          type: string
+                          format: date-time
+                        startedAt:
+                          type: string
+                          format: date-time
+                          nullable: true
+                        completedAt:
+                          type: string
+                          format: date-time
+                          nullable: true
+                        isMilestoneCompleted:
+                          type: boolean
+                        priority:
+                          type: string
+                          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+                          nullable: true
+                        phase:
+                          type: string
+                          enum:
+                            [
+                              DISCOVERY,
+                              DESIGN,
+                              IMPLEMENTATION,
+                              TESTING,
+                              DEPLOYMENT,
+                            ]
+                          nullable: true
+                        riskLevel:
+                          type: string
+                          enum: [LOW, MEDIUM, HIGH]
+                          nullable: true
+                        blocked:
+                          type: boolean
+                        blockerReason:
+                          type: string
+                          nullable: true
+                        assignedFreelancerId:
+                          type: string
+                          nullable: true
+                        assignedFreelancer:
+                          type: object
+                          nullable: true
+                          properties:
+                            id:
+                              type: string
+                            details:
+                              type: object
+                              properties:
+                                fullName:
+                                  type: string
+                        estimatedHours:
+                          type: integer
+                          nullable: true
+                        actualHours:
+                          type: integer
+                          nullable: true
+                        budgetEstimate:
+                          type: number
+                          nullable: true
+                        actualCost:
+                          type: number
+                          nullable: true
+                        tags:
+                          type: array
+                          items:
+                            type: string
+                        deliverableUrl:
+                          type: string
+                          nullable: true
+                        notes:
+                          type: string
+                          nullable: true
+                        moderatorApprovalRequired:
+                          type: boolean
+                        moderatorApproved:
+                          type: boolean
+                        moderatorApprovedAt:
+                          type: string
+                          format: date-time
+                          nullable: true
+                        moderatorNotes:
+                          type: string
+                          nullable: true
+                        createdAt:
+                          type: string
+                          format: date-time
+                        updatedAt:
+                          type: string
+                          format: date-time
+        "401":
+          description: Unauthorized - Invalid or missing token
+        "404":
+          description: Project not found or freelancer not assigned to this project
+        "500":
+          description: Internal server error
+
+  /freelancer/my-projects/{projectId}/milestones/{milestoneId}:
+    get:
+      tags:
+        - Freelancer - Selected Projects
+      summary: Get specific milestone details
+      description: |
+        Retrieves detailed information about a specific milestone in a project the freelancer is working on.
+
+        **Shows:**
+        - Complete milestone information
+        - Assigned freelancer details
+        - Moderator approval information
+        - Budget and time tracking
+        - Project context (company name)
+
+        **Authorization:**
+        - Only accessible if freelancer is in project's selectedFreelancers list
+
+        **Requires:** FREELANCER role with valid authentication
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          description: UUID of the project
+          schema:
+            type: string
+            format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        - name: milestoneId
+          in: path
+          required: true
+          description: UUID of the milestone
+          schema:
+            type: string
+            format: uuid
+          example: "987fcdeb-51a2-43d7-b789-012345678abc"
+      responses:
+        "200":
+          description: Successfully retrieved milestone details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    description: Detailed milestone information
+        "401":
+          description: Unauthorized - Invalid or missing token
+        "404":
+          description: Milestone not found or freelancer not assigned to the project
+        "500":
+          description: Internal server error

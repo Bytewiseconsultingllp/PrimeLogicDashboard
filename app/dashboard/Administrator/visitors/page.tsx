@@ -1,29 +1,38 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { 
   Search, 
-  Filter, 
-  Edit, 
-  Trash2, 
   Eye, 
-  Plus,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  Save,
-  Mail,
+  Edit,
+  Trash2,
+  Building, 
+  Mail, 
   Phone,
-  Building,
+  Calendar,
   Globe,
   MapPin,
   Users,
-  UserCheck
-} from 'lucide-react'
-import toast from 'react-hot-toast'
-import { getUserDetails } from '@/lib/api/storage'
+  Loader2,
+  Filter,
+  ChevronLeft,
+  ChevronRight,
+  User,
+  CheckCircle,
+  XCircle
+} from "lucide-react"
+import { getUserDetails } from "@/lib/api/storage"
+import { toast } from "sonner"
+import { useAuth } from "@/hooks/useAuth"
 
-interface Visitor {
+interface VisitorDetails {
   id: string
   fullName: string
   businessEmail: string
@@ -33,837 +42,411 @@ interface Visitor {
   businessAddress?: string
   businessType?: string
   referralSource?: string
+}
+
+interface Visitor {
+  id: string
+  clientId?: string
+  ipAddress?: string
+  isConverted: boolean
+  convertedAt?: string
   createdAt: string
   updatedAt: string
+  deletedAt?: string
+  details?: VisitorDetails
 }
 
-interface PaginationData {
-  currentPage: number
-  totalPages: number
-  totalCount: number
-  limit: number
-}
-
-interface ApiResponse {
-  success: boolean
-  status: number
-  message: string
-  data: {
-    visitors?: Visitor[]
-    pagination?: PaginationData
-  } | Visitor | null
-}
-
-const VisitorsPage = () => {
+export default function VisitorsPage() {
+  const { isAuthorized } = useAuth(["ADMIN", "MODERATOR"])
+  const router = useRouter()
   const [visitors, setVisitors] = useState<Visitor[]>([])
+  const [filteredVisitors, setFilteredVisitors] = useState<Visitor[]>([])
   const [loading, setLoading] = useState(true)
-  const [pagination, setPagination] = useState<PaginationData>({
-    currentPage: 1,
-    totalPages: 1,
-    totalCount: 0,
-    limit: 10
-  })
-
-  // Filter and search states
-  const [searchTerm, setSearchTerm] = useState('')
-  const [businessTypeFilter, setBusinessTypeFilter] = useState('')
-  const [referralSourceFilter, setReferralSourceFilter] = useState('')
-
-  // Modal states
-  const [selectedVisitor, setSelectedVisitor] = useState<Visitor | null>(null)
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false)
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [editFormData, setEditFormData] = useState<Partial<Visitor>>({})
-
-  // Auth token - you should get this from your auth context/localStorage
-  const [authToken, setAuthToken] = useState('')
+  const [searchTerm, setSearchTerm] = useState("")
+  const [statusFilter, setStatusFilter] = useState<string>("ALL")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const itemsPerPage = 10
 
   useEffect(() => {
-    // Get auth token from user details stored in cookies
-    const userDetails = getUserDetails()
-    const token = userDetails?.accessToken
-    setAuthToken(token || '')
-  }, [])
-
-  useEffect(() => {
-    if (authToken) {
+    if (isAuthorized) {
       fetchVisitors()
     }
-  }, [authToken, pagination.currentPage, businessTypeFilter, referralSourceFilter])
+  }, [isAuthorized, currentPage])
 
-  const API_BASE_URL = 'https://api.primelogicsol.com/api/v1/visitors'
+  useEffect(() => {
+    filterVisitors()
+  }, [visitors, searchTerm, statusFilter])
 
   const fetchVisitors = async () => {
+    setLoading(true)
     try {
-      setLoading(true)
-      
-      const params = new URLSearchParams({
-        page: pagination.currentPage.toString(),
-        limit: pagination.limit.toString(),
-      })
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
 
-      if (businessTypeFilter) {
-        params.append('businessType', businessTypeFilter)
+      if (!token) {
+        console.error("❌ No access token found")
+        toast.error("Authentication required. Please login again.")
+        router.push('/login')
+        return
       }
 
-      if (referralSourceFilter) {
-        params.append('referralSource', referralSourceFilter)
-      }
-
-      const response = await fetch(`${API_BASE_URL}?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
+      console.log("🔄 Fetching visitors with API:", `${process.env.NEXT_PUBLIC_PLS}/visitors?page=${currentPage}&limit=${itemsPerPage}`)
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_PLS}/visitors?page=${currentPage}&limit=${itemsPerPage}`,
+        {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          }
         }
-      })
+      )
 
-      const data: ApiResponse = await response.json()
-
-      if (data.success && data.data && 'visitors' in data.data) {
-        setVisitors(data.data.visitors || [])
-        if (data.data.pagination) {
-          setPagination(data.data.pagination)
-        }
+      if (response.ok) {
+        const data = await response.json()
+        console.log("✅ Visitors data:", data)
+        setVisitors(data.data?.visitors || [])
+        setTotalPages(Math.ceil((data.data?.pagination?.total || 0) / itemsPerPage))
+        toast.success(`Loaded ${data.data?.visitors?.length || 0} visitors`)
+      } else if (response.status === 401) {
+        console.error("❌ Authentication failed - token may be expired")
+        toast.error("Session expired. Please login again.")
+        // Clear stored credentials
+        localStorage.removeItem('userDetails')
+        sessionStorage.removeItem('userDetails')
+        router.push('/login')
       } else {
-        toast.error(data.message || 'Failed to fetch visitors')
+        const errorData = await response.text()
+        console.error("❌ Failed to fetch visitors:", errorData)
+        toast.error(`Failed to load visitors: ${response.status} ${response.statusText}`)
       }
     } catch (error) {
-      console.error('Error fetching visitors:', error)
-      toast.error('Failed to fetch visitors')
+      console.error("Error fetching visitors:", error)
+      toast.error("Failed to load visitors")
     } finally {
       setLoading(false)
     }
   }
 
-  const fetchSingleVisitor = async (visitorId: string) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/${visitorId}`, {
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        }
-      })
+  const filterVisitors = () => {
+    let filtered = visitors
 
-      const data: ApiResponse = await response.json()
-
-      if (data.success && data.data) {
-        return data.data as Visitor
-      } else {
-        toast.error(data.message || 'Failed to fetch visitor details')
-        return null
-      }
-    } catch (error) {
-      console.error('Error fetching visitor:', error)
-      toast.error('Failed to fetch visitor details')
-      return null
+    // Filter by search term
+    if (searchTerm) {
+      filtered = filtered.filter(visitor =>
+        (visitor.details?.fullName && visitor.details.fullName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (visitor.details?.businessEmail && visitor.details.businessEmail.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (visitor.details?.companyName && visitor.details.companyName.toLowerCase().includes(searchTerm.toLowerCase()))
+      )
     }
-  }
 
-  const updateVisitor = async (visitorId: string, updateData: Partial<Visitor>) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/${visitorId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(updateData)
-      })
-
-      const data: ApiResponse = await response.json()
-
-      if (data.success) {
-        toast.success('Visitor updated successfully')
-        fetchVisitors() // Refresh the list
+    // Filter by status
+    if (statusFilter !== "ALL") {
+      filtered = filtered.filter(visitor => {
+        if (statusFilter === "CONVERTED") return visitor.isConverted
+        if (statusFilter === "NOT_CONVERTED") return !visitor.isConverted
         return true
-      } else {
-        toast.error(data.message || 'Failed to update visitor')
-        return false
-      }
-    } catch (error) {
-      console.error('Error updating visitor:', error)
-      toast.error('Failed to update visitor')
-      return false
+      })
     }
+
+    setFilteredVisitors(filtered)
   }
 
-  const deleteVisitor = async (visitorId: string) => {
-    if (!confirm('Are you sure you want to delete this visitor?')) {
+  const handleDeleteVisitor = async (visitorId: string) => {
+    if (!confirm("Are you sure you want to delete this visitor? This action cannot be undone.")) {
       return
     }
 
+    setActionLoading(visitorId)
     try {
-      const response = await fetch(`${API_BASE_URL}/${visitorId}`, {
-        method: 'DELETE',
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+
+      if (!token) {
+        toast.error("Authentication required")
+        return
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PLS}/visitors/${visitorId}`, {
+        method: "DELETE",
         headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
         }
       })
 
-      const data: ApiResponse = await response.json()
-
-      if (data.success) {
-        toast.success('Visitor deleted successfully')
+      if (response.ok) {
+        toast.success("Visitor deleted successfully")
         fetchVisitors() // Refresh the list
       } else {
-        toast.error(data.message || 'Failed to delete visitor')
+        const errorData = await response.text()
+        console.error("❌ Failed to delete visitor:", errorData)
+        toast.error("Failed to delete visitor")
       }
     } catch (error) {
-      console.error('Error deleting visitor:', error)
-      toast.error('Failed to delete visitor')
+      console.error("Error deleting visitor:", error)
+      toast.error("Failed to delete visitor")
+    } finally {
+      setActionLoading(null)
     }
   }
 
-  const handleViewVisitor = async (visitor: Visitor) => {
-    const fullVisitorData = await fetchSingleVisitor(visitor.id)
-    if (fullVisitorData) {
-      setSelectedVisitor(fullVisitorData)
-      setIsViewModalOpen(true)
-    }
+  const viewVisitorDetails = (visitorId: string) => {
+    router.push(`/dashboard/Administrator/visitors/${visitorId}`)
   }
 
-  const handleEditVisitor = async (visitor: Visitor) => {
-    const fullVisitorData = await fetchSingleVisitor(visitor.id)
-    if (fullVisitorData) {
-      setSelectedVisitor(fullVisitorData)
-      setEditFormData(fullVisitorData)
-      setIsEditModalOpen(true)
-    }
-  }
+  if (!isAuthorized) return null
 
-  const handleSaveEdit = async () => {
-    if (!selectedVisitor) return
-
-    const success = await updateVisitor(selectedVisitor.id, editFormData)
-    if (success) {
-      setIsEditModalOpen(false)
-      setSelectedVisitor(null)
-      setEditFormData({})
-    }
-  }
-
-  const handlePageChange = (newPage: number) => {
-    setPagination(prev => ({ ...prev, currentPage: newPage }))
-  }
-
-  const filteredVisitors = visitors.filter(visitor =>
-    visitor.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    visitor.businessEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (visitor.companyName && visitor.companyName.toLowerCase().includes(searchTerm.toLowerCase()))
-  )
-
-  const businessTypes = ["Startup", "SME", "Nonprofit", "Enterprise", "Government", "Freelancer", "Other"]
-  const referralSources = ["Google", "Social Media", "Referral", "Email", "Advertisement", "Conference/Event", "Other"]
-
-  if (!authToken) {
+  if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <p className="text-gray-600">Please login to view visitors</p>
-        </div>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#003087]" />
+        <p className="ml-3 text-muted-foreground">Loading visitors...</p>
       </div>
     )
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Visitors Dashboard</h1>
-        <p className="text-gray-600">Manage and view all registered visitors</p>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white rounded-lg p-6 shadow-sm border">
-          <div className="flex items-center">
-            <Users className="h-8 w-8 text-blue-500" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Visitors</p>
-              <p className="text-2xl font-bold text-gray-900">{pagination.totalCount}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg p-6 shadow-sm border">
-          <div className="flex items-center">
-            <UserCheck className="h-8 w-8 text-green-500" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">This Page</p>
-              <p className="text-2xl font-bold text-gray-900">{filteredVisitors.length}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg p-6 shadow-sm border">
-          <div className="flex items-center">
-            <Building className="h-8 w-8 text-purple-500" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Companies</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {visitors.filter(v => v.companyName).length}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg p-6 shadow-sm border">
-          <div className="flex items-center">
-            <Globe className="h-8 w-8 text-orange-500" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">With Websites</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {visitors.filter(v => v.companyWebsite).length}
-              </p>
-            </div>
-          </div>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-[#003087]">Visitors</h1>
+          <p className="text-muted-foreground">Manage and monitor all website visitors</p>
         </div>
       </div>
 
-      {/* Filters and Search */}
-      <div className="bg-white rounded-lg p-6 shadow-sm border mb-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <input
-              type="text"
-              placeholder="Search visitors..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+      {/* Filters */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Search */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                placeholder="Search by name, email, or company..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {/* Status Filter */}
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-gray-400" />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#003087]"
+              >
+                <option value="ALL">All Status</option>
+                <option value="CONVERTED">Converted</option>
+                <option value="NOT_CONVERTED">Not Converted</option>
+              </select>
+            </div>
           </div>
 
-          {/* Business Type Filter */}
-          <select
-            value={businessTypeFilter}
-            onChange={(e) => setBusinessTypeFilter(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">All Business Types</option>
-            {businessTypes.map(type => (
-              <option key={type} value={type}>{type}</option>
-            ))}
-          </select>
-
-          {/* Referral Source Filter */}
-          <select
-            value={referralSourceFilter}
-            onChange={(e) => setReferralSourceFilter(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">All Referral Sources</option>
-            {referralSources.map(source => (
-              <option key={source} value={source}>{source}</option>
-            ))}
-          </select>
-
-          {/* Clear Filters */}
-          <button
-            onClick={() => {
-              setSearchTerm('')
-              setBusinessTypeFilter('')
-              setReferralSourceFilter('')
-            }}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
-          >
-            Clear Filters
-          </button>
-        </div>
-      </div>
+          <div className="mt-4 text-sm text-muted-foreground">
+            Showing {filteredVisitors.length} of {visitors.length} visitors
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Visitors Table */}
-      <div className="bg-white rounded-lg shadow-sm border">
-        {loading ? (
-          <div className="p-8 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading visitors...</p>
-          </div>
-        ) : filteredVisitors.length === 0 ? (
-          <div className="p-8 text-center">
-            <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No visitors found</p>
-          </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Visitor
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Contact
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Business
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Source
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Registered
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>All Visitors ({filteredVisitors.length})</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {filteredVisitors.length > 0 ? (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Visitor</TableHead>
+                    <TableHead>Contact</TableHead>
+                    <TableHead>Company</TableHead>
+                    <TableHead>Business Type</TableHead>
+                    <TableHead>Source</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {filteredVisitors.map((visitor) => (
-                    <tr key={visitor.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center">
-                            <span className="text-white font-medium">
-                              {visitor.fullName.split(' ').map(n => n[0]).join('').toUpperCase()}
-                            </span>
-                          </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">
-                              {visitor.fullName}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {visitor.companyName || 'Individual'}
-                            </div>
+                    <TableRow key={visitor.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="w-10 h-10">
+                            <AvatarFallback className="bg-[#003087] text-white">
+                              {visitor.details?.fullName
+                                ?.split(" ")
+                                .map((word: string) => word[0])
+                                .join("")
+                                .toUpperCase()
+                                .slice(0, 2) || "VI"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">{visitor.details?.fullName || "N/A"}</p>
+                            <p className="text-sm text-muted-foreground">ID: {visitor.id.slice(0, 8)}...</p>
                           </div>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{visitor.businessEmail}</div>
-                        {visitor.phoneNumber && (
-                          <div className="text-sm text-gray-500">{visitor.phoneNumber}</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                          {visitor.businessType || 'Not specified'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {visitor.referralSource || 'Not specified'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(visitor.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => handleViewVisitor(visitor)}
-                            className="text-blue-600 hover:text-blue-900"
-                            title="View Details"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleEditVisitor(visitor)}
-                            className="text-green-600 hover:text-green-900"
-                            title="Edit"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => deleteVisitor(visitor.id)}
-                            className="text-red-600 hover:text-red-900"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1">
+                            <Mail className="w-3 h-3 text-muted-foreground" />
+                            <span className="text-sm">{visitor.details?.businessEmail || "N/A"}</span>
+                          </div>
+                          {visitor.details?.phoneNumber && (
+                            <div className="flex items-center gap-1">
+                              <Phone className="w-3 h-3 text-muted-foreground" />
+                              <span className="text-sm">{visitor.details.phoneNumber}</span>
+                            </div>
+                          )}
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1">
+                            <Building className="w-3 h-3 text-muted-foreground" />
+                            <span className="text-sm font-medium">{visitor.details?.companyName || "N/A"}</span>
+                          </div>
+                          {visitor.details?.companyWebsite && (
+                            <div className="flex items-center gap-1">
+                              <Globe className="w-3 h-3 text-muted-foreground" />
+                              <a 
+                                href={visitor.details.companyWebsite} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-sm text-blue-600 hover:underline"
+                              >
+                                Website
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {visitor.details?.businessType || "N/A"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">
+                          {visitor.details?.referralSource || "N/A"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {visitor.isConverted ? (
+                            <Badge className="bg-green-500 text-white flex items-center gap-1">
+                              <CheckCircle className="w-3 h-3" />
+                              Converted
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="flex items-center gap-1">
+                              <XCircle className="w-3 h-3" />
+                              Visitor
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-sm">
+                            {new Date(visitor.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => viewVisitorDetails(visitor.id)}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteVisitor(visitor.id)}
+                            disabled={actionLoading === visitor.id}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            {actionLoading === visitor.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
-
-            {/* Pagination */}
-            <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-              <div className="flex-1 flex justify-between sm:hidden">
-                <button
-                  onClick={() => handlePageChange(pagination.currentPage - 1)}
-                  disabled={pagination.currentPage === 1}
-                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+          ) : (
+            <div className="text-center py-12">
+              <User className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No Visitors Found</h3>
+              <p className="text-muted-foreground mb-4">
+                {searchTerm || statusFilter !== "ALL" 
+                  ? "No visitors match your current filters." 
+                  : "No visitors have been recorded yet."}
+              </p>
+              {searchTerm || statusFilter !== "ALL" ? (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSearchTerm("")
+                    setStatusFilter("ALL")
+                  }}
                 >
+                  Clear Filters
+                </Button>
+              ) : null}
+            </div>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <p className="text-sm text-muted-foreground">
+                Page {currentPage} of {totalPages}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="w-4 h-4" />
                   Previous
-                </button>
-                <button
-                  onClick={() => handlePageChange(pagination.currentPage + 1)}
-                  disabled={pagination.currentPage === pagination.totalPages}
-                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
                 >
                   Next
-                </button>
-              </div>
-              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm text-gray-700">
-                    Showing{' '}
-                    <span className="font-medium">
-                      {((pagination.currentPage - 1) * pagination.limit) + 1}
-                    </span>{' '}
-                    to{' '}
-                    <span className="font-medium">
-                      {Math.min(pagination.currentPage * pagination.limit, pagination.totalCount)}
-                    </span>{' '}
-                    of{' '}
-                    <span className="font-medium">{pagination.totalCount}</span>{' '}
-                    results
-                  </p>
-                </div>
-                <div>
-                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                    <button
-                      onClick={() => handlePageChange(pagination.currentPage - 1)}
-                      disabled={pagination.currentPage === 1}
-                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-                    >
-                      <ChevronLeft className="h-5 w-5" />
-                    </button>
-                    {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((page) => (
-                      <button
-                        key={page}
-                        onClick={() => handlePageChange(page)}
-                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                          page === pagination.currentPage
-                            ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                            : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => handlePageChange(pagination.currentPage + 1)}
-                      disabled={pagination.currentPage === pagination.totalPages}
-                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-                    >
-                      <ChevronRight className="h-5 w-5" />
-                    </button>
-                  </nav>
-                </div>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
               </div>
             </div>
-          </>
-        )}
-      </div>
-
-      {/* View Modal */}
-      {isViewModalOpen && selectedVisitor && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Visitor Details</h2>
-                <button
-                  onClick={() => setIsViewModalOpen(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Full Name
-                    </label>
-                    <div className="flex items-center">
-                      <Users className="h-4 w-4 text-gray-400 mr-2" />
-                      <span className="text-gray-900">{selectedVisitor.fullName}</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email Address
-                    </label>
-                    <div className="flex items-center">
-                      <Mail className="h-4 w-4 text-gray-400 mr-2" />
-                      <span className="text-gray-900">{selectedVisitor.businessEmail}</span>
-                    </div>
-                  </div>
-
-                  {selectedVisitor.phoneNumber && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Phone Number
-                      </label>
-                      <div className="flex items-center">
-                        <Phone className="h-4 w-4 text-gray-400 mr-2" />
-                        <span className="text-gray-900">{selectedVisitor.phoneNumber}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedVisitor.companyName && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Company Name
-                      </label>
-                      <div className="flex items-center">
-                        <Building className="h-4 w-4 text-gray-400 mr-2" />
-                        <span className="text-gray-900">{selectedVisitor.companyName}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedVisitor.companyWebsite && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Website
-                      </label>
-                      <div className="flex items-center">
-                        <Globe className="h-4 w-4 text-gray-400 mr-2" />
-                        <a 
-                          href={selectedVisitor.companyWebsite} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          {selectedVisitor.companyWebsite}
-                        </a>
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedVisitor.businessType && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Business Type
-                      </label>
-                      <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
-                        {selectedVisitor.businessType}
-                      </span>
-                    </div>
-                  )}
-
-                  {selectedVisitor.referralSource && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Referral Source
-                      </label>
-                      <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-                        {selectedVisitor.referralSource}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {selectedVisitor.businessAddress && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Business Address
-                    </label>
-                    <div className="flex items-start">
-                      <MapPin className="h-4 w-4 text-gray-400 mr-2 mt-1" />
-                      <span className="text-gray-900">{selectedVisitor.businessAddress}</span>
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Registered Date
-                    </label>
-                    <span className="text-gray-900">
-                      {new Date(selectedVisitor.createdAt).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </span>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Last Updated
-                    </label>
-                    <span className="text-gray-900">
-                      {new Date(selectedVisitor.updatedAt).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-8 flex justify-end space-x-4">
-                <button
-                  onClick={() => {
-                    setIsViewModalOpen(false)
-                    handleEditVisitor(selectedVisitor)
-                  }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  Edit Visitor
-                </button>
-                <button
-                  onClick={() => setIsViewModalOpen(false)}
-                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Modal */}
-      {isEditModalOpen && selectedVisitor && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Edit Visitor</h2>
-                <button
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Full Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={editFormData.fullName || ''}
-                      onChange={(e) => setEditFormData({...editFormData, fullName: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email Address *
-                    </label>
-                    <input
-                      type="email"
-                      value={editFormData.businessEmail || ''}
-                      onChange={(e) => setEditFormData({...editFormData, businessEmail: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Phone Number
-                    </label>
-                    <input
-                      type="tel"
-                      value={editFormData.phoneNumber || ''}
-                      onChange={(e) => setEditFormData({...editFormData, phoneNumber: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Company Name
-                    </label>
-                    <input
-                      type="text"
-                      value={editFormData.companyName || ''}
-                      onChange={(e) => setEditFormData({...editFormData, companyName: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Company Website
-                    </label>
-                    <input
-                      type="url"
-                      value={editFormData.companyWebsite || ''}
-                      onChange={(e) => setEditFormData({...editFormData, companyWebsite: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Business Type
-                    </label>
-                    <select
-                      value={editFormData.businessType || ''}
-                      onChange={(e) => setEditFormData({...editFormData, businessType: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Select business type</option>
-                      {businessTypes.map(type => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Referral Source
-                    </label>
-                    <select
-                      value={editFormData.referralSource || ''}
-                      onChange={(e) => setEditFormData({...editFormData, referralSource: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Select referral source</option>
-                      {referralSources.map(source => (
-                        <option key={source} value={source}>{source}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Business Address
-                  </label>
-                  <textarea
-                    value={editFormData.businessAddress || ''}
-                    onChange={(e) => setEditFormData({...editFormData, businessAddress: e.target.value})}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-8 flex justify-end space-x-4">
-                <button
-                  onClick={handleSaveEdit}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Changes
-                </button>
-                <button
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
-
-export default VisitorsPage
