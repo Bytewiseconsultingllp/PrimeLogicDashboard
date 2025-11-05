@@ -1,0 +1,1058 @@
+paths:
+  /visitors/create:
+    post:
+      tags:
+        - Visitors
+      summary: Step 1 - Create visitor with basic details
+      description: First step in visitor registration flow. Creates a visitor record with business information.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fullName
+                - businessEmail
+                - companyName
+                - businessType
+                - referralSource
+              properties:
+                fullName:
+                  type: string
+                  example: John Smith
+                  description: Full name of the person filling the form
+                businessEmail:
+                  type: string
+                  format: email
+                  example: john@company.com
+                  description: Business email address
+                phoneNumber:
+                  type: string
+                  example: "+1234567890"
+                  description: Contact phone number (optional)
+                companyName:
+                  type: string
+                  example: Tech Innovations Inc
+                  description: Name of the company
+                companyWebsite:
+                  type: string
+                  example: https://techinnovations.com
+                  description: Company website URL (optional)
+                businessAddress:
+                  type: string
+                  example: 123 Tech Street, San Francisco, CA 94102
+                  description: Business address (optional)
+                businessType:
+                  type: string
+                  example: STARTUP
+                  description: Type of business (STARTUP, SMB, ENTERPRISE, etc.)
+                referralSource:
+                  type: string
+                  example: GOOGLE_SEARCH
+                  description: How they found us
+      responses:
+        "200":
+          description: Visitor created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+              example:
+                success: true
+                message: Visitor created successfully
+                data:
+                  id: "visitor-uuid-123"
+                  clientId: null
+                  ipAddress: "192.168.1.1"
+                  createdAt: "2025-10-30T10:00:00.000Z"
+                  details:
+                    fullName: John Smith
+                    businessEmail: john@company.com
+                    companyName: Tech Innovations Inc
+        "409":
+          description: Email already exists as client or visitor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                message: Email already registered as client. Please login to add a new project.
+                data:
+                  isExistingClient: true
+                  clientId: "client-uuid-123"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /visitors/{visitorId}/services:
+    post:
+      tags:
+        - Visitors
+      summary: Step 2 - Add service selections
+      description: Add the services the visitor is interested in
+      parameters:
+        - name: visitorId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Visitor ID from step 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                required:
+                  - name
+                  - childServices
+                properties:
+                  name:
+                    type: string
+                    enum:
+                      - SOFTWARE_DEVELOPMENT
+                      - DATA_AND_ANALYTICS
+                      - CLOUD_AND_DEVOPS
+                      - EMERGING_TECHNOLOGIES
+                      - CREATIVE_AND_DESIGN
+                      - DIGITAL_MARKETING
+                    description: High-level service category
+                    example: SOFTWARE_DEVELOPMENT
+                  childServices:
+                    type: array
+                    items:
+                      type: string
+                    description: Array of specific services under this category (e.g., "Web Development", "Mobile Apps", "API Development")
+                    example:
+                      [
+                        "Web Development",
+                        "Mobile Applications",
+                        "API Development",
+                      ]
+              example:
+                - name: SOFTWARE_DEVELOPMENT
+                  childServices:
+                    [
+                      "Web Development",
+                      "Mobile Applications",
+                      "API Development",
+                    ]
+                - name: CREATIVE_AND_DESIGN
+                  childServices:
+                    ["UI/UX Design", "Brand Identity", "Graphic Design"]
+      responses:
+        "200":
+          description: Services added successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /visitors/{visitorId}/industries:
+    post:
+      tags:
+        - Visitors
+      summary: Step 3 - Add industry selections
+      description: Add the industries the visitor's project targets
+      parameters:
+        - name: visitorId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Visitor ID from step 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                required:
+                  - category
+                  - subIndustries
+                properties:
+                  category:
+                    type: string
+                    enum:
+                      - HEALTHCARE_AND_LIFE_SCIENCES
+                      - FINANCIAL_SERVICES
+                      - RETAIL_AND_ECOMMERCE
+                      - MANUFACTURING
+                      - EDUCATION
+                      - GOVERNMENT_AND_PUBLIC_SECTOR
+                    description: High-level industry category
+                    example: HEALTHCARE_AND_LIFE_SCIENCES
+                  subIndustries:
+                    type: array
+                    items:
+                      type: string
+                      enum:
+                        - HEALTHCARE_PROVIDERS
+                        - PHARMACEUTICALS
+                        - MEDICAL_DEVICES
+                        - BIOTECHNOLOGY
+                        - HEALTH_INSURANCE
+                        - BANKING
+                        - INSURANCE
+                        - INVESTMENT_MANAGEMENT
+                        - PAYMENTS
+                        - LENDING
+                        - BLOCKCHAIN_AND_CRYPTO
+                        - ONLINE_RETAIL
+                        - BRICK_AND_MORTAR
+                        - OMNICHANNEL
+                        - FASHION_AND_APPAREL
+                        - CONSUMER_GOODS
+                        - AUTOMOTIVE
+                        - INDUSTRIAL_EQUIPMENT
+                        - ELECTRONICS
+                        - AEROSPACE_AND_DEFENSE
+                        - CHEMICAL_AND_MATERIALS
+                        - SMART_MANUFACTURING
+                        - K_12_EDUCATION
+                        - HIGHER_EDUCATION
+                        - PROFESSIONAL_TRAINING
+                        - EDTECH
+                        - RESEARCH_AND_DEVELOPMENT
+                        - FEDERAL_GOVERNMENT
+                        - STATE_AND_LOCAL
+                        - PUBLIC_HEALTHCARE
+                        - PUBLIC_INFRASTRUCTURE
+                        - CIVIC_TECHNOLOGY
+                    description: Specific sub-industries within the category
+                    example: [HEALTHCARE_PROVIDERS, PHARMACEUTICALS]
+              example:
+                - category: HEALTHCARE_AND_LIFE_SCIENCES
+                  subIndustries: [HEALTHCARE_PROVIDERS, PHARMACEUTICALS]
+                - category: RETAIL_AND_ECOMMERCE
+                  subIndustries: [ONLINE_RETAIL, FASHION_AND_APPAREL]
+      responses:
+        "200":
+          description: Industries added successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /visitors/{visitorId}/technologies:
+    post:
+      tags:
+        - Visitors
+      summary: Step 4 - Add technology selections
+      description: Add the technologies the visitor wants to use
+      parameters:
+        - name: visitorId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Visitor ID from step 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                required:
+                  - category
+                  - technologies
+                properties:
+                  category:
+                    type: string
+                    enum:
+                      - FRONTEND_FRAMEWORKS
+                      - BACKEND_FRAMEWORKS
+                      - MOBILE_FRAMEWORKS
+                      - DATABASES
+                      - CLOUD_PLATFORMS
+                      - OTHER_TECHNOLOGIES
+                    example: FRONTEND_FRAMEWORKS
+                  technologies:
+                    type: array
+                    items:
+                      type: string
+                    example: [REACT, NEXTJS, TYPESCRIPT]
+              example:
+                - category: FRONTEND_FRAMEWORKS
+                  technologies: [REACT, NEXTJS, TYPESCRIPT]
+                - category: BACKEND_FRAMEWORKS
+                  technologies: [NODEJS, EXPRESS, NESTJS]
+      responses:
+        "200":
+          description: Technologies added successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /visitors/{visitorId}/features:
+    post:
+      tags:
+        - Visitors
+      summary: Step 5 - Add feature selections
+      description: Add the features the visitor wants in their project
+      parameters:
+        - name: visitorId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Visitor ID from step 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                required:
+                  - category
+                  - features
+                properties:
+                  category:
+                    type: string
+                    enum:
+                      - USER_MANAGEMENT
+                      - CONTENT_MANAGEMENT
+                      - ECOMMERCE
+                      - ANALYTICS_AND_REPORTING
+                      - COMMUNICATION
+                      - INTEGRATION_AND_API
+                    example: USER_MANAGEMENT
+                  features:
+                    type: array
+                    items:
+                      type: string
+                    example:
+                      [AUTHENTICATION, ROLE_BASED_ACCESS_CONTROL, USER_PROFILES]
+              example:
+                - category: USER_MANAGEMENT
+                  features:
+                    [AUTHENTICATION, ROLE_BASED_ACCESS_CONTROL, USER_PROFILES]
+                - category: ECOMMERCE
+                  features: [PRODUCT_CATALOG, SHOPPING_CART, PAYMENT_PROCESSING]
+      responses:
+        "200":
+          description: Features added successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /visitors/{visitorId}/discount:
+    post:
+      tags:
+        - Visitors
+      summary: Step 6 - Add discount selection
+      description: Add discount information if applicable
+      parameters:
+        - name: visitorId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Visitor ID from step 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - percent
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - STARTUP_FOUNDER
+                    - VETERAN_OWNED_BUSINESS
+                    - NONPROFIT_ORGANIZATION
+                    - NOT_ELIGIBLE
+                  description: Discount eligibility type
+                  example: STARTUP_FOUNDER
+                percent:
+                  type: number
+                  example: 15
+                  description: Discount percentage (0-100)
+                notes:
+                  type: string
+                  example: Verified startup founder discount
+                  description: Additional notes about the discount
+      responses:
+        "200":
+          description: Discount added successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /visitors/{visitorId}/timeline:
+    post:
+      tags:
+        - Visitors
+      summary: Step 7 - Add timeline selection
+      description: Add project timeline preferences
+      parameters:
+        - name: visitorId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Visitor ID from step 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - option
+                - rushFeePercent
+                - estimatedDays
+              properties:
+                option:
+                  type: string
+                  enum:
+                    - STANDARD_BUILD
+                    - PRIORITY_BUILD
+                    - ACCELERATED_BUILD
+                    - RAPID_BUILD
+                    - FAST_TRACK_BUILD
+                  example: STANDARD_BUILD
+                  description: |
+                    Timeline build option:
+                     - STANDARD_BUILD: Normal timeline (0% rush fee)
+                     - PRIORITY_BUILD: Faster delivery (10-15% rush fee)
+                     - ACCELERATED_BUILD: Much faster (20-25% rush fee)
+                     - RAPID_BUILD: Very fast (30-35% rush fee)
+                     - FAST_TRACK_BUILD: Fastest possible (40-50% rush fee)
+                rushFeePercent:
+                  type: number
+                  example: 0
+                  description: Rush fee percentage based on timeline option (0-100)
+                estimatedDays:
+                  type: number
+                  example: 60
+                  description: Estimated number of days for completion
+                description:
+                  type: string
+                  example: Standard timeline works for our project schedule
+                  description: Additional timeline notes
+      responses:
+        "200":
+          description: Timeline added successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # DISABLED: Manual estimate endpoint - Now auto-calculated on timeline (Step 7)
+  # Use GET /visitors/{id}/estimate to retrieve the auto-calculated estimate
+  # /visitors/{visitorId}/estimate:
+  #   post:
+  #     tags:
+  #       - Visitors
+  #     summary: Step 8 - Add project estimate (DISABLED)
+  #     description: This endpoint is disabled. Estimate is now automatically calculated when timeline is added.
+
+  /visitors/{visitorId}/service-agreement:
+    post:
+      tags:
+        - Visitors
+      summary: Step 8 - Accept service agreement with PDF generation (Final step)
+      description: |
+        **Final step** - Visitor accepts service agreement. System automatically generates a personalized PDF agreement, uploads it to Cloudinary, and emails a copy to the visitor.
+
+
+         **What happens:**
+         1. Validates visitor has completed all previous steps (details, estimate, etc.)
+         2. Generates PDF with client service agreement including:
+           - Client name and pricing
+           - Platform terms & conditions
+           - Service terms
+           - Payment terms (full upfront, no refunds)
+           - IP ownership
+           - Liability limitations
+           - Dispute resolution
+         3. Uploads PDF to Cloudinary
+         4. Stores document URL in database with audit trail
+         5. Emails copy to visitor
+
+
+         **Note:** Estimate must be calculated (Step 7) before accepting agreement.
+         After accepting this agreement, visitor can proceed to register as a client.
+      parameters:
+        - name: visitorId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Visitor ID from step 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - accepted
+              properties:
+                accepted:
+                  type: boolean
+                  example: true
+                  description: Must be true to proceed. Visitor confirms they have read and agree to the service agreement.
+      responses:
+        "200":
+          description: Service agreement accepted successfully. PDF generated, sent via email, and available for download.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Service agreement accepted successfully. PDF generated and sent to your email.
+                  data:
+                    type: object
+                    properties:
+                      documentUrl:
+                        type: string
+                        example: https://res.cloudinary.com/your-cloud/raw/upload/legal_agreements/CLIENT_SERVICE_AGREEMENT_john_example_com_1698765432.pdf
+                        description: Cloudinary URL to the generated PDF agreement
+                      agreementVersion:
+                        type: string
+                        example: "1.0"
+                        description: Version of the agreement template
+                      pdfBase64:
+                        type: string
+                        example: JVBERi0xLjMKJcTl8uXrp/Og0MTGCjQgMCBvYmoKPDwgL0xlbmd0aCA1...
+                        description: Base64-encoded PDF file for immediate download by frontend
+                      fileName:
+                        type: string
+                        example: CLIENT-SERVICE-AGREEMENT_john_example_com_1698765432.pdf
+                        description: Suggested filename for download
+                      message:
+                        type: string
+                        example: You can now proceed to register as a client and secure your project.
+        "400":
+          description: Bad request - visitor hasn't completed required steps or already accepted agreement
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    examples:
+                      - You must accept the service agreement to proceed
+                      - Visitor details not found. Please complete your information first.
+                      - Estimate not found. Please complete the estimate step first.
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /visitors/check-email:
+    post:
+      tags:
+        - Visitors
+      summary: Check if email exists
+      description: Check if visitor email already exists as a client or visitor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: john@company.com
+                  description: Email to check
+      responses:
+        "200":
+          description: Email check completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+              example:
+                success: true
+                message: Email check completed
+                data:
+                  exists: true
+                  isClient: true
+                  isVisitor: false
+                  clientId: "client-uuid-123"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /visitors/{id}/estimate:
+    get:
+      tags:
+        - Visitors
+        - Estimates
+      summary: Get visitor estimate details
+      description: Retrieve the automatically calculated estimate for a visitor (calculated after Step 7 - Timeline)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Visitor ID
+      responses:
+        "200":
+          description: Estimate retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  statusCode:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Estimate retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        example: estimate-uuid-123
+                      visitorId:
+                        type: string
+                        example: visitor-uuid-456
+                      estimateAccepted:
+                        type: boolean
+                        example: false
+                      estimateFinalPriceMin:
+                        type: number
+                        example: 8100.00
+                        description: Minimum price (calculated total - 10%)
+                      estimateFinalPriceMax:
+                        type: number
+                        example: 9900.00
+                        description: Maximum price (calculated total + 10%)
+                      isManuallyAdjusted:
+                        type: boolean
+                        example: false
+                        description: Whether the estimate was manually adjusted by admin
+                      baseCost:
+                        type: number
+                        example: 10000.00
+                        description: Sum of services, technologies, and features
+                      discountAmount:
+                        type: number
+                        example: 1000.00
+                        description: Amount deducted from discount
+                      rushFeeAmount:
+                        type: number
+                        example: 0.00
+                        description: Additional rush fee based on timeline
+                      calculatedTotal:
+                        type: number
+                        example: 9000.00
+                        description: Final calculated amount (base - discount + rush fee)
+                      calculatedAt:
+                        type: string
+                        format: date-time
+                        example: 2025-10-30T12:00:00Z
+                      createdAt:
+                        type: string
+                        format: date-time
+                      updatedAt:
+                        type: string
+                        format: date-time
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    patch:
+      tags:
+        - Visitors
+        - Estimates
+        - Admin
+      summary: Admin override visitor estimate
+      description: Allows admin to manually override the calculated estimate prices
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Visitor ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - estimateFinalPriceMin
+                - estimateFinalPriceMax
+              properties:
+                estimateFinalPriceMin:
+                  type: number
+                  example: 8500
+                  description: New minimum price
+                estimateFinalPriceMax:
+                  type: number
+                  example: 10500
+                  description: New maximum price
+      responses:
+        "200":
+          description: Estimate overridden successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Estimate overridden successfully by admin
+                  data:
+                    type: object
+                    properties:
+                      isManuallyAdjusted:
+                        type: boolean
+                        example: true
+                      estimateFinalPriceMin:
+                        type: number
+                        example: 8500.00
+                      estimateFinalPriceMax:
+                        type: number
+                        example: 10500.00
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /visitors/{id}/estimate/accept:
+    post:
+      tags:
+        - Visitors
+        - Estimates
+      summary: Accept visitor estimate
+      description: Mark the estimate as accepted by the visitor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Visitor ID
+      responses:
+        "200":
+          description: Estimate accepted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Estimate accepted successfully
+                  data:
+                    type: object
+                    properties:
+                      estimateAccepted:
+                        type: boolean
+                        example: true
+                      estimateFinalPriceMin:
+                        type: number
+                        example: 8100.00
+                      estimateFinalPriceMax:
+                        type: number
+                        example: 9900.00
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /visitors/{id}/quote:
+    get:
+      tags:
+        - Visitors
+        - Quote
+      summary: Request Formal Quote (PDF Download)
+      description: "Generate and download a beautifully formatted PDF quote with all visitor project details, pricing breakdown, and terms. Available after service agreement is accepted."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Visitor ID
+      responses:
+        "200":
+          description: PDF quote generated and downloaded successfully
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Service agreement must be accepted before requesting quote
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          description: Failed to generate quote PDF
+
+  /visitors/{id}/convert-to-project:
+    post:
+      tags:
+        - Visitors
+        - Admin
+      summary: Convert visitor to project (Manual)
+      description: "Manually convert a visitor to a project. This copies all visitor data to a new project and marks the visitor as converted. Note: This happens automatically after OTP verification for 'Secure My Project' flow."
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Visitor ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - clientId
+              properties:
+                clientId:
+                  type: string
+                  description: User ID (client) who will own this project
+                  example: user-uuid-123
+      responses:
+        "200":
+          description: Visitor converted to project successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Visitor converted to project successfully
+                  data:
+                    type: object
+                    description: Complete project object with all copied data
+        "400":
+          description: Cannot convert visitor (estimate not accepted, already converted, etc.)
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          description: Failed to convert visitor to project
+
+  /visitors/{id}:
+    get:
+      tags:
+        - Visitors
+      summary: Get single visitor
+      description: Get detailed information about a specific visitor
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Visitor ID
+      responses:
+        "200":
+          description: Visitor details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+              example:
+                success: true
+                message: Visitor retrieved successfully
+                data:
+                  id: "visitor-uuid-123"
+                  clientId: null
+                  ipAddress: "192.168.1.1"
+                  createdAt: "2025-10-30T10:00:00.000Z"
+                  details:
+                    fullName: John Smith
+                    businessEmail: john@company.com
+                    companyName: Tech Innovations Inc
+                  services: []
+                  industries: []
+                  technologies: []
+                  features: []
+                  discount: null
+                  timeline: null
+                  estimate: null
+                  serviceAgreement: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags:
+        - Visitors
+      summary: Delete visitor (soft delete)
+      description: Soft delete a visitor record (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Visitor ID
+      responses:
+        "200":
+          description: Visitor deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /visitors:
+    get:
+      tags:
+        - Visitors
+      summary: Get all visitors
+      description: Get all visitors with pagination (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Page number
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+          description: Number of items per page
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by email or name
+      responses:
+        "200":
+          description: Visitors retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+              example:
+                success: true
+                message: Visitors retrieved successfully
+                data:
+                  visitors: []
+                  pagination:
+                    page: 1
+                    limit: 10
+                    total: 50
+                    totalPages: 5
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"

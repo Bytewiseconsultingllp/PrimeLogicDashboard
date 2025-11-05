@@ -1,0 +1,244 @@
+paths:
+  /blog/createBlog:
+    post:
+      tags:
+        - Blog
+      summary: Create a new blog post
+      description: Create a new blog post (Admin/Moderator only)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BlogPost"
+      responses:
+        "201":
+          description: Blog created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Blog"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /blog/getSingleBlog/{blogSlug}:
+    get:
+      tags:
+        - Blog
+      summary: Get a single blog by slug
+      description: Retrieve a specific blog post by its slug
+      parameters:
+        - name: blogSlug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Blog slug
+      responses:
+        "200":
+          description: Blog retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Blog"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /blog/getAllPublicBlogs:
+    get:
+      tags:
+        - Blog
+      summary: Get all public blogs
+      description: Retrieve all published public blog posts
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Blogs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      blogs:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Blog"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /blog/getAllPrivateBlogs:
+    get:
+      tags:
+        - Blog
+      summary: Get all private blogs
+      description: Retrieve all private/draft blog posts (Admin only)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Private blogs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Blog"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /blog/updateBlog/{blogSlug}:
+    patch:
+      tags:
+        - Blog
+      summary: Update a blog by slug
+      description: Update an existing blog post (Admin/Moderator only)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: blogSlug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Blog slug
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BlogPost"
+      responses:
+        "200":
+          description: Blog updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Blog"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /blog/makeBlogPublicOrPrivate/{blogSlug}:
+    patch:
+      tags:
+        - Blog
+      summary: Toggle blog visibility
+      description: Change blog visibility between public and private (Admin only)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: blogSlug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Blog slug
+      responses:
+        "200":
+          description: Blog visibility updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /blog/deleteBlog/{blogSlug}:
+    delete:
+      tags:
+        - Blog
+      summary: Delete a blog by slug
+      description: Permanently delete a blog post (Admin only)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: blogSlug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Blog slug
+      responses:
+        "200":
+          description: Blog deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"

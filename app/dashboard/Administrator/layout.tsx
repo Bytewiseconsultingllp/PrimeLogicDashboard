@@ -298,6 +298,10 @@ import {
   BookUser,
   Menu,
   X,
+  Home,
+  Shield,
+  DollarSign,
+  FileText,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -310,14 +314,14 @@ import { Toaster } from "react-hot-toast"
 
 const navItems = [
   {
+    title: "Home",
+    href: "/dashboard/Administrator",
+    icon: Home,
+  },
+  {
     title: "Project Status",
     href: "/dashboard/Administrator/project-status",
     icon: BarChart3,
-  },
-  {
-    title: "Project Requests",
-    href: "/dashboard/Administrator/project-requests",
-    icon: BookUser,
   },
   {
     title: "Visitors",
@@ -333,6 +337,21 @@ const navItems = [
     title: "Freelancer Profiles",
     href: "/dashboard/Administrator/freelancer-profiles",
     icon: UserCircle,
+  },
+  {
+    title: "Moderators",
+    href: "/dashboard/Administrator/moderators",
+    icon: Shield,
+  },
+  {
+    title: "Pricing Management",
+    href: "/dashboard/Administrator/pricing",
+    icon: DollarSign,
+  },
+  {
+    title: "Bids Management",
+    href: "/dashboard/Administrator/bids",
+    icon: FileText,
   },
   {
     title: "Client Quotes",
@@ -419,17 +438,24 @@ export default function AdministratorLayout({
           }}
         >
           <div className="flex h-14 items-center border-r-2 border-r-[#FF6B35] bg-[#003087] px-3">
-            <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-              <img src="/prime-logic-solutions-logo.jpg" alt="PLS Logo" className="h-10 w-10 rounded" />
+            <Link href="/dashboard/Administrator" className="flex items-center gap-2 font-semibold">
+              <div className="h-10 w-10 rounded bg-white p-1 flex items-center justify-center">
+                <img 
+                  src="/prime-logic-solutions-logo.jpg" 
+                  alt="PLS Logo" 
+                  className="h-full w-full object-contain rounded" 
+                />
+              </div>
               {!isCollapsed && (
                 <motion.span
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  style={{ color: "#003087" }}
+                  className="text-white"
                 >
                   <div>
-                    <p className="text-sm text-[#FF6B35]">{userRole} DASHBOARD</p>
+                    <p className="text-sm font-bold">PRIME LOGIC</p>
+                    <p className="text-xs text-[#FF6B35]">{userRole} DASHBOARD</p>
                   </div>
                 </motion.span>
               )}

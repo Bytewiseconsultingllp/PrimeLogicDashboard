@@ -5,863 +5,609 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Search, Eye, CheckCircle, XCircle, Trash2, RotateCcw, ChevronLeft, ChevronRight } from "lucide-react"
+import { Search, Eye, CheckCircle, XCircle, Loader2, User, Mail, MapPin, Clock, Briefcase, Award, Globe } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { useToast } from "@/hooks/use-toast"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Separator } from "@/components/ui/separator"
 import { getUserDetails } from "@/lib/api/storage"
+import { toast } from "sonner"
 
-type FreelancerRegistration = {
+interface FreelancerProfile {
   id: string
-  userId: string | null
-  isAccepted: boolean
-  trashedAt: string | null
-  trashedBy: string | null
-  whoYouAre: {
-    id: string
+  status: "PENDING_REVIEW" | "ACCEPTED" | "REJECTED"
+  userId?: string
+  createdAt: string
+  updatedAt: string
+  reviewedBy?: string
+  reviewedAt?: string
+  rejectionReason?: string
+  details: {
     fullName: string
     email: string
-    timeZone: string
     country: string
-    professionalLinks: {
-      github?: string
-      linkedin?: string
-      personalSite?: string
-    }
-    phone: string | null
-  }
-  coreRole: {
-    id: string
+    timeZone: string
     primaryDomain: string
+    professionalLinks?: string[]
+    eliteSkillCards?: string[]
+    tools?: string[]
+    selectedIndustries?: string[]
+    otherNote?: string
   }
-  eliteSkillCards: {
-    id: string
-    selectedSkills: string[]
-  }
-  toolstackProficiency: {
-    id: string
-    selectedTools: {
-      category: string
-      tools: string[]
-    }[]
-  }
-  domainExperience: {
-    id: string
-    roles: {
-      title: string
-      years: number
-    }[]
-  }
-  industryExperience: {
-    id: string
-    selectedIndustries: string[]
-  }
-  availabilityWorkflow: {
-    id: string
-    weeklyCommitment: number
-    workingHours: string[]
+  domainExperiences?: Array<{
+    roleTitle: string
+    years: number
+  }>
+  availabilityWorkflow?: {
+    weeklyCommitmentMinHours: number
+    weeklyCommitmentMaxHours?: number
+    timeZone: string
+    workingWindows: string[]
     collaborationTools: string[]
-    teamStyle: string
-    screenSharing: string
-    availabilityExceptions: string
+    preferredTeamStyle: string
+    liveScreenSharingPreference: string
   }
-  softSkills: {
-    id: string
-    collaborationStyle: string
+  softSkills?: {
+    preferredCollaborationStyle: string
     communicationFrequency: string
-    conflictResolution: string
+    conflictResolutionStyle: string
     languages: string[]
-    teamVsSolo: string
+    teamVsSoloPreference: string
   }
-  certifications: {
-    id: string
-    certificates: {
-      name: string
-      url: string
-    }[]
-  }
-  projectQuoting: {
-    id: string
+  certifications?: Array<{
+    certificateName: string
+    certificateUrl: string
+  }>
+  projectBidding?: {
     compensationPreference: string
-    smallProjectPrice: number
-    midProjectPrice: number
-    longTermPrice: number
-    milestoneTerms: string
-    willSubmitProposals: string
+    smallProjectMin?: number
+    smallProjectMax?: number
+    midProjectMin?: number
+    midProjectMax?: number
+    longTermMin?: number
+    longTermMax?: number
+    milestonePaymentTerms: string
+    proposalSubmission: string
   }
-  legalAgreements: {
-    id: string
-    agreements: {
-      id: string
-      accepted: boolean
-    }[]
-    identityVerification: {
-      id: string
-      idType: string
-      taxDocType: string
-      addressVerified: boolean
-    }
-    workAuthorization: {
-      id: string
-      interested: boolean
-    }
+  user?: {
+    uid: string
+    username: string
+    fullName: string
+    email: string
   }
 }
 
-type ApiResponse = {
-  success: boolean
-  status: number
-  message: string
-  data: FreelancerRegistration[] | FreelancerRegistration | null
-  requestInfo: {
-    ip: string
-    url: string
-    method: string
-  }
-}
-
-export default function FreelancerRegistrationsPage() {
+export default function FreelancerRequests() {
   const [searchTerm, setSearchTerm] = useState("")
-  const [registrations, setRegistrations] = useState<FreelancerRegistration[]>([])
-  const [filteredRegistrations, setFilteredRegistrations] = useState<FreelancerRegistration[]>([])
-  const [selectedRegistration, setSelectedRegistration] = useState<FreelancerRegistration | null>(null)
+  const [freelancers, setFreelancers] = useState<FreelancerProfile[]>([])
+  const [filteredFreelancers, setFilteredFreelancers] = useState<FreelancerProfile[]>([])
+  const [selectedFreelancer, setSelectedFreelancer] = useState<FreelancerProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
   const itemsPerPage = 10
-  const { toast } = useToast()
 
   useEffect(() => {
-    fetchRegistrations()
+    fetchFreelancerRequests()
   }, [])
 
   useEffect(() => {
     if (searchTerm) {
-      const filtered = registrations.filter(
-        (reg) =>
-          reg.whoYouAre.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          reg.whoYouAre.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          reg.coreRole.primaryDomain.toLowerCase().includes(searchTerm.toLowerCase()),
+      const filtered = freelancers.filter(
+        (freelancer) =>
+          freelancer.details.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          freelancer.details.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          freelancer.details.primaryDomain.toLowerCase().includes(searchTerm.toLowerCase()),
       )
-      setFilteredRegistrations(filtered)
+      setFilteredFreelancers(filtered)
     } else {
-      setFilteredRegistrations(registrations)
+      setFilteredFreelancers(freelancers)
     }
     setCurrentPage(1)
-  }, [searchTerm, registrations])
+  }, [searchTerm, freelancers])
 
-  const fetchRegistrations = async () => {
+  const fetchFreelancerRequests = async () => {
     setIsLoading(true)
     try {
       const userDetails = getUserDetails()
       const token = userDetails?.accessToken
 
       if (!token) {
-        toast({
-          title: "Error",
-          description: "Please login to view freelancer registrations",
-          variant: "destructive",
-        })
-        setIsLoading(false)
+        toast.error("Authentication required")
         return
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/freelancer/admin/freelancers/{freelancerId}/review`, {
+      // Using the new admin API endpoint for freelancers with PENDING_REVIEW status
+      console.log("🔄 Fetching freelancer requests with API:", `${process.env.NEXT_PUBLIC_PLS}/admin/freelancers?status=PENDING_REVIEW&page=1&limit=100`)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/freelancers?status=PENDING_REVIEW&page=1&limit=100`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
         }
       })
-      const result: ApiResponse = await response.json()
 
-      if (result.success && Array.isArray(result.data)) {
-        setRegistrations(result.data)
-        setFilteredRegistrations(result.data)
+      if (response.ok) {
+        const data = await response.json()
+        console.log("✅ Freelancer requests:", data)
+        setFreelancers(data.data?.freelancers || [])
+        setFilteredFreelancers(data.data?.freelancers || [])
+        toast.success(`Loaded ${data.data?.freelancers?.length || 0} pending requests`)
       } else {
-        toast({
-          title: "Error",
-          description: result.message || "Failed to fetch registrations",
-          variant: "destructive",
-        })
+        const errorData = await response.text()
+        console.error("❌ Failed to fetch freelancer requests:", errorData)
+        toast.error("Failed to load freelancer requests")
       }
     } catch (error) {
-      console.error("[v0] Error fetching registrations:", error)
-      toast({
-        title: "Error",
-        description: "Failed to fetch registrations",
-        variant: "destructive",
-      })
+      console.error("Error fetching freelancer requests:", error)
+      toast.error("Failed to load freelancer requests")
     } finally {
       setIsLoading(false)
     }
   }
 
-  const viewRegistration = async (id: string) => {
+  const handleAcceptFreelancer = async (freelancerId: string) => {
+    setActionLoading(freelancerId)
     try {
       const userDetails = getUserDetails()
       const token = userDetails?.accessToken
 
-      const response = await fetch(`https://api.primelogicsol.com/api/v1/freelancer/registrations/${id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      const result: ApiResponse = await response.json()
-
-      if (result.success && result.data && !Array.isArray(result.data)) {
-        setSelectedRegistration(result.data)
-        setIsDialogOpen(true)
-      } else {
-        toast({
-          title: "Error",
-          description: result.message || "Failed to fetch registration details",
-          variant: "destructive",
-        })
+      if (!token) {
+        toast.error("Authentication required")
+        return
       }
-    } catch (error) {
-      console.error("[v0] Error fetching registration:", error)
-      toast({
-        title: "Error",
-        description: "Failed to fetch registration details",
-        variant: "destructive",
-      })
-    }
-  }
 
-  const acceptRegistration = async (id: string) => {
-    try {
-      const userDetails = getUserDetails()
-      const token = userDetails?.accessToken
-
-      const response = await fetch(`https://api.primelogicsol.com/api/v1/freelancer/registrations/${id}/accept`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/freelancers/${freelancerId}/accept`, {
         method: "PATCH",
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
         }
       })
-      const result: ApiResponse = await response.json()
 
-      if (result.success) {
-        toast({
-          title: "Success",
-          description: result.message,
-        })
-        fetchRegistrations()
+      if (response.ok) {
+        toast.success("Freelancer accepted successfully")
+        fetchFreelancerRequests() // Refresh the list
       } else {
-        toast({
-          title: "Error",
-          description: result.message || "Failed to accept registration",
-          variant: "destructive",
-        })
+        const errorData = await response.text()
+        console.error("❌ Failed to accept freelancer:", errorData)
+        toast.error("Failed to accept freelancer")
       }
     } catch (error) {
-      console.error("[v0] Error accepting registration:", error)
-      toast({
-        title: "Error",
-        description: "Failed to accept registration",
-        variant: "destructive",
-      })
+      console.error("Error accepting freelancer:", error)
+      toast.error("Failed to accept freelancer")
+    } finally {
+      setActionLoading(null)
     }
   }
 
-  const rejectRegistration = async (id: string) => {
+  const handleRejectFreelancer = async (freelancerId: string, reason?: string) => {
+    setActionLoading(freelancerId)
     try {
       const userDetails = getUserDetails()
       const token = userDetails?.accessToken
 
-      const response = await fetch(`https://api.primelogicsol.com/api/v1/freelancer/registrations/${id}/reject`, {
-        method: "DELETE",
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      const result: ApiResponse = await response.json()
-
-      if (result.success) {
-        toast({
-          title: "Success",
-          description: result.message,
-        })
-        fetchRegistrations()
-      } else {
-        toast({
-          title: "Error",
-          description: result.message || "Failed to reject registration",
-          variant: "destructive",
-        })
+      if (!token) {
+        toast.error("Authentication required")
+        return
       }
-    } catch (error) {
-      console.error("[v0] Error rejecting registration:", error)
-      toast({
-        title: "Error",
-        description: "Failed to reject registration",
-        variant: "destructive",
-      })
-    }
-  }
 
-  const trashRegistration = async (id: string) => {
-    try {
-      const userDetails = getUserDetails()
-      const token = userDetails?.accessToken
-
-      const response = await fetch(`https://api.primelogicsol.com/api/v1/freelancer/registrations/${id}/trash`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/freelancers/${freelancerId}/reject`, {
         method: "PATCH",
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          rejectionReason: reason || "Profile does not meet requirements"
+        })
       })
-      const result: ApiResponse = await response.json()
 
-      if (result.success) {
-        toast({
-          title: "Success",
-          description: result.message,
-        })
-        fetchRegistrations()
+      if (response.ok) {
+        toast.success("Freelancer rejected")
+        fetchFreelancerRequests() // Refresh the list
       } else {
-        toast({
-          title: "Error",
-          description: result.message || "Failed to trash registration",
-          variant: "destructive",
-        })
+        const errorData = await response.text()
+        console.error("❌ Failed to reject freelancer:", errorData)
+        toast.error("Failed to reject freelancer")
       }
     } catch (error) {
-      console.error("[v0] Error trashing registration:", error)
-      toast({
-        title: "Error",
-        description: "Failed to trash registration",
-        variant: "destructive",
-      })
+      console.error("Error rejecting freelancer:", error)
+      toast.error("Failed to reject freelancer")
+    } finally {
+      setActionLoading(null)
     }
   }
 
-  const untrashRegistration = async (id: string) => {
-    try {
-      const userDetails = getUserDetails()
-      const token = userDetails?.accessToken
+  const viewFreelancer = (freelancer: FreelancerProfile) => {
+    setSelectedFreelancer(freelancer)
+    setIsDialogOpen(true)
+  }
 
-      const response = await fetch(`https://api.primelogicsol.com/api/v1/freelancer/registrations/${id}/untrash`, {
-        method: "PATCH",
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      const result: ApiResponse = await response.json()
-
-      if (result.success) {
-        toast({
-          title: "Success",
-          description: result.message,
-        })
-        fetchRegistrations()
-      } else {
-        toast({
-          title: "Error",
-          description: result.message || "Failed to restore registration",
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
-      console.error("[v0] Error restoring registration:", error)
-      toast({
-        title: "Error",
-        description: "Failed to restore registration",
-        variant: "destructive",
-      })
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "PENDING_REVIEW":
+        return <Badge className="bg-yellow-500">Pending Review</Badge>
+      case "ACCEPTED":
+        return <Badge className="bg-green-500">Accepted</Badge>
+      case "REJECTED":
+        return <Badge className="bg-red-500">Rejected</Badge>
+      default:
+        return <Badge variant="secondary">{status}</Badge>
     }
   }
 
   // Pagination
-  const totalPages = Math.ceil(filteredRegistrations.length / itemsPerPage)
+  const totalPages = Math.ceil(filteredFreelancers.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
-  const currentRegistrations = filteredRegistrations.slice(startIndex, endIndex)
+  const currentFreelancers = filteredFreelancers.slice(startIndex, endIndex)
 
-  // Separate registrations by status
-  const activeRegistrations = currentRegistrations.filter((reg) => !reg.trashedAt && !reg.isAccepted)
-  const acceptedRegistrations = currentRegistrations.filter((reg) => reg.isAccepted)
-  const trashedRegistrations = currentRegistrations.filter((reg) => reg.trashedAt)
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-[#003087]" />
+        <p className="ml-3 text-muted-foreground">Loading freelancer requests...</p>
+      </div>
+    )
+  }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="mb-2 text-3xl font-bold">Freelancer Registrations</h1>
-        <p className="text-muted-foreground">Manage and review freelancer registration applications</p>
-      </div>
-
-      {/* Search Bar */}
-      <div className="mb-6">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search by name, email, or domain..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="flex h-64 items-center justify-center">
-          <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-primary"></div>
-        </div>
-      ) : filteredRegistrations.length === 0 ? (
-        <div className="rounded-lg bg-muted py-12 text-center">
-          <p className="text-lg text-muted-foreground">No registrations found</p>
-        </div>
-      ) : (
-        <>
-          {/* Tabs for different statuses */}
-          <Tabs defaultValue="pending" className="w-full">
-            <TabsList className="mb-4 grid w-full grid-cols-3">
-              <TabsTrigger value="pending">Pending ({activeRegistrations.length})</TabsTrigger>
-              <TabsTrigger value="accepted">Accepted ({acceptedRegistrations.length})</TabsTrigger>
-              <TabsTrigger value="trashed">Trashed ({trashedRegistrations.length})</TabsTrigger>
-            </TabsList>
-
-            {/* Pending Registrations */}
-            <TabsContent value="pending">
-              <div className="overflow-hidden rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Domain</TableHead>
-                      <TableHead>Skills</TableHead>
-                      <TableHead>Experience</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {activeRegistrations.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground">
-                          No pending registrations
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      activeRegistrations.map((registration) => (
-                        <TableRow key={registration.id}>
-                          <TableCell className="font-medium">{registration.whoYouAre.fullName}</TableCell>
-                          <TableCell>{registration.whoYouAre.email}</TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">{registration.coreRole.primaryDomain}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {registration.eliteSkillCards.selectedSkills.slice(0, 2).map((skill, idx) => (
-                                <Badge key={idx} variant="outline" className="text-xs">
-                                  {skill}
-                                </Badge>
-                              ))}
-                              {registration.eliteSkillCards.selectedSkills.length > 2 && (
-                                <Badge variant="outline" className="text-xs">
-                                  +{registration.eliteSkillCards.selectedSkills.length - 2}
-                                </Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {registration.domainExperience.roles.reduce((total, role) => total + role.years, 0)} years
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button variant="ghost" size="icon" onClick={() => viewRegistration(registration.id)}>
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => acceptRegistration(registration.id)}>
-                                <CheckCircle className="h-4 w-4 text-green-600" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => rejectRegistration(registration.id)}>
-                                <XCircle className="h-4 w-4 text-red-600" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => trashRegistration(registration.id)}>
-                                <Trash2 className="h-4 w-4 text-orange-600" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </TabsContent>
-
-            {/* Accepted Registrations */}
-            <TabsContent value="accepted">
-              <div className="overflow-hidden rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Domain</TableHead>
-                      <TableHead>User ID</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {acceptedRegistrations.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground">
-                          No accepted registrations
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      acceptedRegistrations.map((registration) => (
-                        <TableRow key={registration.id}>
-                          <TableCell className="font-medium">{registration.whoYouAre.fullName}</TableCell>
-                          <TableCell>{registration.whoYouAre.email}</TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">{registration.coreRole.primaryDomain}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className="bg-green-600">{registration.userId || "N/A"}</Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="ghost" size="icon" onClick={() => viewRegistration(registration.id)}>
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </TabsContent>
-
-            {/* Trashed Registrations */}
-            <TabsContent value="trashed">
-              <div className="overflow-hidden rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Domain</TableHead>
-                      <TableHead>Trashed At</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {trashedRegistrations.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground">
-                          No trashed registrations
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      trashedRegistrations.map((registration) => (
-                        <TableRow key={registration.id}>
-                          <TableCell className="font-medium">{registration.whoYouAre.fullName}</TableCell>
-                          <TableCell>{registration.whoYouAre.email}</TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">{registration.coreRole.primaryDomain}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            {registration.trashedAt ? new Date(registration.trashedAt).toLocaleDateString() : "N/A"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button variant="ghost" size="icon" onClick={() => viewRegistration(registration.id)}>
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => untrashRegistration(registration.id)}>
-                                <RotateCcw className="h-4 w-4 text-blue-600" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => rejectRegistration(registration.id)}>
-                                <XCircle className="h-4 w-4 text-red-600" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </TabsContent>
-          </Tabs>
-
-          {/* Pagination */}
-          <div className="mt-6 flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">
-              Showing {startIndex + 1} to {Math.min(endIndex, filteredRegistrations.length)} of{" "}
-              {filteredRegistrations.length} registrations
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-
-              <span className="text-sm font-medium">
-                Page {currentPage} of {totalPages}
-              </span>
-
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Freelancer Requests ({filteredFreelancers.length})</span>
+            <Button onClick={fetchFreelancerRequests} variant="outline" size="sm">
+              Refresh
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* Search */}
+          <div className="flex items-center space-x-2 mb-6">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                placeholder="Search by name, email, or domain..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
             </div>
           </div>
-        </>
-      )}
 
-      {/* Detail Dialog */}
+          {/* Table */}
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Freelancer</TableHead>
+                  <TableHead>Domain</TableHead>
+                  <TableHead>Country</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Submitted</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {currentFreelancers.length > 0 ? (
+                  currentFreelancers.map((freelancer) => (
+                    <TableRow key={freelancer.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="w-8 h-8">
+                            <AvatarFallback className="text-xs">
+                              {freelancer.details.fullName
+                                ?.split(" ")
+                                .map((word: string) => word[0])
+                                .join("")
+                                .toUpperCase() || "FL"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">{freelancer.details.fullName}</p>
+                            <p className="text-sm text-muted-foreground">{freelancer.details.email}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{freelancer.details.primaryDomain}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-muted-foreground" />
+                          {freelancer.details.country}
+                        </div>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(freelancer.status)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-muted-foreground" />
+                          {new Date(freelancer.createdAt).toLocaleDateString()}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => viewFreelancer(freelancer)}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleAcceptFreelancer(freelancer.id)}
+                            disabled={actionLoading === freelancer.id}
+                            className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                          >
+                            {actionLoading === freelancer.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <CheckCircle className="w-4 h-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRejectFreelancer(freelancer.id)}
+                            disabled={actionLoading === freelancer.id}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8">
+                      <div className="flex flex-col items-center gap-2">
+                        <User className="w-8 h-8 text-muted-foreground" />
+                        <p className="text-muted-foreground">No freelancer requests found</p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <p className="text-sm text-muted-foreground">
+                Showing {startIndex + 1} to {Math.min(endIndex, filteredFreelancers.length)} of {filteredFreelancers.length} results
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Freelancer Details Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-h-[80vh] max-w-4xl overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Registration Details</DialogTitle>
-            <DialogDescription>Complete information about the freelancer registration</DialogDescription>
+            <DialogTitle className="flex items-center gap-3">
+              <Avatar className="w-10 h-10">
+                <AvatarFallback>
+                  {selectedFreelancer?.details.fullName
+                    ?.split(" ")
+                    .map((word: string) => word[0])
+                    .join("")
+                    .toUpperCase() || "FL"}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <h3 className="text-lg font-semibold">{selectedFreelancer?.details.fullName}</h3>
+                <p className="text-sm text-muted-foreground">{selectedFreelancer?.details.email}</p>
+              </div>
+            </DialogTitle>
+            <DialogDescription>
+              Review freelancer profile and make a decision
+            </DialogDescription>
           </DialogHeader>
 
-          {selectedRegistration && (
+          {selectedFreelancer && (
             <div className="space-y-6">
-              {/* Personal Information */}
+              {/* Basic Information */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Personal Information</CardTitle>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <User className="w-4 h-4" />
+                    Basic Information
+                  </CardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <p className="text-sm font-medium">Full Name</p>
-                    <p className="text-sm text-muted-foreground">{selectedRegistration.whoYouAre.fullName}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Email</p>
-                    <p className="text-sm text-muted-foreground">{selectedRegistration.whoYouAre.email}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Time Zone</p>
-                    <p className="text-sm text-muted-foreground">{selectedRegistration.whoYouAre.timeZone}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Country</p>
-                    <p className="text-sm text-muted-foreground">{selectedRegistration.whoYouAre.country}</p>
-                  </div>
-                  {selectedRegistration.whoYouAre.professionalLinks.github && (
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-sm font-medium">GitHub</p>
-                      <a
-                        href={selectedRegistration.whoYouAre.professionalLinks.github}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:underline"
-                      >
-                        {selectedRegistration.whoYouAre.professionalLinks.github}
-                      </a>
+                      <p className="text-sm font-medium text-muted-foreground">Full Name</p>
+                      <p className="font-semibold">{selectedFreelancer.details.fullName}</p>
                     </div>
-                  )}
-                  {selectedRegistration.whoYouAre.professionalLinks.linkedin && (
                     <div>
-                      <p className="text-sm font-medium">LinkedIn</p>
-                      <a
-                        href={selectedRegistration.whoYouAre.professionalLinks.linkedin}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:underline"
-                      >
-                        {selectedRegistration.whoYouAre.professionalLinks.linkedin}
-                      </a>
+                      <p className="text-sm font-medium text-muted-foreground">Email</p>
+                      <p className="font-semibold">{selectedFreelancer.details.email}</p>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Core Role & Skills */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Core Role & Skills</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <p className="mb-2 text-sm font-medium">Primary Domain</p>
-                    <Badge>{selectedRegistration.coreRole.primaryDomain}</Badge>
-                  </div>
-                  <div>
-                    <p className="mb-2 text-sm font-medium">Elite Skills</p>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedRegistration.eliteSkillCards.selectedSkills.map((skill, idx) => (
-                        <Badge key={idx} variant="secondary">
-                          {skill}
-                        </Badge>
-                      ))}
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Country</p>
+                      <p className="font-semibold">{selectedFreelancer.details.country}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Timezone</p>
+                      <p className="font-semibold">{selectedFreelancer.details.timeZone}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Primary Domain</p>
+                      <Badge className="bg-[#003087]">{selectedFreelancer.details.primaryDomain}</Badge>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Status</p>
+                      {getStatusBadge(selectedFreelancer.status)}
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Toolstack */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Toolstack Proficiency</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {selectedRegistration.toolstackProficiency.selectedTools.map((toolGroup, idx) => (
-                    <div key={idx}>
-                      <p className="mb-2 text-sm font-medium">{toolGroup.category}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {toolGroup.tools.map((tool, toolIdx) => (
-                          <Badge key={toolIdx} variant="outline">
-                            {tool}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-
-              {/* Experience */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Experience</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <p className="mb-2 text-sm font-medium">Domain Experience</p>
-                    <div className="space-y-2">
-                      {selectedRegistration.domainExperience.roles.map((role, idx) => (
-                        <div key={idx} className="flex items-center justify-between">
-                          <span className="text-sm">{role.title}</span>
-                          <Badge variant="secondary">{role.years} years</Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="mb-2 text-sm font-medium">Industry Experience</p>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedRegistration.industryExperience.selectedIndustries.map((industry, idx) => (
-                        <Badge key={idx} variant="outline">
-                          {industry}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Availability */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Availability & Workflow</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <p className="text-sm font-medium">Weekly Commitment</p>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedRegistration.availabilityWorkflow.weeklyCommitment} hours/week
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Team Style</p>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedRegistration.availabilityWorkflow.teamStyle}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Working Hours</p>
-                    <div className="flex flex-wrap gap-1">
-                      {selectedRegistration.availabilityWorkflow.workingHours.map((hour, idx) => (
-                        <Badge key={idx} variant="outline" className="text-xs">
-                          {hour}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Collaboration Tools</p>
-                    <div className="flex flex-wrap gap-1">
-                      {selectedRegistration.availabilityWorkflow.collaborationTools.map((tool, idx) => (
-                        <Badge key={idx} variant="outline" className="text-xs">
-                          {tool}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Project Quoting */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Project Quoting</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <p className="text-sm font-medium">Compensation Preference</p>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedRegistration.projectQuoting.compensationPreference}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Small Project Rate</p>
-                    <p className="text-sm text-muted-foreground">
-                      ${selectedRegistration.projectQuoting.smallProjectPrice}/hr
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Mid Project Rate</p>
-                    <p className="text-sm text-muted-foreground">
-                      ${selectedRegistration.projectQuoting.midProjectPrice}/hr
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Long-term Rate</p>
-                    <p className="text-sm text-muted-foreground">
-                      ${selectedRegistration.projectQuoting.longTermPrice}/hr
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Certifications */}
-              {selectedRegistration.certifications.certificates.length > 0 && (
+              {/* Skills and Experience */}
+              {(selectedFreelancer.details.eliteSkillCards?.length || selectedFreelancer.domainExperiences?.length) && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>Certifications</CardTitle>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Award className="w-4 h-4" />
+                      Skills & Experience
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {selectedFreelancer.details.eliteSkillCards?.length && (
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground mb-2">Elite Skills</p>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedFreelancer.details.eliteSkillCards.map((skill: string, index: number) => (
+                            <Badge key={index} variant="secondary">{skill}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {selectedFreelancer.domainExperiences?.length && (
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground mb-2">Domain Experience</p>
+                        <div className="space-y-2">
+                          {selectedFreelancer.domainExperiences.map((exp, index) => (
+                            <div key={index} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                              <span className="font-medium">{exp.roleTitle}</span>
+                              <Badge variant="outline">{exp.years} years</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Tools and Technologies */}
+              {selectedFreelancer.details.tools?.length && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Briefcase className="w-4 h-4" />
+                      Tools & Technologies
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-2">
-                      {selectedRegistration.certifications.certificates.map((cert, idx) => (
-                        <div key={idx} className="flex items-center justify-between">
-                          <span className="text-sm">{cert.name}</span>
-                          <a
-                            href={cert.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-blue-600 hover:underline"
-                          >
-                            View
-                          </a>
-                        </div>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedFreelancer.details.tools.map((tool: string, index: number) => (
+                        <Badge key={index} variant="outline">{tool}</Badge>
                       ))}
                     </div>
                   </CardContent>
                 </Card>
               )}
+
+              {/* Professional Links */}
+              {selectedFreelancer.details.professionalLinks?.length && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Globe className="w-4 h-4" />
+                      Professional Links
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {selectedFreelancer.details.professionalLinks.map((link: string, index: number) => (
+                        <a
+                          key={index}
+                          href={link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-blue-600 hover:underline"
+                        >
+                          <Globe className="w-4 h-4" />
+                          {link}
+                        </a>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Additional Notes */}
+              {selectedFreelancer.details.otherNote && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Additional Notes</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm whitespace-pre-wrap">{selectedFreelancer.details.otherNote}</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsDialogOpen(false)}
+                >
+                  Close
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    handleRejectFreelancer(selectedFreelancer.id)
+                    setIsDialogOpen(false)
+                  }}
+                  disabled={actionLoading === selectedFreelancer.id}
+                >
+                  {actionLoading === selectedFreelancer.id ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <XCircle className="w-4 h-4 mr-2" />
+                  )}
+                  Reject
+                </Button>
+                <Button
+                  onClick={() => {
+                    handleAcceptFreelancer(selectedFreelancer.id)
+                    setIsDialogOpen(false)
+                  }}
+                  disabled={actionLoading === selectedFreelancer.id}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {actionLoading === selectedFreelancer.id ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                  )}
+                  Accept
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
@@ -869,4 +615,3 @@ export default function FreelancerRegistrationsPage() {
     </div>
   )
 }
-

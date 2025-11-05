@@ -1,0 +1,703 @@
+# ============================================
+# PAYMENT AGREEMENT ENDPOINTS (Admin/Moderator)
+# ============================================
+
+tags:
+  - name: Payment Agreements
+    description: Milestone payment agreement management (Admin/Moderator only)
+
+paths:
+  # ============================================
+  # CREATE PAYMENT AGREEMENT
+  # ============================================
+  /admin/projects/{projectId}/milestones/{milestoneId}/payment-agreement:
+    post:
+      tags:
+        - Payment Agreements
+      summary: Create payment agreement for a milestone
+      description: |
+        Create a new payment agreement for a milestone. This stores the distribution decisions 
+        made by admin and freelancers, including a link to the DocuSign agreement.
+
+        **Access:** Admin or assigned Moderator only
+
+        **Requirements:**
+        - Project must exist
+        - Milestone must exist and belong to the project
+        - No existing agreement for this milestone
+
+        **Use Case:**
+        After admin and freelancers discuss payment distribution on Discord and sign 
+        the agreement via DocuSign, admin stores the DocuSign link and distribution 
+        details in the system.
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project ID
+        - in: path
+          name: milestoneId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Milestone ID
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - agreementDocumentUrl
+                - milestoneAmount
+                - distributionDetails
+              properties:
+                agreementDocumentUrl:
+                  type: string
+                  format: uri
+                  maxLength: 2048
+                  description: DocuSign link to the signed agreement document
+                  example: "https://na2.docusign.net/documents/details/abc123xyz"
+                milestoneAmount:
+                  type: number
+                  format: decimal
+                  minimum: 0
+                  description: Total amount for this milestone (in USD)
+                  example: 10000
+                distributionDetails:
+                  type: object
+                  description: |
+                    JSON object containing distribution breakdown. Each key is a party 
+                    (freelancer_1, platform_fee, etc.) with their percentage and amount.
+                  example:
+                    freelancer_1:
+                      id: "17ba3341-558e-4105-8203-e3babd4bc5c6"
+                      name: "John Doe"
+                      percentage: 40
+                      amount: 4000
+                    freelancer_2:
+                      id: "6b7b9c5c-74f5-42e0-b287-8933efa495d7"
+                      name: "Jane Smith"
+                      percentage: 30
+                      amount: 3000
+                    platform_fee:
+                      percentage: 20
+                      amount: 2000
+                    contingency:
+                      percentage: 10
+                      amount: 1000
+                  additionalProperties:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        description: Freelancer ID (if applicable)
+                      name:
+                        type: string
+                        description: Name of the party
+                      percentage:
+                        type: number
+                        minimum: 0
+                        maximum: 100
+                        description: Percentage of milestone amount
+                      amount:
+                        type: number
+                        minimum: 0
+                        description: Amount in USD
+                status:
+                  type: string
+                  enum: [DRAFT, ACTIVE, COMPLETED, CANCELLED]
+                  default: ACTIVE
+                  description: Status of the agreement
+                notes:
+                  type: string
+                  maxLength: 5000
+                  description: Additional notes about the agreement
+                  example: "Agreed upon in Discord discussion on 2025-11-01"
+            examples:
+              complete:
+                summary: Complete payment agreement
+                value:
+                  agreementDocumentUrl: "https://na2.docusign.net/documents/details/abc123xyz"
+                  milestoneAmount: 10000
+                  distributionDetails:
+                    freelancer_1:
+                      id: "17ba3341-558e-4105-8203-e3babd4bc5c6"
+                      name: "John Doe"
+                      percentage: 40
+                      amount: 4000
+                    freelancer_2:
+                      id: "6b7b9c5c-74f5-42e0-b287-8933efa495d7"
+                      name: "Jane Smith"
+                      percentage: 30
+                      amount: 3000
+                    platform_fee:
+                      percentage: 20
+                      amount: 2000
+                    contingency:
+                      percentage: 10
+                      amount: 1000
+                  status: "ACTIVE"
+                  notes: "Agreed upon in Discord discussion on 2025-11-01"
+      responses:
+        200:
+          description: Payment agreement created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Payment agreement created successfully"
+                  data:
+                    $ref: "#/components/schemas/PaymentAgreement"
+        400:
+          description: Invalid data or agreement already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        401:
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        403:
+          description: Forbidden - Not admin or assigned moderator
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        404:
+          description: Project or milestone not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    # ============================================
+    # GET PAYMENT AGREEMENT BY MILESTONE
+    # ============================================
+    get:
+      tags:
+        - Payment Agreements
+      summary: Get payment agreement for a milestone
+      description: |
+        Retrieve the payment agreement for a specific milestone.
+
+        **Access:** Admin or assigned Moderator only
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project ID
+        - in: path
+          name: milestoneId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Milestone ID
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Payment agreement retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Payment agreement retrieved successfully"
+                  data:
+                    $ref: "#/components/schemas/PaymentAgreement"
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        403:
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        404:
+          description: Payment agreement not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    # ============================================
+    # UPDATE PAYMENT AGREEMENT
+    # ============================================
+    patch:
+      tags:
+        - Payment Agreements
+      summary: Update payment agreement for a milestone
+      description: |
+        Update an existing payment agreement. All fields are optional.
+
+        **Access:** Admin or assigned Moderator only
+
+        **Use Case:**
+        Update the DocuSign link if a new version was signed, or update 
+        distribution details if the parties agreed to changes.
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project ID
+        - in: path
+          name: milestoneId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Milestone ID
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                agreementDocumentUrl:
+                  type: string
+                  format: uri
+                  maxLength: 2048
+                  description: Updated DocuSign link
+                milestoneAmount:
+                  type: number
+                  format: decimal
+                  minimum: 0
+                  description: Updated milestone amount
+                distributionDetails:
+                  type: object
+                  description: Updated distribution breakdown
+                  additionalProperties:
+                    type: object
+                status:
+                  type: string
+                  enum: [DRAFT, ACTIVE, COMPLETED, CANCELLED]
+                  description: Updated status
+                notes:
+                  type: string
+                  maxLength: 5000
+                  description: Updated notes
+            examples:
+              updateStatus:
+                summary: Mark agreement as completed
+                value:
+                  status: "COMPLETED"
+                  notes: "Milestone completed and payments distributed on 2025-11-15"
+              updateDistribution:
+                summary: Update distribution details
+                value:
+                  distributionDetails:
+                    freelancer_1:
+                      id: "17ba3341-558e-4105-8203-e3babd4bc5c6"
+                      name: "John Doe"
+                      percentage: 45
+                      amount: 4500
+                    freelancer_2:
+                      id: "6b7b9c5c-74f5-42e0-b287-8933efa495d7"
+                      name: "Jane Smith"
+                      percentage: 35
+                      amount: 3500
+                    platform_fee:
+                      percentage: 20
+                      amount: 2000
+      responses:
+        200:
+          description: Payment agreement updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Payment agreement updated successfully"
+                  data:
+                    $ref: "#/components/schemas/PaymentAgreement"
+        400:
+          description: Invalid data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        403:
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        404:
+          description: Payment agreement not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    # ============================================
+    # DELETE PAYMENT AGREEMENT
+    # ============================================
+    delete:
+      tags:
+        - Payment Agreements
+      summary: Delete payment agreement (soft delete)
+      description: |
+        Soft delete a payment agreement for a milestone.
+
+        **Access:** Admin only (Moderators cannot delete)
+
+        **Note:** This is a soft delete - the record remains in the database 
+        but is marked as deleted.
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project ID
+        - in: path
+          name: milestoneId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Milestone ID
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Payment agreement deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Payment agreement deleted successfully"
+                  data:
+                    type: object
+                    nullable: true
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        403:
+          description: Forbidden - Admin only
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        404:
+          description: Payment agreement not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ============================================
+  # GET ALL PAYMENT AGREEMENTS FOR PROJECT
+  # ============================================
+  /admin/projects/{projectId}/payment-agreements:
+    get:
+      tags:
+        - Payment Agreements
+      summary: Get all payment agreements for a project
+      description: |
+        Retrieve all payment agreements for a specific project (paginated).
+
+        **Access:** Admin or assigned Moderator only
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project ID
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: Items per page
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Payment agreements retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Payment agreements retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      agreements:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/PaymentAgreementSummary"
+                      pagination:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                            example: 5
+                          page:
+                            type: integer
+                            example: 1
+                          limit:
+                            type: integer
+                            example: 10
+                          totalPages:
+                            type: integer
+                            example: 1
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        403:
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        404:
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+# ============================================
+# SCHEMAS
+# ============================================
+components:
+  schemas:
+    PaymentAgreement:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        milestoneId:
+          type: string
+          format: uuid
+          example: "cd7a9c42-1245-4601-a9cb-c78243dbce69"
+        projectId:
+          type: string
+          format: uuid
+          example: "54104ca1-1649-44b7-accb-35bf4d414ca9"
+        agreementDocumentUrl:
+          type: string
+          format: uri
+          example: "https://na2.docusign.net/documents/details/abc123xyz"
+        milestoneAmount:
+          type: string
+          example: "10000.00"
+          description: Decimal stored as string
+        distributionDetails:
+          type: object
+          example:
+            freelancer_1:
+              id: "17ba3341-558e-4105-8203-e3babd4bc5c6"
+              name: "John Doe"
+              percentage: 40
+              amount: 4000
+            freelancer_2:
+              id: "6b7b9c5c-74f5-42e0-b287-8933efa495d7"
+              name: "Jane Smith"
+              percentage: 30
+              amount: 3000
+            platform_fee:
+              percentage: 20
+              amount: 2000
+            contingency:
+              percentage: 10
+              amount: 1000
+        status:
+          type: string
+          enum: [DRAFT, ACTIVE, COMPLETED, CANCELLED]
+          example: "ACTIVE"
+        notes:
+          type: string
+          nullable: true
+          example: "Agreed upon in Discord discussion on 2025-11-01"
+        createdBy:
+          type: string
+          format: uuid
+          example: "cmhf6lr590002bdtxazkrd66"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-11-01T12:00:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-11-01T12:00:00.000Z"
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        milestone:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            milestoneName:
+              type: string
+              example: "Frontend Development"
+            deadline:
+              type: string
+              format: date-time
+            status:
+              type: string
+              example: "IN_PROGRESS"
+        project:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            details:
+              type: object
+              properties:
+                companyName:
+                  type: string
+                  example: "Acme Corp"
+
+    PaymentAgreementSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        milestoneId:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        agreementDocumentUrl:
+          type: string
+          format: uri
+        milestoneAmount:
+          type: string
+          example: "10000.00"
+        distributionDetails:
+          type: object
+        status:
+          type: string
+          enum: [DRAFT, ACTIVE, COMPLETED, CANCELLED]
+        notes:
+          type: string
+          nullable: true
+        createdBy:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        milestone:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            milestoneName:
+              type: string
+            deadline:
+              type: string
+              format: date-time
+            status:
+              type: string
+            progress:
+              type: integer
+            isMilestoneCompleted:
+              type: boolean

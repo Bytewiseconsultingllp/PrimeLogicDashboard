@@ -1,0 +1,1758 @@
+openapi: 3.0.0
+tags:
+  - name: Admin - Projects
+    description: Admin endpoints for managing all projects with comprehensive data (Admin only)
+  - name: Admin - Clients
+    description: Admin endpoints for managing all clients with full details (Admin only)
+  - name: Admin - Freelancers
+    description: Admin endpoints for managing all freelancers (Admin only)
+
+paths:
+  # ============================================
+  # BATCH 1: ADMIN PROJECT MANAGEMENT
+  # ============================================
+
+  /admin/projects/stats:
+    get:
+      tags:
+        - Admin - Projects
+      summary: Get project statistics
+      description: |
+        Get comprehensive statistics about all projects in the system.
+
+        **Admin Only** - Requires ADMIN role.
+
+        **Returns:**
+        - Total projects count
+        - Projects by payment status (PENDING, SUCCEEDED)
+        - Projects accepting bids
+        - Milestone statistics (total, completed, pending)
+        - Bid statistics (total, pending, reviewed)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Project statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Project statistics retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      projects:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                            example: 150
+                            description: Total number of projects
+                          pendingPayment:
+                            type: integer
+                            example: 45
+                            description: Projects with PENDING payment status
+                          succeededPayment:
+                            type: integer
+                            example: 95
+                            description: Projects with SUCCEEDED payment status
+                          acceptingBids:
+                            type: integer
+                            example: 30
+                            description: Projects currently accepting bids
+                      milestones:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                            example: 450
+                            description: Total number of milestones
+                          completed:
+                            type: integer
+                            example: 200
+                            description: Completed milestones
+                          pending:
+                            type: integer
+                            example: 250
+                            description: Pending milestones
+                      bids:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                            example: 800
+                            description: Total number of bids
+                          pending:
+                            type: integer
+                            example: 120
+                            description: Bids awaiting review
+                          reviewed:
+                            type: integer
+                            example: 680
+                            description: Reviewed bids
+              examples:
+                success:
+                  summary: Successful response
+                  value:
+                    success: true
+                    status: 200
+                    message: "Project statistics retrieved successfully"
+                    data:
+                      projects:
+                        total: 150
+                        pendingPayment: 45
+                        succeededPayment: 95
+                        acceptingBids: 30
+                      milestones:
+                        total: 450
+                        completed: 200
+                        pending: 250
+                      bids:
+                        total: 800
+                        pending: 120
+                        reviewed: 680
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /admin/projects:
+    get:
+      tags:
+        - Admin - Projects
+      summary: Get all projects with filters
+      description: |
+        Get a paginated list of all projects with comprehensive data including:
+        - Project details (company info, contact, business type)
+        - Services, industries, technologies, features selected
+        - Discount, timeline, and pricing estimates
+        - Client information
+        - Assigned moderator
+        - All milestones with assigned freelancers
+        - All bids from freelancers
+        - Selected freelancers
+        - Payment history
+        - Payment agreements
+        - Visitor conversion data
+
+        **Admin Only** - Requires ADMIN role.
+
+        **Filters:**
+        - `paymentStatus` - Filter by payment status
+        - `startDate` - Filter projects created after this date
+        - `endDate` - Filter projects created before this date
+        - `acceptingBids` - Filter by accepting bids status
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          example: 10
+        - name: paymentStatus
+          in: query
+          description: Filter by payment status
+          schema:
+            type: string
+            enum: [PENDING, SUCCEEDED, FAILED, CANCELED, REFUNDED]
+          example: SUCCEEDED
+        - name: startDate
+          in: query
+          description: Filter projects created after this date (ISO 8601 format)
+          schema:
+            type: string
+            format: date-time
+          example: "2025-01-01T00:00:00.000Z"
+        - name: endDate
+          in: query
+          description: Filter projects created before this date (ISO 8601 format)
+          schema:
+            type: string
+            format: date-time
+          example: "2025-12-31T23:59:59.999Z"
+        - name: acceptingBids
+          in: query
+          description: Filter by accepting bids status
+          schema:
+            type: boolean
+          example: true
+      responses:
+        "200":
+          description: Projects retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Projects retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      projects:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/AdminProjectDetail"
+                      pagination:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                            example: 50
+                          page:
+                            type: integer
+                            example: 1
+                          limit:
+                            type: integer
+                            example: 10
+                          totalPages:
+                            type: integer
+                            example: 5
+                          hasNextPage:
+                            type: boolean
+                            example: true
+                          hasPreviousPage:
+                            type: boolean
+                            example: false
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /admin/projects/{projectId}:
+    get:
+      tags:
+        - Admin - Projects
+      summary: Get comprehensive project details
+      description: |
+        Get complete details of a specific project including ALL related data:
+        - Full project details (company, contact, business info)
+        - All services, industries, technologies, features
+        - Discount, timeline, estimate, service agreement
+        - Complete client profile with KPI data
+        - Assigned moderator information
+        - All milestones with:
+          - Assigned freelancer details
+          - Payment agreements with distribution
+          - Progress and status tracking
+        - All bids with freelancer profiles and experience
+        - Selected freelancers with complete profiles
+        - Complete payment history
+        - All payment agreements
+        - Full visitor conversion data
+
+        **Admin Only** - Requires ADMIN role.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          description: Project ID (CUID format)
+          schema:
+            type: string
+          example: "cmhg76qwr00003bwqit7ep162"
+      responses:
+        "200":
+          description: Project details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Project details retrieved successfully"
+                  data:
+                    $ref: "#/components/schemas/AdminProjectDetail"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ============================================
+  # BATCH 2: ADMIN CLIENT MANAGEMENT
+  # ============================================
+
+  /admin/clients/stats:
+    get:
+      tags:
+        - Admin - Clients
+      summary: Get client statistics
+      description: |
+        Get comprehensive statistics about all clients in the system.
+
+        **Admin Only** - Requires ADMIN role.
+
+        **Returns:**
+        - Total clients count
+        - Active vs inactive clients
+        - Verified vs unverified clients
+        - Average projects per client
+        - Average payments per client
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Client statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Client statistics retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      clients:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                            example: 250
+                            description: Total number of clients
+                          active:
+                            type: integer
+                            example: 200
+                            description: Active clients
+                          inactive:
+                            type: integer
+                            example: 50
+                            description: Inactive clients
+                          verified:
+                            type: integer
+                            example: 230
+                            description: Email verified clients
+                          unverified:
+                            type: integer
+                            example: 20
+                            description: Unverified clients
+                      projects:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                            example: 500
+                            description: Total projects by all clients
+                          averagePerClient:
+                            type: number
+                            example: 2.0
+                            description: Average projects per client
+                      payments:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                            example: 1200
+                            description: Total payments by all clients
+                          averagePerClient:
+                            type: number
+                            example: 4.8
+                            description: Average payments per client
+              examples:
+                success:
+                  summary: Successful response
+                  value:
+                    success: true
+                    status: 200
+                    message: "Client statistics retrieved successfully"
+                    data:
+                      clients:
+                        total: 250
+                        active: 200
+                        inactive: 50
+                        verified: 230
+                        unverified: 20
+                      projects:
+                        total: 500
+                        averagePerClient: 2.0
+                      payments:
+                        total: 1200
+                        averagePerClient: 4.8
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /admin/clients:
+    get:
+      tags:
+        - Admin - Clients
+      summary: Get all clients with search
+      description: |
+        Get a paginated list of all clients with basic information including:
+        - Client basic info (uid, username, fullName, email, phone, address)
+        - Profile details (portfolioUrl, niche)
+        - KPI rank and points
+        - Email verification status
+        - Active status
+        - Counts: number of projects, payments, and visitors
+
+        **Admin Only** - Requires ADMIN role.
+
+        **Features:**
+        - `searchQuery` - Search by name, email, or username (case-insensitive)
+        - Pagination with customizable page size
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          example: 10
+        - name: searchQuery
+          in: query
+          description: Search by name, email, or username (case-insensitive)
+          schema:
+            type: string
+          example: "john"
+      responses:
+        "200":
+          description: Clients retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Clients retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      clients:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/AdminClientSummary"
+                      pagination:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                            example: 100
+                          page:
+                            type: integer
+                            example: 1
+                          limit:
+                            type: integer
+                            example: 10
+                          totalPages:
+                            type: integer
+                            example: 10
+                          hasNextPage:
+                            type: boolean
+                            example: true
+                          hasPreviousPage:
+                            type: boolean
+                            example: false
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /admin/clients/{clientId}:
+    get:
+      tags:
+        - Admin - Clients
+      summary: Get comprehensive client details
+      description: |
+        Get complete details of a specific client including ALL related data:
+        - Complete client profile
+        - Full KPI data and history
+        - ALL projects with comprehensive details:
+          - Project details, services, industries, technologies, features
+          - Milestones with assigned freelancers
+          - All bids received
+          - Selected freelancers
+          - Payment history for each project
+          - Payment agreements
+          - Assigned moderator
+        - ALL payments (across all projects)
+        - ALL visitors that converted to this client
+
+        **Admin Only** - Requires ADMIN role.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: clientId
+          in: path
+          required: true
+          description: Client user ID (CUID format)
+          schema:
+            type: string
+          example: "cmhg76qwr00003bwqit7ep162"
+      responses:
+        "200":
+          description: Client details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Client details retrieved successfully"
+                  data:
+                    $ref: "#/components/schemas/AdminClientDetail"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+components:
+  schemas:
+    AdminProjectDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Project ID (CUID format)
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        paymentStatus:
+          type: string
+          enum: [PENDING, SUCCEEDED, FAILED, CANCELED, REFUNDED]
+          example: SUCCEEDED
+        acceptingBids:
+          type: boolean
+          example: true
+        discordChatUrl:
+          type: string
+          nullable: true
+          example: "https://discord.gg/example"
+        details:
+          type: object
+          properties:
+            fullName:
+              type: string
+              example: "John Doe"
+            businessEmail:
+              type: string
+              format: email
+              example: "john@company.com"
+            phoneNumber:
+              type: string
+              example: "+1234567890"
+            companyName:
+              type: string
+              example: "Tech Solutions Inc"
+            companyWebsite:
+              type: string
+              example: "https://techsolutions.com"
+            businessAddress:
+              type: string
+              example: "123 Business St, City, State"
+            businessType:
+              type: string
+              example: "Technology"
+            referralSource:
+              type: string
+              example: "Google"
+        services:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                enum:
+                  [
+                    SOFTWARE_DEVELOPMENT,
+                    DATA_AND_ANALYTICS,
+                    CLOUD_AND_DEVOPS,
+                    EMERGING_TECHNOLOGIES,
+                    CREATIVE_AND_DESIGN,
+                    DIGITAL_MARKETING,
+                  ]
+              childServices:
+                type: array
+                items:
+                  type: string
+        industries:
+          type: array
+          items:
+            type: object
+            properties:
+              category:
+                type: string
+              subIndustries:
+                type: array
+                items:
+                  type: string
+        technologies:
+          type: array
+          items:
+            type: object
+            properties:
+              category:
+                type: string
+              technologies:
+                type: array
+                items:
+                  type: string
+        features:
+          type: array
+          items:
+            type: object
+            properties:
+              category:
+                type: string
+              features:
+                type: array
+                items:
+                  type: string
+        discount:
+          type: object
+          nullable: true
+          properties:
+            type:
+              type: string
+            percent:
+              type: integer
+            notes:
+              type: string
+        timeline:
+          type: object
+          nullable: true
+          properties:
+            option:
+              type: string
+            rushFeePercent:
+              type: integer
+            estimatedDays:
+              type: integer
+            description:
+              type: string
+        estimate:
+          type: object
+          nullable: true
+          properties:
+            estimateAccepted:
+              type: boolean
+            estimateFinalPriceMin:
+              type: number
+            estimateFinalPriceMax:
+              type: number
+            baseCost:
+              type: number
+            discountAmount:
+              type: number
+            rushFeeAmount:
+              type: number
+            calculatedTotal:
+              type: number
+        client:
+          type: object
+          properties:
+            uid:
+              type: string
+              description: Client user ID (CUID format)
+            username:
+              type: string
+            fullName:
+              type: string
+            email:
+              type: string
+            phone:
+              type: string
+            role:
+              type: string
+              enum: [CLIENT]
+            createdAt:
+              type: string
+              format: date-time
+        assignedModerator:
+          type: object
+          nullable: true
+          properties:
+            uid:
+              type: string
+              description: Moderator user ID (CUID format)
+            username:
+              type: string
+            fullName:
+              type: string
+            email:
+              type: string
+        milestones:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                description: Milestone ID (CUID format)
+              milestoneName:
+                type: string
+              description:
+                type: string
+              deadline:
+                type: string
+                format: date-time
+              progress:
+                type: integer
+              status:
+                type: string
+              isMilestoneCompleted:
+                type: boolean
+              assignedFreelancer:
+                type: object
+                nullable: true
+        bids:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                description: Bid ID (CUID format)
+              bidAmount:
+                type: number
+              proposalText:
+                type: string
+              status:
+                type: string
+              submittedAt:
+                type: string
+                format: date-time
+        selectedFreelancers:
+          type: array
+          items:
+            type: object
+        payments:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              amount:
+                type: integer
+              currency:
+                type: string
+              status:
+                type: string
+              createdAt:
+                type: string
+                format: date-time
+        paymentAgreements:
+          type: array
+          items:
+            type: object
+
+    AdminClientSummary:
+      type: object
+      properties:
+        uid:
+          type: string
+          description: Client user ID (CUID format)
+        username:
+          type: string
+          example: "johndoe"
+        fullName:
+          type: string
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          example: "john@company.com"
+        phone:
+          type: string
+          nullable: true
+          example: "+1234567890"
+        address:
+          type: string
+          nullable: true
+          example: "123 Business St"
+        detail:
+          type: string
+          nullable: true
+          example: "Tech entrepreneur"
+        portfolioUrl:
+          type: string
+          nullable: true
+          example: "https://portfolio.com"
+        niche:
+          type: string
+          nullable: true
+          example: "Technology"
+        kpiRank:
+          type: string
+          enum:
+            [BRONZE, SILVER, GOLD, PLATINIUM, DIAMOND, CROWN, ACE, CONQUERER]
+          example: "GOLD"
+        kpiRankPoints:
+          type: integer
+          example: 850
+        emailVerifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        isActive:
+          type: boolean
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        _count:
+          type: object
+          properties:
+            projects:
+              type: integer
+              example: 5
+              description: Number of projects
+            payments:
+              type: integer
+              example: 10
+              description: Number of payments
+            visitors:
+              type: integer
+              example: 2
+              description: Number of visitors converted
+
+    AdminClientDetail:
+      type: object
+      properties:
+        uid:
+          type: string
+          description: Client user ID (CUID format)
+        username:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        detail:
+          type: string
+          nullable: true
+        portfolioUrl:
+          type: string
+          nullable: true
+        niche:
+          type: string
+          nullable: true
+        topProjects:
+          type: array
+          items:
+            type: string
+          description: Array of top project names
+        kpi:
+          type: array
+          items:
+            type: object
+          description: Current KPI data
+        kpiHistory:
+          type: array
+          items:
+            type: object
+          description: Historical KPI data
+        kpiRank:
+          type: string
+          enum:
+            [BRONZE, SILVER, GOLD, PLATINIUM, DIAMOND, CROWN, ACE, CONQUERER]
+        kpiRankPoints:
+          type: integer
+        emailVerifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        isActive:
+          type: boolean
+        role:
+          type: string
+          enum: [CLIENT]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        projects:
+          type: array
+          description: All projects with comprehensive details
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                description: Project ID (CUID format)
+              details:
+                type: object
+              services:
+                type: array
+                items:
+                  type: object
+              industries:
+                type: array
+                items:
+                  type: object
+              technologies:
+                type: array
+                items:
+                  type: object
+              features:
+                type: array
+                items:
+                  type: object
+              discount:
+                type: object
+                nullable: true
+              timeline:
+                type: object
+                nullable: true
+              estimate:
+                type: object
+                nullable: true
+              milestones:
+                type: array
+                items:
+                  type: object
+              bids:
+                type: array
+                items:
+                  type: object
+              selectedFreelancers:
+                type: array
+                items:
+                  type: object
+              payments:
+                type: array
+                items:
+                  type: object
+              paymentAgreements:
+                type: array
+                items:
+                  type: object
+        payments:
+          type: array
+          description: All payments across all projects
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              amount:
+                type: integer
+              currency:
+                type: string
+              status:
+                type: string
+              paymentMethod:
+                type: string
+              createdAt:
+                type: string
+                format: date-time
+              paidAt:
+                type: string
+                format: date-time
+                nullable: true
+              project:
+                type: object
+                nullable: true
+              visitor:
+                type: object
+                nullable: true
+        visitors:
+          type: array
+          description: All visitors that converted to this client
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                description: Visitor ID (CUID format)
+              isConverted:
+                type: boolean
+              convertedAt:
+                type: string
+                format: date-time
+                nullable: true
+              details:
+                type: object
+              services:
+                type: array
+                items:
+                  type: object
+              estimate:
+                type: object
+                nullable: true
+
+  # ============================================
+  # BATCH 3: ADMIN FREELANCER MANAGEMENT
+  # ============================================
+
+  /admin/freelancers/stats:
+    get:
+      tags:
+        - Admin - Freelancers
+      summary: Get freelancer statistics
+      description: |
+        Get comprehensive statistics about all freelancers in the system.
+
+        **Admin Only** - Requires ADMIN role.
+
+        **Returns:**
+        - Total freelancers count
+        - Freelancers by status (PENDING_REVIEW, ACCEPTED, REJECTED)
+        - Total bids count
+        - Pending bids count
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Freelancer statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      freelancers:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                            example: 150
+                            description: Total number of freelancers
+                          pending:
+                            type: integer
+                            example: 30
+                            description: Freelancers pending review
+                          accepted:
+                            type: integer
+                            example: 100
+                            description: Accepted freelancers
+                          rejected:
+                            type: integer
+                            example: 20
+                            description: Rejected freelancers
+                      bids:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                            example: 450
+                            description: Total number of bids
+                          pending:
+                            type: integer
+                            example: 75
+                            description: Bids pending review
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /admin/freelancers:
+    get:
+      tags:
+        - Admin - Freelancers
+      summary: Get all freelancers with filtering
+      description: |
+        Get a paginated list of all freelancers with filtering options including:
+        - Basic freelancer info (name, email, phone)
+        - Registration status (PENDING_REVIEW, ACCEPTED, REJECTED)
+        - Experience, skills, and industries
+        - Hourly rate and availability
+        - Portfolio, certifications, and legal agreements
+
+        **Admin Only** - Requires ADMIN role.
+
+        **Filters:**
+        - `status` - Filter by registration status
+        - `skills` - Filter by comma-separated skills
+        - `industries` - Filter by comma-separated industries
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          example: 10
+        - name: status
+          in: query
+          description: Filter by registration status
+          schema:
+            type: string
+            enum: [PENDING_REVIEW, ACCEPTED, REJECTED]
+          example: ACCEPTED
+        - name: skills
+          in: query
+          description: Filter by skills (comma-separated)
+          schema:
+            type: string
+          example: "JavaScript,React,Node.js"
+        - name: industries
+          in: query
+          description: Filter by industries (comma-separated)
+          schema:
+            type: string
+          example: "Technology,Finance"
+      responses:
+        "200":
+          description: Freelancers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          description: Freelancer ID (CUID format)
+                        fullName:
+                          type: string
+                        email:
+                          type: string
+                        phone:
+                          type: string
+                        status:
+                          type: string
+                          enum: [PENDING_REVIEW, ACCEPTED, REJECTED]
+                        experienceYears:
+                          type: integer
+                        hourlyRate:
+                          type: number
+                        availability:
+                          type: string
+                        skills:
+                          type: array
+                          items:
+                            type: string
+                        industries:
+                          type: array
+                          items:
+                            type: string
+                        createdAt:
+                          type: string
+                          format: date-time
+                  pagination:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+                      totalPages:
+                        type: integer
+                      hasNextPage:
+                        type: boolean
+                      hasPreviousPage:
+                        type: boolean
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /admin/freelancers/{freelancerId}:
+    get:
+      tags:
+        - Admin - Freelancers
+      summary: Get comprehensive freelancer details
+      description: |
+        Get complete details of a specific freelancer including:
+        - Full registration information
+        - Experience, education, and certifications
+        - Skills and industries
+        - Portfolio and references
+        - All bids submitted by this freelancer
+        - Projects they're selected for
+        - Legal agreements status
+
+        **Admin Only** - Requires ADMIN role.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: freelancerId
+          in: path
+          required: true
+          description: Freelancer ID (CUID format)
+          schema:
+            type: string
+          example: "cmhg76qwr00003bwqit7ep162"
+      responses:
+        "200":
+          description: Freelancer details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        description: Freelancer ID (CUID format)
+                      fullName:
+                        type: string
+                      email:
+                        type: string
+                      phone:
+                        type: string
+                      status:
+                        type: string
+                        enum: [PENDING_REVIEW, ACCEPTED, REJECTED]
+                      experienceYears:
+                        type: integer
+                      hourlyRate:
+                        type: number
+                      availability:
+                        type: string
+                      bio:
+                        type: string
+                      skills:
+                        type: array
+                        items:
+                          type: string
+                      industries:
+                        type: array
+                        items:
+                          type: string
+                      education:
+                        type: array
+                        items:
+                          type: object
+                      certifications:
+                        type: array
+                        items:
+                          type: object
+                      portfolio:
+                        type: array
+                        items:
+                          type: object
+                      references:
+                        type: array
+                        items:
+                          type: object
+                      bids:
+                        type: array
+                        items:
+                          type: object
+                      legalAgreements:
+                        type: object
+                      createdAt:
+                        type: string
+                        format: date-time
+                      updatedAt:
+                        type: string
+                        format: date-time
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /admin/freelancers/{freelancerId}/review:
+    post:
+      tags:
+        - Admin - Freelancers
+      summary: Accept or reject a freelancer
+      description: |
+        Review a freelancer's registration and either accept or reject them.
+
+        **Admin Only** - Requires ADMIN role.
+
+        **Actions:**
+        - `ACCEPT` - Approve the freelancer's registration and send acceptance email
+        - `REJECT` - Reject the freelancer's registration with a reason and send rejection email
+
+        **Note:** Once reviewed, the freelancer cannot be reviewed again unless the status is changed.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: freelancerId
+          in: path
+          required: true
+          description: Freelancer ID (CUID format)
+          schema:
+            type: string
+          example: "cmhg76qwr00003bwqit7ep162"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - action
+              properties:
+                action:
+                  type: string
+                  enum: [ACCEPT, REJECT]
+                  description: Review action to take
+                reason:
+                  type: string
+                  description: Reason for rejection (required if action is REJECT)
+            examples:
+              accept:
+                summary: Accept freelancer
+                value:
+                  action: ACCEPT
+              reject:
+                summary: Reject freelancer
+                value:
+                  action: REJECT
+                  reason: "Insufficient experience for platform requirements"
+      responses:
+        "200":
+          description: Freelancer reviewed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Freelancer accepted successfully"
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      status:
+                        type: string
+                        enum: [ACCEPTED, REJECTED]
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ============================================
+  # BID MANAGEMENT
+  # ============================================
+
+  /admin/projects/{projectId}/bids:
+    get:
+      tags:
+        - Admin - Freelancers
+      summary: Get all bids for a specific project
+      description: |
+        Get all bids submitted by freelancers for a specific project including:
+        - Bid amount and proposal text
+        - Freelancer details
+        - Bid status (PENDING, ACCEPTED, REJECTED)
+        - Submission and review timestamps
+
+        **Admin Only** - Requires ADMIN role.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          description: Project ID (CUID format)
+          schema:
+            type: string
+          example: "cmhg76qwr00003bwqit7ep162"
+        - name: page
+          in: query
+          description: Page number for pagination
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: status
+          in: query
+          description: Filter by bid status
+          schema:
+            type: string
+            enum: [PENDING, ACCEPTED, REJECTED]
+      responses:
+        "200":
+          description: Bids retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          description: Bid ID (CUID format)
+                        bidAmount:
+                          type: number
+                        proposalText:
+                          type: string
+                        status:
+                          type: string
+                          enum: [PENDING, ACCEPTED, REJECTED]
+                        freelancer:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            fullName:
+                              type: string
+                            email:
+                              type: string
+                            experienceYears:
+                              type: integer
+                            hourlyRate:
+                              type: number
+                        submittedAt:
+                          type: string
+                          format: date-time
+                        reviewedAt:
+                          type: string
+                          format: date-time
+                          nullable: true
+                  pagination:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /admin/bids/{bidId}:
+    get:
+      tags:
+        - Admin - Freelancers
+      summary: Get detailed information about a specific bid
+      description: |
+        Get comprehensive details about a specific bid including:
+        - Full bid information
+        - Complete freelancer profile
+        - Project details
+        - Review status and history
+
+        **Admin Only** - Requires ADMIN role.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: bidId
+          in: path
+          required: true
+          description: Bid ID (CUID format)
+          schema:
+            type: string
+          example: "cmhg76qwr00003bwqit7ep162"
+      responses:
+        "200":
+          description: Bid details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        description: Bid ID (CUID format)
+                      bidAmount:
+                        type: number
+                      proposalText:
+                        type: string
+                      status:
+                        type: string
+                        enum: [PENDING, ACCEPTED, REJECTED]
+                      freelancer:
+                        type: object
+                        description: Complete freelancer profile
+                      project:
+                        type: object
+                        description: Complete project details
+                      submittedAt:
+                        type: string
+                        format: date-time
+                      reviewedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      reviewedBy:
+                        type: string
+                        nullable: true
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /admin/bids/{bidId}/review:
+    post:
+      tags:
+        - Admin - Freelancers
+      summary: Accept or reject a bid
+      description: |
+        Review a freelancer's bid on a project and either accept or reject it.
+
+        **Admin Only** - Requires ADMIN role.
+
+        **Actions:**
+        - `ACCEPT` - Approve the bid and potentially assign freelancer to project
+        - `REJECT` - Reject the bid with a reason
+
+        **Note:** Accepting a bid may have implications on project freelancer assignments.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: bidId
+          in: path
+          required: true
+          description: Bid ID (CUID format)
+          schema:
+            type: string
+          example: "cmhg76qwr00003bwqit7ep162"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - action
+              properties:
+                action:
+                  type: string
+                  enum: [ACCEPT, REJECT]
+                  description: Review action to take
+                reason:
+                  type: string
+                  description: Reason for rejection (required if action is REJECT)
+            examples:
+              accept:
+                summary: Accept bid
+                value:
+                  action: ACCEPT
+              reject:
+                summary: Reject bid
+                value:
+                  action: REJECT
+                  reason: "Bid amount exceeds project budget"
+      responses:
+        "200":
+          description: Bid reviewed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Bid accepted successfully"
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      status:
+                        type: string
+                        enum: [ACCEPTED, REJECTED]
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"

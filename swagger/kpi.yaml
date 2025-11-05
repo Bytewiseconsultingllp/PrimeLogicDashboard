@@ -1,0 +1,558 @@
+# ============================================
+# KPI SYSTEM ENDPOINTS
+# ============================================
+
+tags:
+  - name: KPI - Admin
+    description: Admin endpoints for assigning KPI points to freelancers
+  - name: KPI - Moderator
+    description: Moderator endpoints for assigning KPI points (assigned projects only)
+  - name: KPI - Client
+    description: Client endpoints for assigning KPI points (their projects only)
+  - name: KPI - Public
+    description: Public endpoints for viewing KPI data and leaderboard
+
+paths:
+  # ============================================
+  # ADMIN: ASSIGN KPI POINTS
+  # ============================================
+  /admin/freelancers/{freelancerId}/kpi:
+    post:
+      tags:
+        - KPI - Admin
+      summary: Assign KPI points to a freelancer (Admin only)
+      description: |
+        Admin can assign KPI points (positive or negative) to any freelancer with a note explaining the reason.
+
+        **Access:** Admin only
+
+        **KPI Categories:**
+        - **BRONZE:** < 50 points
+        - **SILVER:** 50-199 points
+        - **GOLD:** 200-499 points
+        - **PLATINIUM:** 500-999 points
+        - **DIAMOND:** 1000-1999 points
+        - **CROWN:** 2000-4999 points
+        - **ACE:** 5000-9999 points
+        - **CONQUERER:** 10000+ points
+
+        **Use Cases:**
+        - Reward for excellent work: +50 points
+        - Penalty for missed deadline: -20 points
+        - Bonus for client satisfaction: +100 points
+      parameters:
+        - in: path
+          name: freelancerId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Freelancer ID
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - points
+                - note
+              properties:
+                points:
+                  type: integer
+                  description: Points to assign (positive for reward, negative for penalty). Cannot be zero.
+                  example: 50
+                note:
+                  type: string
+                  minLength: 5
+                  maxLength: 500
+                  description: Reason for assigning points
+                  example: "Excellent work on the e-commerce project. Delivered ahead of schedule with high quality."
+            examples:
+              reward:
+                summary: Reward points
+                value:
+                  points: 50
+                  note: "Excellent work on the e-commerce project. Delivered ahead of schedule with high quality."
+              penalty:
+                summary: Penalty points
+                value:
+                  points: -20
+                  note: "Missed deadline by 3 days on the mobile app project."
+              bonus:
+                summary: Large bonus
+                value:
+                  points: 100
+                  note: "Client extremely satisfied. Received 5-star review and requested for future projects."
+      responses:
+        200:
+          description: KPI points assigned successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "KPI points assigned successfully"
+                  data:
+                    type: object
+                    properties:
+                      freelancer:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          userId:
+                            type: string
+                      kpi:
+                        type: object
+                        properties:
+                          points:
+                            type: integer
+                            example: 150
+                          rank:
+                            type: string
+                            example: "SILVER"
+                          previousPoints:
+                            type: integer
+                            example: 100
+                          pointsChange:
+                            type: integer
+                            example: 50
+                      user:
+                        type: object
+                        properties:
+                          uid:
+                            type: string
+                          username:
+                            type: string
+                          fullName:
+                            type: string
+        400:
+          description: Invalid data
+        401:
+          description: Unauthorized
+        403:
+          description: Forbidden - Admin only
+        404:
+          description: Freelancer not found
+
+  # ============================================
+  # MODERATOR: ASSIGN KPI POINTS
+  # ============================================
+  /moderator-kpi/freelancers/{freelancerId}/kpi:
+    post:
+      tags:
+        - KPI - Moderator
+      summary: Assign KPI points to a freelancer (Moderator for assigned projects)
+      description: |
+        Moderators can assign KPI points to freelancers working on their assigned projects only.
+
+        **Access:** Moderator only
+
+        **Requirements:**
+        - projectId is required
+        - Moderator must be assigned to the project
+        - Freelancer must be working on the project
+      parameters:
+        - in: path
+          name: freelancerId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Freelancer ID
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - points
+                - note
+                - projectId
+              properties:
+                points:
+                  type: integer
+                  description: Points to assign (positive or negative)
+                  example: 30
+                note:
+                  type: string
+                  minLength: 5
+                  maxLength: 500
+                  description: Reason for assigning points
+                  example: "Great communication and quick turnaround on milestone 2"
+                projectId:
+                  type: string
+                  format: uuid
+                  description: Project ID (required for moderators)
+                  example: "54104ca1-1649-44b7-accb-35bf4d414ca9"
+            examples:
+              milestone_reward:
+                summary: Milestone completion reward
+                value:
+                  points: 30
+                  note: "Great communication and quick turnaround on milestone 2"
+                  projectId: "54104ca1-1649-44b7-accb-35bf4d414ca9"
+      responses:
+        200:
+          description: KPI points assigned successfully
+        400:
+          description: Invalid data or missing projectId
+        401:
+          description: Unauthorized - Not a moderator
+        403:
+          description: Forbidden - Not assigned to this project or freelancer not on project
+        404:
+          description: Freelancer or project not found
+
+  # ============================================
+  # CLIENT: ASSIGN KPI POINTS
+  # ============================================
+  /client-kpi/freelancers/{freelancerId}/kpi:
+    post:
+      tags:
+        - KPI - Client
+      summary: Assign KPI points to a freelancer (Client for their projects)
+      description: |
+        Clients can assign KPI points to freelancers working on their projects.
+
+        **Access:** Client only
+
+        **Requirements:**
+        - projectId is required
+        - Client must own the project
+        - Freelancer must be working on the project
+      parameters:
+        - in: path
+          name: freelancerId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Freelancer ID
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - points
+                - note
+                - projectId
+              properties:
+                points:
+                  type: integer
+                  description: Points to assign (positive or negative)
+                  example: 75
+                note:
+                  type: string
+                  minLength: 5
+                  maxLength: 500
+                  description: Reason for assigning points
+                  example: "Exceeded expectations on project delivery. Very professional!"
+                projectId:
+                  type: string
+                  format: uuid
+                  description: Project ID (required for clients)
+            examples:
+              satisfaction_bonus:
+                summary: Client satisfaction bonus
+                value:
+                  points: 75
+                  note: "Exceeded expectations on project delivery. Very professional!"
+                  projectId: "54104ca1-1649-44b7-accb-35bf4d414ca9"
+      responses:
+        200:
+          description: KPI points assigned successfully
+        400:
+          description: Invalid data or missing projectId
+        401:
+          description: Unauthorized - Not a client
+        403:
+          description: Forbidden - Not your project or freelancer not on project
+        404:
+          description: Freelancer or project not found
+
+  # ============================================
+  # PUBLIC: GET FREELANCER KPI
+  # ============================================
+  /freelancers/{freelancerId}/kpi:
+    get:
+      tags:
+        - KPI - Public
+      summary: Get KPI information for a freelancer
+      description: |
+        Get current KPI points and rank for a specific freelancer.
+
+        **Access:** Public (no authentication required)
+      parameters:
+        - in: path
+          name: freelancerId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Freelancer ID
+      responses:
+        200:
+          description: KPI data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "KPI data retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      freelancer:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          userId:
+                            type: string
+                          name:
+                            type: string
+                      kpi:
+                        type: object
+                        properties:
+                          points:
+                            type: integer
+                            example: 150
+                          rank:
+                            type: string
+                            example: "SILVER"
+        404:
+          description: Freelancer not found
+
+  # ============================================
+  # AUTHENTICATED: GET KPI HISTORY
+  # ============================================
+  /freelancers/{freelancerId}/kpi-history:
+    get:
+      tags:
+        - KPI - Public
+      summary: Get KPI history for a freelancer
+      description: |
+        Get detailed history of KPI point changes for a freelancer.
+
+        **Access:** Authenticated users only
+      parameters:
+        - in: path
+          name: freelancerId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Freelancer ID
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          description: Number of history entries to return
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: KPI history retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "KPI history retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      freelancer:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          userId:
+                            type: string
+                          name:
+                            type: string
+                      currentKPI:
+                        type: object
+                        properties:
+                          points:
+                            type: integer
+                            example: 150
+                          rank:
+                            type: string
+                            example: "SILVER"
+                      history:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            points:
+                              type: integer
+                              example: 50
+                            note:
+                              type: string
+                              example: "Excellent work on project"
+                            assignedBy:
+                              type: string
+                            assignedByRole:
+                              type: string
+                              example: "ADMIN"
+                            previousPoints:
+                              type: integer
+                              example: 100
+                            newPoints:
+                              type: integer
+                              example: 150
+                            previousRank:
+                              type: string
+                              example: "SILVER"
+                            newRank:
+                              type: string
+                              example: "SILVER"
+                            timestamp:
+                              type: string
+                              format: date-time
+                      totalEntries:
+                        type: integer
+                        example: 5
+        401:
+          description: Unauthorized
+        404:
+          description: Freelancer not found
+
+  # ============================================
+  # PUBLIC: GET LEADERBOARD
+  # ============================================
+  /freelancers/leaderboard:
+    get:
+      tags:
+        - KPI - Public
+      summary: Get KPI leaderboard (top freelancers)
+      description: |
+        Get list of top freelancers ranked by KPI points.
+
+        **Access:** Public (no authentication required)
+
+        **Note:** Only active, accepted freelancers are shown.
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+          description: Items per page
+      responses:
+        200:
+          description: Leaderboard retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Leaderboard retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      leaderboard:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            rank:
+                              type: integer
+                              example: 1
+                            freelancer:
+                              type: object
+                              properties:
+                                id:
+                                  type: string
+                                  format: uuid
+                                userId:
+                                  type: string
+                                username:
+                                  type: string
+                                fullName:
+                                  type: string
+                                profilePicture:
+                                  type: string
+                                  nullable: true
+                            kpi:
+                              type: object
+                              properties:
+                                points:
+                                  type: integer
+                                  example: 850
+                                rank:
+                                  type: string
+                                  example: "GOLD"
+                      pagination:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                            example: 47
+                          page:
+                            type: integer
+                            example: 1
+                          limit:
+                            type: integer
+                            example: 20
+                          totalPages:
+                            type: integer
+                            example: 3
