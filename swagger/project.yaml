@@ -1,0 +1,647 @@
+paths:
+  /project/createProject:
+    post:
+      tags:
+        - Project
+      summary: Create a new project
+      description: Create a new project (Admin/Moderator only)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - description
+                - budget
+                - clientId
+              properties:
+                title:
+                  type: string
+                  example: E-commerce Website Development
+                description:
+                  type: string
+                  example: Build a full-featured e-commerce website with payment integration
+                budget:
+                  type: number
+                  example: 5000.00
+                clientId:
+                  type: string
+                  format: uuid
+                deadline:
+                  type: string
+                  format: date
+                requirements:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "201":
+          description: Project created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Project"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /project/getSingleProject/{projectSlug}:
+    get:
+      tags:
+        - Project
+      summary: Get single project by slug
+      description: Retrieve a specific project by its slug (Admin/Moderator/Freelancer)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: projectSlug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project slug
+      responses:
+        "200":
+          description: Project retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Project"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /project/getAllOutsourcedProjects:
+    get:
+      tags:
+        - Project
+      summary: Get all outsourced projects
+      description: Retrieve all projects marked as outsourced (Admin/Moderator/Freelancer)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Outsourced projects retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      projects:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Project"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /project/getAllProjects:
+    get:
+      tags:
+        - Project
+      summary: Get all projects
+      description: Retrieve all projects (Admin/Moderator/Freelancer)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Projects retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      projects:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Project"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /project/getAllProjectsWithThierClient/{clientId}:
+    get:
+      tags:
+        - Project
+      summary: Get all projects for a specific client
+      description: Retrieve all projects associated with a specific client
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: clientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Client ID
+      responses:
+        "200":
+          description: Client projects retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Project"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /project/deleteProject/{id}:
+    delete:
+      tags:
+        - Project
+      summary: Delete a project
+      description: Permanently delete a project (Admin only)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project ID
+      responses:
+        "200":
+          description: Project deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /project/getProjectForSelectedFreelancers:
+    get:
+      tags:
+        - Project
+      summary: Get projects for selected freelancers
+      description: Retrieve projects assigned to selected freelancers (Admin/Moderator/Freelancer)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Projects retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Project"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /project/createInterestedFreelancers/{projectSlug}:
+    patch:
+      tags:
+        - Project
+      summary: Add interested freelancer to project
+      description: Add a freelancer to the interested list for a project (Freelancer)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: projectSlug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project slug
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - freelancerId
+              properties:
+                freelancerId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Freelancer added to interested list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /project/removeFreelancerFromInterestedList/{projectSlug}:
+    patch:
+      tags:
+        - Project
+      summary: Remove freelancer from interested list
+      description: Remove a freelancer from the interested list of a project
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: projectSlug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project slug
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - freelancerId
+              properties:
+                freelancerId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Freelancer removed from interested list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /project/listInterestedFreelancersInSingleProject/{projectSlug}:
+    get:
+      tags:
+        - Project
+      summary: List interested freelancers in project
+      description: Get all freelancers interested in a specific project (Admin/Moderator)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: projectSlug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project slug
+      responses:
+        "200":
+          description: Interested freelancers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/FreelancerProfile"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /project/selectFreelancerForProject/{projectSlug}:
+    patch:
+      tags:
+        - Project
+      summary: Select freelancer for project
+      description: Assign a freelancer to a project (Admin/Moderator)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: projectSlug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project slug
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - freelancerId
+              properties:
+                freelancerId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Freelancer selected successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /project/removeSelectedFreelancer/{projectSlug}:
+    patch:
+      tags:
+        - Project
+      summary: Remove selected freelancer from project
+      description: Unassign a freelancer from a project (Admin/Moderator)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: projectSlug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project slug
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - freelancerId
+              properties:
+                freelancerId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Freelancer removed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /project/updateProgressOfProject/{projectSlug}:
+    patch:
+      tags:
+        - Project
+      summary: Update project progress
+      description: Update the progress percentage of a project
+      parameters:
+        - name: projectSlug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project slug
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - progress
+              properties:
+                progress:
+                  type: number
+                  minimum: 0
+                  maximum: 100
+                  example: 75
+      responses:
+        "200":
+          description: Project progress updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /project/changeProjectStatus/{projectSlug}:
+    patch:
+      tags:
+        - Project
+      summary: Change project status
+      description: Update the status of a project
+      parameters:
+        - name: projectSlug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project slug
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [PENDING, IN_PROGRESS, COMPLETED, CANCELLED]
+      responses:
+        "200":
+          description: Project status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /project/updateProjectBySlug/{projectSlug}:
+    patch:
+      tags:
+        - Project
+      summary: Update project by slug
+      description: Update project details
+      parameters:
+        - name: projectSlug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project slug
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                budget:
+                  type: number
+                deadline:
+                  type: string
+                  format: date
+      responses:
+        "200":
+          description: Project updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/Project"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /project/makeProjectOutsource/{projectSlug}:
+    patch:
+      tags:
+        - Project
+      summary: Make project outsourced
+      description: Mark a project as outsourced
+      parameters:
+        - name: projectSlug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Project slug
+      responses:
+        "200":
+          description: Project marked as outsourced
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"

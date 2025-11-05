@@ -1,0 +1,728 @@
+openapi: 3.0.0
+tags:
+  - name: Admin - Moderators
+    description: Admin endpoints for managing moderators (Admin only)
+  - name: Moderator
+    description: Moderator endpoints for managing assigned projects
+
+paths:
+  # ============================================
+  # ADMIN MODERATOR MANAGEMENT
+  # ============================================
+
+  /admin/moderators:
+    post:
+      tags:
+        - Admin - Moderators
+      summary: Create a new moderator
+      description: |
+        Admin creates a new moderator account. The system auto-generates username and password.
+        Moderator receives credentials via email.
+
+        **Flow:**
+        1. Admin provides email and full name
+        2. System generates username and random password
+        3. Moderator account is created with MODERATOR role
+        4. Credentials are sent via email
+        5. Admin receives credentials in response (for reference)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - fullName
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Moderator's email address
+                fullName:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  description: Moderator's full name
+            examples:
+              create:
+                summary: Create new moderator
+                value:
+                  email: "john.moderator@example.com"
+                  fullName: "John Doe"
+      responses:
+        "200":
+          description: Moderator created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: "Moderator created successfully. Credentials have been sent via email."
+                  data:
+                    type: object
+                    properties:
+                      moderator:
+                        $ref: "#/components/schemas/Moderator"
+                      generatedPassword:
+                        type: string
+                        description: Generated password (also sent via email)
+                        example: "Xy9$mK2pL4rQ"
+        "400":
+          description: Validation error or email already exists
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    get:
+      tags:
+        - Admin - Moderators
+      summary: Get all moderators
+      description: |
+        Get a paginated list of all moderators with their assigned projects.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Page number
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+          description: Items per page
+        - name: includeInactive
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Include inactive moderators
+      responses:
+        "200":
+          description: Moderators retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  status:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      moderators:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ModeratorWithProjects"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /admin/moderators/{id}:
+    get:
+      tags:
+        - Admin - Moderators
+      summary: Get moderator by ID
+      description: Get detailed information about a specific moderator including assigned projects and milestones
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Moderator user ID (uid)
+      responses:
+        "200":
+          description: Moderator details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  status:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/ModeratorDetailed"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    patch:
+      tags:
+        - Admin - Moderators
+      summary: Update moderator information
+      description: Update moderator's full name, email, or phone
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Moderator user ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fullName:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                email:
+                  type: string
+                  format: email
+                phone:
+                  type: string
+                  maxLength: 32
+            examples:
+              updateName:
+                summary: Update full name
+                value:
+                  fullName: "John Smith"
+              updateEmail:
+                summary: Update email
+                value:
+                  email: "john.smith@example.com"
+              updateAll:
+                summary: Update multiple fields
+                value:
+                  fullName: "John Smith"
+                  email: "john.smith@example.com"
+                  phone: "+1234567890"
+      responses:
+        "200":
+          description: Moderator updated successfully
+        "400":
+          description: Validation error or email already exists
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    delete:
+      tags:
+        - Admin - Moderators
+      summary: Delete moderator
+      description: |
+        Soft delete a moderator. Cannot delete if moderator has assigned projects.
+        Unassign moderator from all projects first.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Moderator user ID
+      responses:
+        "200":
+          description: Moderator deleted successfully
+        "400":
+          description: Cannot delete moderator with assigned projects
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /admin/moderators/{id}/toggle-status:
+    patch:
+      tags:
+        - Admin - Moderators
+      summary: Activate or deactivate moderator
+      description: |
+        Toggle moderator's active status. Inactive moderators cannot log in or access their projects.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Moderator user ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - isActive
+              properties:
+                isActive:
+                  type: boolean
+                  description: Set to true to activate, false to deactivate
+            examples:
+              activate:
+                summary: Activate moderator
+                value:
+                  isActive: true
+              deactivate:
+                summary: Deactivate moderator
+                value:
+                  isActive: false
+      responses:
+        "200":
+          description: Moderator status updated successfully
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ============================================
+  # PROJECT-MODERATOR ASSIGNMENT
+  # ============================================
+
+  /admin/moderators/projects/{projectId}/assign-moderator:
+    post:
+      tags:
+        - Admin - Moderators
+      summary: Assign moderator to project
+      description: |
+        Assign a moderator to a project. One project can have only one moderator.
+        If a moderator is already assigned, they will be replaced.
+        Moderator receives an email notification about the assignment.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - moderatorId
+              properties:
+                moderatorId:
+                  type: string
+                  description: Moderator user ID to assign
+            example:
+              moderatorId: "cmhf6lr590002tbdtxazkrd66"
+      responses:
+        "200":
+          description: Moderator assigned successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  status:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      project:
+                        type: object
+                        description: Project with updated moderator
+                      assignedModerator:
+                        $ref: "#/components/schemas/Moderator"
+                      previousModerator:
+                        type: object
+                        nullable: true
+                        description: Previous moderator (if any)
+        "400":
+          description: Invalid input or moderator is inactive
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /admin/moderators/projects/{projectId}/moderator:
+    delete:
+      tags:
+        - Admin - Moderators
+      summary: Unassign moderator from project
+      description: Remove the moderator from a project
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project ID
+      responses:
+        "200":
+          description: Moderator unassigned successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  status:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      project:
+                        type: object
+                        description: Project with moderator removed
+                      unassignedModerator:
+                        type: object
+                        description: The unassigned moderator
+        "400":
+          description: No moderator assigned to this project
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ============================================
+  # MODERATOR SELF-SERVICE
+  # ============================================
+
+  /moderator/my-projects:
+    get:
+      tags:
+        - Moderator
+      summary: Get my assigned projects
+      description: |
+        Get a list of all projects assigned to the logged-in moderator.
+        Moderators can only see projects they are assigned to.
+
+        **Moderator Capabilities:**
+        - View all project details (excluding pricing/estimates)
+        - View all milestones in assigned projects
+        - Manage milestones using `/projects/{id}/milestones` endpoints
+        - Approve/disapprove milestones
+        - View assigned freelancers and client information
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Page number
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+          description: Items per page
+      responses:
+        "200":
+          description: Projects retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  status:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      projects:
+                        type: array
+                        items:
+                          type: object
+                          description: Project with details, milestones, freelancers (pricing excluded)
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /moderator/projects/{projectId}:
+    get:
+      tags:
+        - Moderator
+      summary: Get project details
+      description: |
+        Get detailed information about a specific project.
+        Moderator must be assigned to this project to view it.
+        Pricing/estimates are excluded from the response.
+
+        **Milestone Management:**
+        Moderators can manage milestones for their assigned projects using these endpoints:
+        - `POST /api/v1/projects/{id}/milestones` - Add new milestone
+        - `PATCH /api/v1/projects/{id}/milestones/{milestoneId}` - Update milestone
+        - `DELETE /api/v1/projects/{id}/milestones/{milestoneId}` - Delete milestone
+        - `POST /api/v1/projects/{id}/milestones/{milestoneId}/approve` - Approve/disapprove milestone
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project ID
+      responses:
+        "200":
+          description: Project details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  status:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    description: Full project details (excluding pricing)
+        "404":
+          description: Project not found or you are not assigned as moderator
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# ============================================
+# COMPONENTS
+# ============================================
+
+components:
+  schemas:
+    Moderator:
+      type: object
+      properties:
+        uid:
+          type: string
+          description: User ID
+        username:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [MODERATOR]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ModeratorWithProjects:
+      allOf:
+        - $ref: "#/components/schemas/Moderator"
+        - type: object
+          properties:
+            moderatedProjects:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  createdAt:
+                    type: string
+                    format: date-time
+                  details:
+                    type: object
+                    properties:
+                      companyName:
+                        type: string
+
+    ModeratorDetailed:
+      allOf:
+        - $ref: "#/components/schemas/Moderator"
+        - type: object
+          properties:
+            phone:
+              type: string
+              nullable: true
+            moderatedProjects:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  createdAt:
+                    type: string
+                    format: date-time
+                  updatedAt:
+                    type: string
+                    format: date-time
+                  paymentStatus:
+                    type: string
+                  details:
+                    type: object
+                  milestones:
+                    type: array
+                    items:
+                      type: object
+                  selectedFreelancers:
+                    type: array
+                    items:
+                      type: object
+
+    Pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: Total number of items
+        page:
+          type: integer
+          description: Current page number
+        limit:
+          type: integer
+          description: Items per page
+        totalPages:
+          type: integer
+          description: Total number of pages
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: token
+
+  responses:
+    UnauthorizedError:
+      description: Unauthorized - Invalid or missing token
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: "Unauthorized"
+
+    ForbiddenError:
+      description: Forbidden - Insufficient permissions
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: "You don't have permission to perform this action"
+
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: "Resource not found"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: "Internal server error"

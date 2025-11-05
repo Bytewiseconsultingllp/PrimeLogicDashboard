@@ -1,0 +1,430 @@
+paths:
+  /health/:
+    get:
+      tags:
+        - Health
+      summary: Health check endpoint
+      description: Check if the API server is running properly (Development only)
+      responses:
+        "200":
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Server is healthy
+                  data:
+                    type: object
+                    properties:
+                      uptime:
+                        type: number
+                        example: 1234.567
+                      timestamp:
+                        type: string
+                        format: date-time
+                      environment:
+                        type: string
+                        example: development
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /contactUs/createMessage:
+    post:
+      tags:
+        - Contact
+      summary: Create a contact message
+      description: Submit a contact form message (Rate limited - 5 requests per minute)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactMessage"
+      responses:
+        "201":
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /contactUs/getAllMessages:
+    get:
+      tags:
+        - Contact
+      summary: Get all contact messages
+      description: Retrieve all contact form submissions (Admin/Moderator only)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      messages:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                            name:
+                              type: string
+                            email:
+                              type: string
+                            subject:
+                              type: string
+                            message:
+                              type: string
+                            createdAt:
+                              type: string
+                              format: date-time
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /consultation/requestAConsultation:
+    post:
+      tags:
+        - Consultation
+      summary: Request a consultation booking
+      description: Book a consultation session (Rate limited - 10 requests per 8 hours)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsultationBooking"
+      responses:
+        "201":
+          description: Consultation request created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /consultation/getAllRequestedConsultations:
+    get:
+      tags:
+        - Consultation
+      summary: Get all consultation requests
+      description: Retrieve all consultation bookings (Admin/Moderator only)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Consultation requests retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      consultations:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ConsultationBooking"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /consultation/acceptRequestedConsultation/{id}:
+    patch:
+      tags:
+        - Consultation
+      summary: Accept a consultation booking
+      description: Accept a consultation request (Admin/Moderator)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Consultation accepted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /consultation/rejectRequestedConsultation/{id}:
+    patch:
+      tags:
+        - Consultation
+      summary: Reject a consultation booking
+      description: Reject a consultation request (Admin/Moderator)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Consultation rejected successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /newsletter/subscribeToNewsLetter:
+    post:
+      tags:
+        - Newsletter
+      summary: Subscribe to newsletter
+      description: Subscribe user to newsletter
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: john.doe@example.com
+      responses:
+        "200":
+          description: Subscribed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /newsletter/unSubscribeToNewsLetter:
+    post:
+      tags:
+        - Newsletter
+      summary: Unsubscribe from newsletter
+      description: Unsubscribe user from newsletter
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: john.doe@example.com
+      responses:
+        "200":
+          description: Unsubscribed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /visitors/:
+    post:
+      tags:
+        - Visitors
+      summary: Create a visitor record
+      description: Track a business visitor to the platform with their details
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fullName
+                - businessEmail
+                - businessAddress
+                - businessType
+                - referralSource
+              properties:
+                fullName:
+                  type: string
+                  example: John Doe
+                  minLength: 2
+                  maxLength: 100
+                  description: Visitor's full name (2-100 characters)
+                businessEmail:
+                  type: string
+                  format: email
+                  example: john.doe@company.com
+                  minLength: 3
+                  maxLength: 150
+                  description: Business email address
+                phoneNumber:
+                  type: string
+                  example: "+1234567890"
+                  minLength: 10
+                  maxLength: 20
+                  description: Phone number (optional, 10-20 characters)
+                companyName:
+                  type: string
+                  example: Acme Corporation
+                  minLength: 2
+                  maxLength: 100
+                  description: Company name (optional, 2-100 characters)
+                companyWebsite:
+                  type: string
+                  format: uri
+                  example: https://www.acme.com
+                  minLength: 3
+                  maxLength: 200
+                  description: Company website URL (optional)
+                businessAddress:
+                  type: string
+                  example: 123 Business Street, New York, NY 10001
+                  minLength: 5
+                  maxLength: 500
+                  description: Business address (5-500 characters)
+                businessType:
+                  type: string
+                  example: Technology
+                  minLength: 2
+                  maxLength: 100
+                  description: Type of business (2-100 characters)
+                referralSource:
+                  type: string
+                  example: Google Search
+                  minLength: 2
+                  maxLength: 100
+                  description: How they found out about the platform (2-100 characters)
+      responses:
+        "201":
+          description: Visitor record created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    get:
+      tags:
+        - Visitors
+      summary: Get all visitors
+      description: Retrieve all visitor records (Authenticated users)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Visitors retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      visitors:
+                        type: array
+                        items:
+                          type: object
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"

@@ -106,30 +106,38 @@ export default function BlogsPage() {
 
   // Handle delete blog
   const handleDeleteBlog = async (blogSlug: string, blogId: number) => {
+    if (!confirm("Are you sure you want to delete this blog? This action cannot be undone.")) {
+      return
+    }
+
     try {
       const response = await deleteABlog(blogSlug)
-      if (response.status === 200) {
+      console.log("Delete response:", response)
+      
+      if (response && (response.status === 200 || response.success)) {
         toast.success("Blog deleted successfully")
-      }
-
-      // Update local state after successful deletion
-      if (blogsData) {
-        const updatedBlogs = blogsData.data.blogs.filter((blog) => blog.blogId !== blogId)
-        setBlogsData({
-          ...blogsData,
-          data: {
-            ...blogsData.data,
-            blogs: updatedBlogs,
-            pagination: {
-              ...blogsData.data.pagination,
-              totalBlogs: blogsData.data.pagination.totalBlogs - 1,
+        
+        // Update local state after successful deletion
+        if (blogsData) {
+          const updatedBlogs = blogsData.data.blogs.filter((blog) => blog.blogId !== blogId)
+          setBlogsData({
+            ...blogsData,
+            data: {
+              ...blogsData.data,
+              blogs: updatedBlogs,
+              pagination: {
+                ...blogsData.data.pagination,
+                totalBlogs: blogsData.data.pagination.totalBlogs - 1,
+              },
             },
-          },
-        })
+          })
+        }
+      } else {
+        throw new Error("Delete operation failed")
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting blog:", error)
-      toast.error("Failed to delete blog")
+      toast.error(error?.message || "Failed to delete blog")
     }
   }
 
@@ -137,27 +145,32 @@ export default function BlogsPage() {
   const handleVisibilityToggle = async (blog: Blog) => {
     try {
       const newVisibility = !blog.isPublished
-      await updateBlogVisibility(blog.blogSlug, newVisibility)
+      const response = await updateBlogVisibility(blog.blogSlug, newVisibility)
+      console.log("Visibility toggle response:", response)
 
-      // Update local state after successful update
-      if (blogsData) {
-        const updatedBlogs = blogsData.data.blogs.map((b) =>
-          b.blogId === blog.blogId ? { ...b, isPublished: newVisibility } : b,
-        )
+      if (response && (response.status === 200 || response.success)) {
+        // Update local state after successful update
+        if (blogsData) {
+          const updatedBlogs = blogsData.data.blogs.map((b) =>
+            b.blogId === blog.blogId ? { ...b, isPublished: newVisibility } : b,
+          )
 
-        setBlogsData({
-          ...blogsData,
-          data: {
-            ...blogsData.data,
-            blogs: updatedBlogs,
-          },
-        })
+          setBlogsData({
+            ...blogsData,
+            data: {
+              ...blogsData.data,
+              blogs: updatedBlogs,
+            },
+          })
+        }
+
+        toast.success(`Blog is now ${newVisibility ? "public" : "private"}`)
+      } else {
+        throw new Error("Visibility update failed")
       }
-
-      toast.success(`Blog is now ${newVisibility ? "public" : "private"}`)
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating blog visibility:", error)
-      toast.error("Failed to change the status of the blog")
+      toast.error(error?.message || "Failed to change the status of the blog")
     }
   }
 

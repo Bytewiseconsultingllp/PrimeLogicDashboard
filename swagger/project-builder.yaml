@@ -1,0 +1,813 @@
+paths:
+  /project-builder/:
+    post:
+      tags:
+        - Project Builder
+      summary: Create a project builder
+      description: Create a new project builder entry (Authenticated users)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - projectName
+                - projectDescription
+                - projectType
+                - technologies
+                - features
+                - clientName
+                - clientEmail
+              properties:
+                projectName:
+                  type: string
+                  example: Mobile App Development
+                  minLength: 3
+                  maxLength: 150
+                  description: Name of the project (3-150 characters)
+                projectDescription:
+                  type: string
+                  example: Need a mobile app for iOS and Android with user authentication, payment integration, and real-time notifications
+                  minLength: 10
+                  maxLength: 2000
+                  description: Detailed project description (10-2000 characters)
+                projectType:
+                  type: string
+                  example: Mobile Application
+                  minLength: 3
+                  maxLength: 100
+                  description: Type of project (e.g., Web App, Mobile App, API, etc.)
+                technologies:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - "React Native"
+                    - "Node.js"
+                    - "MongoDB"
+                    - "Firebase"
+                  minItems: 1
+                  maxItems: 20
+                  description: Required technologies (1-20 items)
+                features:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - "User authentication"
+                    - "Payment gateway integration"
+                    - "Push notifications"
+                    - "Real-time chat"
+                  minItems: 1
+                  maxItems: 30
+                  description: Project features (1-30 items)
+                clientName:
+                  type: string
+                  example: John Doe
+                  minLength: 3
+                  maxLength: 100
+                  description: Client's full name
+                clientEmail:
+                  type: string
+                  format: email
+                  example: john.doe@example.com
+                  minLength: 3
+                  maxLength: 150
+                  description: Client's email address
+                clientPhone:
+                  type: string
+                  example: "+1234567890"
+                  minLength: 10
+                  maxLength: 20
+                  description: Client's phone number (optional)
+                clientCompany:
+                  type: string
+                  example: Acme Corporation
+                  minLength: 2
+                  maxLength: 100
+                  description: Client's company name (optional)
+                budget:
+                  type: number
+                  example: 10000
+                  minimum: 0
+                  description: Project budget (optional)
+                timeline:
+                  type: string
+                  example: "3 months"
+                  minLength: 1
+                  maxLength: 100
+                  description: Expected timeline (optional)
+                priority:
+                  type: string
+                  enum: [LOW, MEDIUM, HIGH, URGENT]
+                  example: MEDIUM
+                  default: MEDIUM
+                  description: Project priority (optional, defaults to MEDIUM)
+                status:
+                  type: string
+                  enum:
+                    [
+                      DRAFT,
+                      SUBMITTED,
+                      IN_REVIEW,
+                      APPROVED,
+                      REJECTED,
+                      IN_PROGRESS,
+                      COMPLETED,
+                    ]
+                  example: DRAFT
+                  default: DRAFT
+                  description: Project status (optional, defaults to DRAFT)
+                additionalNotes:
+                  type: string
+                  example: Please prioritize security features and scalability
+                  maxLength: 1000
+                  description: Any additional notes or requirements (optional)
+      responses:
+        "201":
+          description: Project builder created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Project builder created successfully
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      title:
+                        type: string
+                      description:
+                        type: string
+                      budget:
+                        type: number
+                      status:
+                        type: string
+                        enum:
+                          [DRAFT, PUBLISHED, IN_PROGRESS, COMPLETED, CANCELLED]
+                        example: DRAFT
+                      createdAt:
+                        type: string
+                        format: date-time
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    get:
+      tags:
+        - Project Builder
+      summary: Get all project builders
+      description: Retrieve all project builders (Authenticated users)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              [
+                DRAFT,
+                SUBMITTED,
+                IN_REVIEW,
+                APPROVED,
+                REJECTED,
+                IN_PROGRESS,
+                COMPLETED,
+              ]
+          description: Filter by project status
+        - name: priority
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [LOW, MEDIUM, HIGH, URGENT]
+          description: Filter by project priority
+      responses:
+        "200":
+          description: Project builders retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      projectBuilders:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                            projectName:
+                              type: string
+                            projectDescription:
+                              type: string
+                            projectType:
+                              type: string
+                            technologies:
+                              type: array
+                              items:
+                                type: string
+                            features:
+                              type: array
+                              items:
+                                type: string
+                            budget:
+                              type: number
+                              nullable: true
+                            timeline:
+                              type: string
+                              nullable: true
+                            priority:
+                              type: string
+                              enum: [LOW, MEDIUM, HIGH, URGENT]
+                            status:
+                              type: string
+                            clientName:
+                              type: string
+                            clientEmail:
+                              type: string
+                            clientPhone:
+                              type: string
+                              nullable: true
+                            clientCompany:
+                              type: string
+                              nullable: true
+                            additionalNotes:
+                              type: string
+                              nullable: true
+                            createdAt:
+                              type: string
+                              format: date-time
+                            updatedAt:
+                              type: string
+                              format: date-time
+                            interestedFreelancers:
+                              type: array
+                              items:
+                                type: object
+                            selectedFreelancers:
+                              type: array
+                              items:
+                                type: object
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /project-builder/{id}:
+    get:
+      tags:
+        - Project Builder
+      summary: Get single project builder
+      description: Retrieve a specific project builder by ID (Authenticated users)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project Builder ID
+      responses:
+        "200":
+          description: Project builder retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      projectName:
+                        type: string
+                      projectDescription:
+                        type: string
+                      projectType:
+                        type: string
+                      technologies:
+                        type: array
+                        items:
+                          type: string
+                      features:
+                        type: array
+                        items:
+                          type: string
+                      budget:
+                        type: number
+                        nullable: true
+                      timeline:
+                        type: string
+                        nullable: true
+                      priority:
+                        type: string
+                        enum: [LOW, MEDIUM, HIGH, URGENT]
+                      status:
+                        type: string
+                        enum:
+                          [
+                            DRAFT,
+                            SUBMITTED,
+                            IN_REVIEW,
+                            APPROVED,
+                            REJECTED,
+                            IN_PROGRESS,
+                            COMPLETED,
+                          ]
+                      clientName:
+                        type: string
+                      clientEmail:
+                        type: string
+                      clientPhone:
+                        type: string
+                        nullable: true
+                      clientCompany:
+                        type: string
+                        nullable: true
+                      additionalNotes:
+                        type: string
+                        nullable: true
+                      interestedFreelancers:
+                        type: array
+                        items:
+                          type: object
+                      selectedFreelancers:
+                        type: array
+                        items:
+                          type: object
+                      createdAt:
+                        type: string
+                        format: date-time
+                      updatedAt:
+                        type: string
+                        format: date-time
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    put:
+      tags:
+        - Project Builder
+      summary: Update project builder
+      description: Update an existing project builder (Authenticated users)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project Builder ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                projectName:
+                  type: string
+                  example: Updated Mobile App Development
+                  minLength: 3
+                  maxLength: 150
+                projectDescription:
+                  type: string
+                  example: Updated description with more details about the project requirements
+                  minLength: 10
+                  maxLength: 2000
+                projectType:
+                  type: string
+                  example: Mobile Application
+                  minLength: 3
+                  maxLength: 100
+                technologies:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - "React Native"
+                    - "Node.js"
+                    - "PostgreSQL"
+                  minItems: 1
+                  maxItems: 20
+                features:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - "User authentication"
+                    - "Payment integration"
+                  minItems: 1
+                  maxItems: 30
+                clientName:
+                  type: string
+                  example: Jane Smith
+                  minLength: 3
+                  maxLength: 100
+                clientEmail:
+                  type: string
+                  format: email
+                  example: jane.smith@example.com
+                clientPhone:
+                  type: string
+                  example: "+1234567890"
+                clientCompany:
+                  type: string
+                  example: Tech Solutions Inc
+                budget:
+                  type: number
+                  example: 12000
+                timeline:
+                  type: string
+                  example: "4 months"
+                priority:
+                  type: string
+                  enum: [LOW, MEDIUM, HIGH, URGENT]
+                  example: HIGH
+                status:
+                  type: string
+                  enum:
+                    [
+                      DRAFT,
+                      SUBMITTED,
+                      IN_REVIEW,
+                      APPROVED,
+                      REJECTED,
+                      IN_PROGRESS,
+                      COMPLETED,
+                    ]
+                  example: IN_PROGRESS
+                additionalNotes:
+                  type: string
+                  example: Please ensure all security best practices are followed
+      responses:
+        "200":
+          description: Project builder updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Project builder updated successfully
+                  data:
+                    type: object
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    delete:
+      tags:
+        - Project Builder
+      summary: Delete project builder (soft delete)
+      description: Soft delete a project builder (Authenticated users)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project Builder ID
+      responses:
+        "200":
+          description: Project builder deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /project-builder/{id}/freelancers:
+    get:
+      tags:
+        - Project Builder
+      summary: Get project builder with freelancers
+      description: Retrieve project builder along with interested and selected freelancers (Authenticated users)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project Builder ID
+      responses:
+        "200":
+          description: Project builder with freelancers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      projectBuilder:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          title:
+                            type: string
+                          description:
+                            type: string
+                          budget:
+                            type: number
+                      interestedFreelancers:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/FreelancerProfile"
+                      selectedFreelancers:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/FreelancerProfile"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /project-builder/{id}/interested-freelancers:
+    post:
+      tags:
+        - Project Builder
+      summary: Add interested freelancers
+      description: Add freelancers to the interested list (Authenticated users)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project Builder ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - interestedFreelancerIds
+              properties:
+                interestedFreelancerIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  example:
+                    - "123e4567-e89b-12d3-a456-426614174000"
+                    - "223e4567-e89b-12d3-a456-426614174001"
+                  minItems: 1
+                  description: Array of freelancer UIDs who are interested
+      responses:
+        "200":
+          description: Interested freelancers added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Interested freelancers added successfully
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    delete:
+      tags:
+        - Project Builder
+      summary: Remove interested freelancer
+      description: Remove a freelancer from the interested list (Authenticated users)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project Builder ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - freelancerUid
+              properties:
+                freelancerUid:
+                  type: string
+                  format: uuid
+                  example: "123e4567-e89b-12d3-a456-426614174000"
+                  description: Freelancer UID to remove from interested list
+      responses:
+        "200":
+          description: Interested freelancer removed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /project-builder/{id}/selected-freelancers:
+    post:
+      tags:
+        - Project Builder
+      summary: Select freelancers for project
+      description: Select freelancers to work on the project (Authenticated users)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project Builder ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - selectedFreelancerIds
+              properties:
+                selectedFreelancerIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  example:
+                    - "123e4567-e89b-12d3-a456-426614174000"
+                  minItems: 1
+                  description: Array of freelancer UIDs to select
+      responses:
+        "200":
+          description: Freelancers selected successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Freelancers selected successfully
+                  data:
+                    type: object
+                    properties:
+                      selectedCount:
+                        type: integer
+                        example: 1
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    delete:
+      tags:
+        - Project Builder
+      summary: Remove selected freelancer
+      description: Remove a freelancer from the selected list (Authenticated users)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project Builder ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - freelancerUid
+              properties:
+                freelancerUid:
+                  type: string
+                  format: uuid
+                  example: "123e4567-e89b-12d3-a456-426614174000"
+                  description: Freelancer UID to remove from selected list
+      responses:
+        "200":
+          description: Selected freelancer removed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"

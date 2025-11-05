@@ -1,0 +1,882 @@
+paths:
+  /projects/draft/create:
+    post:
+      tags:
+        - Client Project Draft
+      summary: Step 1 - Create project draft with business details
+      description: |
+        First step for existing clients to create a new project. 
+        Personal details (fullName, businessEmail, phoneNumber) are auto-populated from the authenticated user's profile.
+        Client only needs to provide business-specific details.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - companyName
+                - businessType
+              properties:
+                companyName:
+                  type: string
+                  minLength: 2
+                  maxLength: 200
+                  example: Tech Innovations Inc
+                  description: Name of the company for this project
+                companyWebsite:
+                  type: string
+                  format: uri
+                  maxLength: 2048
+                  example: https://techinnovations.com
+                  description: Company website URL (optional)
+                businessAddress:
+                  type: string
+                  maxLength: 1000
+                  example: 123 Tech Street, San Francisco, CA 94102
+                  description: Business address for this project (optional)
+                businessType:
+                  type: string
+                  maxLength: 200
+                  example: STARTUP
+                  description: Type of business (STARTUP, SMB, ENTERPRISE, etc.)
+      responses:
+        "200":
+          description: Draft created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+              example:
+                success: true
+                message: Project draft created successfully. Proceed to add services.
+                data:
+                  id: "draft-uuid-123"
+                  clientId: "client-uuid-456"
+                  isFinalized: false
+                  details:
+                    fullName: "John Smith"
+                    businessEmail: "john@example.com"
+                    phoneNumber: "+1234567890"
+                    companyName: "Tech Innovations Inc"
+                    companyWebsite: "https://techinnovations.com"
+                    businessAddress: "123 Tech Street, San Francisco, CA 94102"
+                    businessType: "STARTUP"
+                  createdAt: "2025-11-04T12:00:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /projects/draft/my-drafts:
+    get:
+      tags:
+        - Client Project Draft
+      summary: Get all drafts for authenticated client
+      description: Retrieve all project drafts (both in-progress and finalized) for the authenticated client
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Drafts retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+              example:
+                success: true
+                message: Drafts retrieved successfully
+                data:
+                  - id: "draft-uuid-123"
+                    clientId: "client-uuid-456"
+                    isFinalized: false
+                    details:
+                      companyName: "Tech Innovations Inc"
+                    estimate:
+                      estimateFinalPriceMin: 8100.00
+                      estimateFinalPriceMax: 9900.00
+                      estimateAccepted: false
+                    createdAt: "2025-11-04T12:00:00.000Z"
+                  - id: "draft-uuid-789"
+                    clientId: "client-uuid-456"
+                    isFinalized: true
+                    finalizedAt: "2025-11-03T10:00:00.000Z"
+                    projectId: "project-uuid-111"
+                    createdAt: "2025-11-03T08:00:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /projects/draft/{draftId}:
+    get:
+      tags:
+        - Client Project Draft
+      summary: Get single draft by ID
+      description: Retrieve detailed information about a specific draft
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Draft ID
+      responses:
+        "200":
+          description: Draft retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+              example:
+                success: true
+                message: Draft retrieved successfully
+                data:
+                  id: "draft-uuid-123"
+                  clientId: "client-uuid-456"
+                  isFinalized: false
+                  details:
+                    fullName: "John Smith"
+                    businessEmail: "john@example.com"
+                    companyName: "Tech Innovations Inc"
+                  services: []
+                  industries: []
+                  technologies: []
+                  features: []
+                  discount: null
+                  timeline: null
+                  estimate: null
+                  serviceAgreement: null
+                  createdAt: "2025-11-04T12:00:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Draft not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    delete:
+      tags:
+        - Client Project Draft
+      summary: Delete a draft
+      description: Soft delete a draft (cannot delete finalized drafts)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Draft ID to delete
+      responses:
+        "200":
+          description: Draft deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+              example:
+                success: true
+                message: Draft deleted successfully
+                data:
+                  success: true
+                  message: "Draft deleted successfully"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Draft not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "400":
+          description: Cannot delete finalized draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /projects/draft/{draftId}/services:
+    post:
+      tags:
+        - Client Project Draft
+      summary: Step 2 - Add services to draft
+      description: Add service selections to the draft
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Draft ID from step 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - services
+              properties:
+                services:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required:
+                      - name
+                      - childServices
+                    properties:
+                      name:
+                        type: string
+                        enum:
+                          - SOFTWARE_DEVELOPMENT
+                          - DATA_AND_ANALYTICS
+                          - CLOUD_AND_DEVOPS
+                          - EMERGING_TECHNOLOGIES
+                          - CREATIVE_AND_DESIGN
+                          - DIGITAL_MARKETING
+                        description: High-level service category
+                      childServices:
+                        type: array
+                        items:
+                          type: string
+                        description: Array of specific services under this category
+            example:
+              services:
+                - name: SOFTWARE_DEVELOPMENT
+                  childServices:
+                    - "Web Development"
+                    - "Mobile Applications"
+                    - "API Development"
+                - name: CREATIVE_AND_DESIGN
+                  childServices:
+                    - "UI/UX Design"
+                    - "Brand Identity"
+      responses:
+        "200":
+          description: Services added successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+              example:
+                success: true
+                message: Services added successfully. Proceed to add industries.
+                data:
+                  id: "draft-uuid-123"
+                  services:
+                    - name: SOFTWARE_DEVELOPMENT
+                      childServices:
+                        - "Web Development"
+                        - "Mobile Applications"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Draft not found
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /projects/draft/{draftId}/industries:
+    post:
+      tags:
+        - Client Project Draft
+      summary: Step 3 - Add industries to draft
+      description: Add industry selections to the draft
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Draft ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - industries
+              properties:
+                industries:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required:
+                      - category
+                      - subIndustries
+                    properties:
+                      category:
+                        type: string
+                        enum:
+                          - HEALTHCARE_AND_LIFE_SCIENCES
+                          - FINANCIAL_SERVICES
+                          - RETAIL_AND_ECOMMERCE
+                          - MANUFACTURING
+                          - EDUCATION
+                          - GOVERNMENT_AND_PUBLIC_SECTOR
+                      subIndustries:
+                        type: array
+                        items:
+                          type: string
+            example:
+              industries:
+                - category: FINANCIAL_SERVICES
+                  subIndustries:
+                    - BANKING
+                    - PAYMENTS
+      responses:
+        "200":
+          description: Industries added successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Draft not found
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /projects/draft/{draftId}/technologies:
+    post:
+      tags:
+        - Client Project Draft
+      summary: Step 4 - Add technologies to draft
+      description: Add technology selections to the draft
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Draft ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - technologies
+              properties:
+                technologies:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required:
+                      - category
+                      - technologies
+                    properties:
+                      category:
+                        type: string
+                        enum:
+                          - FRONTEND
+                          - BACKEND
+                          - DATABASE
+                          - AI_AND_DATA_SCIENCE
+                          - DEVOPS_AND_INFRASTRUCTURE
+                          - MOBILE
+                      technologies:
+                        type: array
+                        minItems: 1
+                        items:
+                          type: string
+            example:
+              technologies:
+                - category: FRONTEND
+                  technologies:
+                    - REACT
+                    - NEXT_JS
+                - category: BACKEND
+                  technologies:
+                    - NODE_JS
+                    - PYTHON_DJANGO
+      responses:
+        "200":
+          description: Technologies added successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Draft not found
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /projects/draft/{draftId}/features:
+    post:
+      tags:
+        - Client Project Draft
+      summary: Step 5 - Add features to draft
+      description: Add feature selections to the draft
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Draft ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - features
+              properties:
+                features:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required:
+                      - category
+                      - features
+                    properties:
+                      category:
+                        type: string
+                        enum:
+                          - USER_MANAGEMENT
+                          - CONTENT_MANAGEMENT
+                          - ECOMMERCE
+                          - ANALYTICS_AND_REPORTING
+                          - COMMUNICATION
+                          - INTEGRATION_AND_API
+                      features:
+                        type: array
+                        minItems: 1
+                        items:
+                          type: string
+            example:
+              features:
+                - category: USER_MANAGEMENT
+                  features:
+                    - AUTHENTICATION
+                    - ROLE_BASED_ACCESS_CONTROL
+                - category: ECOMMERCE
+                  features:
+                    - SHOPPING_CART
+                    - PAYMENT_PROCESSING
+      responses:
+        "200":
+          description: Features added successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Draft not found
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /projects/draft/{draftId}/discount:
+    post:
+      tags:
+        - Client Project Draft
+      summary: Step 6 - Add discount to draft
+      description: Add discount eligibility to the draft
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Draft ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - percent
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - STARTUP_FOUNDER
+                    - VETERAN_OWNED_BUSINESS
+                    - NONPROFIT_ORGANIZATION
+                    - NOT_ELIGIBLE
+                  description: Discount eligibility type
+                percent:
+                  type: number
+                  minimum: 0
+                  maximum: 100
+                  description: Discount percentage (0-100)
+                notes:
+                  type: string
+                  maxLength: 500
+                  description: Additional notes (optional)
+            example:
+              type: STARTUP_FOUNDER
+              percent: 10
+              notes: "Y Combinator S21"
+      responses:
+        "200":
+          description: Discount added successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Draft not found
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /projects/draft/{draftId}/timeline:
+    post:
+      tags:
+        - Client Project Draft
+      summary: Step 7 - Add timeline to draft (Auto-calculates estimate)
+      description: |
+        Add timeline selection to the draft.
+        **Important:** This step automatically calculates and saves the project estimate based on:
+        - Selected services
+        - Selected technologies
+        - Selected features
+        - Discount percentage
+        - Timeline option (rush fee)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Draft ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - option
+                - rushFeePercent
+                - estimatedDays
+              properties:
+                option:
+                  type: string
+                  enum:
+                    - STANDARD_BUILD
+                    - PRIORITY_BUILD
+                    - ACCELERATED_BUILD
+                    - RAPID_BUILD
+                    - FAST_TRACK_BUILD
+                  description: Timeline option
+                rushFeePercent:
+                  type: number
+                  minimum: 0
+                  maximum: 100
+                  description: Rush fee percentage (0-100)
+                estimatedDays:
+                  type: number
+                  minimum: 1
+                  description: Estimated days for completion
+                description:
+                  type: string
+                  maxLength: 500
+                  description: Additional timeline notes (optional)
+            example:
+              option: PRIORITY_BUILD
+              rushFeePercent: 5
+              estimatedDays: 45
+              description: "Prefer to launch before Q4"
+      responses:
+        "200":
+          description: Timeline added and estimate calculated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+              example:
+                success: true
+                message: Timeline added successfully. Estimate has been calculated. Please review and accept.
+                data:
+                  id: "draft-uuid-123"
+                  timeline:
+                    option: PRIORITY_BUILD
+                    rushFeePercent: 5
+                    estimatedDays: 45
+                  estimate:
+                    baseCost: 10000.00
+                    discountAmount: 1000.00
+                    rushFeeAmount: 450.00
+                    calculatedTotal: 9450.00
+                    estimateFinalPriceMin: 8505.00
+                    estimateFinalPriceMax: 10395.00
+                    estimateAccepted: false
+                    isManuallyAdjusted: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Draft not found
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /projects/draft/{draftId}/estimate:
+    get:
+      tags:
+        - Client Project Draft
+      summary: Get draft estimate details
+      description: Retrieve the calculated estimate for a draft (available after Step 7)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Draft ID
+      responses:
+        "200":
+          description: Estimate retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+              example:
+                success: true
+                message: Estimate retrieved successfully
+                data:
+                  id: "estimate-uuid-123"
+                  draftId: "draft-uuid-123"
+                  estimateAccepted: false
+                  estimateFinalPriceMin: 8505.00
+                  estimateFinalPriceMax: 10395.00
+                  isManuallyAdjusted: false
+                  baseCost: 10000.00
+                  discountAmount: 1000.00
+                  rushFeeAmount: 450.00
+                  calculatedTotal: 9450.00
+                  calculatedAt: "2025-11-04T12:30:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Draft or estimate not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /projects/draft/{draftId}/estimate/accept:
+    post:
+      tags:
+        - Client Project Draft
+      summary: Accept draft estimate
+      description: Accept the calculated estimate (required before proceeding to service agreement)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Draft ID
+      responses:
+        "200":
+          description: Estimate accepted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+              example:
+                success: true
+                message: Estimate accepted successfully. Proceed to accept service agreement.
+                data:
+                  id: "estimate-uuid-123"
+                  estimateAccepted: true
+                  estimateFinalPriceMin: 8505.00
+                  estimateFinalPriceMax: 10395.00
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Draft not found
+        "400":
+          description: Cannot modify finalized draft
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /projects/draft/{draftId}/service-agreement:
+    post:
+      tags:
+        - Client Project Draft
+      summary: Step 8 - Generate and accept service agreement
+      description: |
+        **Automatically generates** a custom PDF service agreement for this draft and sends it via email.
+
+        This endpoint:
+        - Generates a PDF with the project's specific pricing and terms
+        - Uploads the PDF to Cloudinary
+        - Emails a copy to the client
+        - Stores the agreement URL in the draft
+
+        **Prerequisite:** Estimate must be accepted before this step.
+
+        **No request body needed** - everything is auto-generated based on the draft data.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Draft ID
+      responses:
+        "200":
+          description: Service agreement generated and accepted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+              example:
+                success: true
+                message: Service agreement generated and accepted successfully. PDF sent to your email. You can now finalize your project.
+                data:
+                  draft:
+                    id: "draft-uuid-123"
+                    serviceAgreement:
+                      documentUrl: "https://res.cloudinary.com/primelogicsol/service-agreement-xyz.pdf"
+                      agreementVersion: "1.0"
+                      accepted: true
+                      acceptedAt: "2025-11-04T13:00:00.000Z"
+                  documentUrl: "https://res.cloudinary.com/primelogicsol/service-agreement-xyz.pdf"
+                  agreementVersion: "1.0"
+                  pdfBase64: "JVBERi0xLjQKJeLjz9M..."
+                  fileName: "service-agreement-client-2025-11-04.pdf"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Draft not found
+        "400":
+          description: Estimate must be accepted first or draft already finalized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                message: "Estimate must be accepted before accepting service agreement"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /projects/draft/{draftId}/finalize:
+    post:
+      tags:
+        - Client Project Draft
+      summary: Finalize draft and create actual project
+      description: |
+        Convert the completed draft into an active project.
+        **Prerequisites:**
+        - All 8 steps must be completed
+        - Estimate must be accepted
+        - Service agreement must be accepted
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Draft ID
+      responses:
+        "200":
+          description: Project created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Success"
+              example:
+                success: true
+                message: "Project created successfully! Your project is now active."
+                data:
+                  id: "project-uuid-789"
+                  clientId: "client-uuid-456"
+                  details:
+                    fullName: "John Smith"
+                    businessEmail: "john@example.com"
+                    companyName: "Tech Innovations Inc"
+                  services:
+                    - name: SOFTWARE_DEVELOPMENT
+                      childServices:
+                        - "Web Development"
+                  estimate:
+                    estimateAccepted: true
+                    estimateFinalPriceMin: 8505.00
+                    estimateFinalPriceMax: 10395.00
+                  paymentStatus: PENDING
+                  createdAt: "2025-11-04T13:10:00.000Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Draft not found
+        "400":
+          description: Missing required steps or draft already finalized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                success: false
+                message: "Estimate must be accepted before finalizing"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
