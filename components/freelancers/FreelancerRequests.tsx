@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Search, Eye, CheckCircle, XCircle, Loader2, User, Mail, MapPin, Clock, Briefcase, Award, Globe } from "lucide-react"
+import { Search, Eye, CheckCircle, XCircle, Loader2, User, Mail, MapPin, Clock, Briefcase, Award, Globe, RefreshCw } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -114,33 +114,153 @@ export default function FreelancerRequests() {
       const token = userDetails?.accessToken
 
       if (!token) {
-        toast.error("Authentication required")
+        console.error("❌ No access token found")
+        toast.error("Authentication required. Please login again.")
         return
       }
 
-      // Using the new admin API endpoint for freelancers with PENDING_REVIEW status
-      console.log("🔄 Fetching freelancer requests with API:", `${process.env.NEXT_PUBLIC_PLS}/admin/freelancers?status=PENDING_REVIEW&page=1&limit=100`)
-      const response = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/freelancers?status=PENDING_REVIEW&page=1&limit=100`, {
+      // Using the correct admin API endpoint for freelancers with PENDING_REVIEW status
+      const apiUrl = `${process.env.NEXT_PUBLIC_PLS}/admin/freelancers?status=PENDING_REVIEW&page=1&limit=100`
+      console.log("🔄 Fetching freelancer requests:")
+      console.log("   API URL:", apiUrl)
+      console.log("   Token present:", !!token)
+      console.log("   Token preview:", token ? `${token.substring(0, 20)}...` : "None")
+      
+      const response = await fetch(apiUrl, {
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json"
         }
       })
+      
+      console.log("📡 API Response:")
+      console.log("   Status:", response.status)
+      console.log("   Status Text:", response.statusText)
+      console.log("   Headers:", Object.fromEntries(response.headers.entries()))
 
       if (response.ok) {
         const data = await response.json()
-        console.log("✅ Freelancer requests:", data)
-        setFreelancers(data.data?.freelancers || [])
-        setFilteredFreelancers(data.data?.freelancers || [])
-        toast.success(`Loaded ${data.data?.freelancers?.length || 0} pending requests`)
+        console.log("✅ Freelancer requests response:", data)
+        
+        // Handle different possible API response structures
+        let freelancersList: any[] = []
+        
+        if (Array.isArray(data)) {
+          // Direct array response
+          freelancersList = data
+        } else if (data.data) {
+          if (Array.isArray(data.data)) {
+            // data.data is array
+            freelancersList = data.data
+          } else if (data.data.freelancers && Array.isArray(data.data.freelancers)) {
+            // data.data.freelancers is array
+            freelancersList = data.data.freelancers
+          } else if (data.data.items && Array.isArray(data.data.items)) {
+            // data.data.items is array (pagination structure)
+            freelancersList = data.data.items
+          }
+        } else if (data.freelancers && Array.isArray(data.freelancers)) {
+          // data.freelancers is array
+          freelancersList = data.freelancers
+        }
+        
+        console.log("📋 Extracted freelancers list:", freelancersList)
+        console.log("📋 Number of freelancers from API:", freelancersList.length)
+        
+        // Log first freelancer structure for debugging
+        if (freelancersList.length > 0) {
+          console.log("📋 First freelancer structure:", JSON.stringify(freelancersList[0], null, 2))
+        }
+        
+        // Transform and filter the API data to match our interface
+        // Only include freelancers with PENDING_REVIEW status and valid data
+        const transformedFreelancers = freelancersList
+          .filter((freelancer: any) => {
+            // Only include freelancers with PENDING_REVIEW status
+            const isPendingReview = freelancer.status === "PENDING_REVIEW"
+            
+            // Check if freelancer has valid details
+            const details = freelancer.details
+            const hasValidDetails = details && details.fullName && details.email
+            
+            if (!isPendingReview) {
+              console.log("🚫 Filtering out non-pending freelancer:", freelancer.status, freelancer.id)
+            }
+            
+            if (!hasValidDetails) {
+              console.log("🚫 Filtering out freelancer with invalid details:", freelancer.id)
+            }
+            
+            return isPendingReview && hasValidDetails
+          })
+          .map((freelancer: any) => {
+            // Extract details from the nested structure
+            const details = freelancer.details
+            
+            return {
+              id: freelancer.id,
+              status: freelancer.status,
+              userId: freelancer.userId,
+              createdAt: freelancer.createdAt,
+              updatedAt: freelancer.updatedAt,
+              reviewedBy: freelancer.reviewedBy,
+              reviewedAt: freelancer.reviewedAt,
+              rejectionReason: freelancer.rejectionReason,
+              details: {
+                fullName: details.fullName,
+                email: details.email,
+                country: details.country,
+                timeZone: details.timeZone,
+                primaryDomain: details.primaryDomain,
+                professionalLinks: details.professionalLinks || [],
+                eliteSkillCards: details.eliteSkillCards || [],
+                tools: details.tools || [],
+                selectedIndustries: details.selectedIndustries || [],
+                otherNote: details.otherNote || ""
+              },
+              domainExperiences: freelancer.domainExperiences || [],
+              availabilityWorkflow: freelancer.availabilityWorkflow,
+              softSkills: freelancer.softSkills,
+              certifications: freelancer.certifications || [],
+              projectBidding: freelancer.projectBidding,
+              user: freelancer.user
+            }
+          })
+        
+        console.log("✅ Transformed freelancers:", transformedFreelancers)
+        setFreelancers(transformedFreelancers)
+        setFilteredFreelancers(transformedFreelancers)
+        
+        if (transformedFreelancers.length === 0) {
+          toast.info("No pending freelancer requests found")
+        } else {
+          toast.success(`Loaded ${transformedFreelancers.length} pending requests`)
+        }
+      } else if (response.status === 401) {
+        console.error("❌ Authentication failed")
+        toast.error("Session expired. Please login again.")
+        // Clear any existing data
+        setFreelancers([])
+        setFilteredFreelancers([])
+      } else if (response.status === 403) {
+        console.error("❌ Access forbidden")
+        toast.error("You don't have permission to view freelancer requests.")
+        setFreelancers([])
+        setFilteredFreelancers([])
+      } else if (response.status === 404) {
+        console.error("❌ Endpoint not found")
+        toast.error("Freelancer requests endpoint not available.")
+        setFreelancers([])
+        setFilteredFreelancers([])
       } else {
         const errorData = await response.text()
-        console.error("❌ Failed to fetch freelancer requests:", errorData)
-        toast.error("Failed to load freelancer requests")
+        console.error("❌ Failed to fetch freelancer requests:", response.status, errorData)
+        toast.error(`Failed to load freelancer requests: ${response.status}`)
+        // Don't clear existing data on server errors, user might want to retry
       }
     } catch (error) {
-      console.error("Error fetching freelancer requests:", error)
-      toast.error("Failed to load freelancer requests")
+      console.error("❌ Error fetching freelancer requests:", error)
+      toast.error("Network error. Please check your connection.")
     } finally {
       setIsLoading(false)
     }
@@ -157,25 +277,39 @@ export default function FreelancerRequests() {
         return
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/freelancers/${freelancerId}/accept`, {
-        method: "PATCH",
+      console.log("🔄 Accepting freelancer:", freelancerId)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/freelancers/${freelancerId}/review`, {
+        method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json"
-        }
+        },
+        body: JSON.stringify({
+          action: "ACCEPT"
+        })
       })
 
       if (response.ok) {
+        const result = await response.json()
+        console.log("✅ Freelancer accepted:", result)
         toast.success("Freelancer accepted successfully")
         fetchFreelancerRequests() // Refresh the list
+      } else if (response.status === 401) {
+        toast.error("Session expired. Please login again.")
       } else {
-        const errorData = await response.text()
-        console.error("❌ Failed to accept freelancer:", errorData)
-        toast.error("Failed to accept freelancer")
+        try {
+          const errorData = await response.json()
+          console.error("❌ Failed to accept freelancer:", response.status, errorData)
+          toast.error(errorData.message || `Failed to accept freelancer: ${response.status}`)
+        } catch {
+          const errorText = await response.text()
+          console.error("❌ Failed to accept freelancer:", response.status, errorText)
+          toast.error(`Failed to accept freelancer: ${response.status}`)
+        }
       }
     } catch (error) {
-      console.error("Error accepting freelancer:", error)
-      toast.error("Failed to accept freelancer")
+      console.error("❌ Error accepting freelancer:", error)
+      toast.error("Network error. Please check your connection.")
     } finally {
       setActionLoading(null)
     }
@@ -192,28 +326,40 @@ export default function FreelancerRequests() {
         return
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/freelancers/${freelancerId}/reject`, {
-        method: "PATCH",
+      console.log("🔄 Rejecting freelancer:", freelancerId, "with reason:", reason)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/freelancers/${freelancerId}/review`, {
+        method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          rejectionReason: reason || "Profile does not meet requirements"
+          action: "REJECT",
+          reason: reason || "Profile does not meet requirements"
         })
       })
 
       if (response.ok) {
-        toast.success("Freelancer rejected")
+        const result = await response.json()
+        console.log("✅ Freelancer rejected:", result)
+        toast.success("Freelancer rejected successfully")
         fetchFreelancerRequests() // Refresh the list
+      } else if (response.status === 401) {
+        toast.error("Session expired. Please login again.")
       } else {
-        const errorData = await response.text()
-        console.error("❌ Failed to reject freelancer:", errorData)
-        toast.error("Failed to reject freelancer")
+        try {
+          const errorData = await response.json()
+          console.error("❌ Failed to reject freelancer:", response.status, errorData)
+          toast.error(errorData.message || `Failed to reject freelancer: ${response.status}`)
+        } catch {
+          const errorText = await response.text()
+          console.error("❌ Failed to reject freelancer:", response.status, errorText)
+          toast.error(`Failed to reject freelancer: ${response.status}`)
+        }
       }
     } catch (error) {
-      console.error("Error rejecting freelancer:", error)
-      toast.error("Failed to reject freelancer")
+      console.error("❌ Error rejecting freelancer:", error)
+      toast.error("Network error. Please check your connection.")
     } finally {
       setActionLoading(null)
     }
@@ -237,6 +383,151 @@ export default function FreelancerRequests() {
     }
   }
 
+  const getCountryName = (countryCode: string) => {
+    const countryMap: { [key: string]: string } = {
+      'IN': 'India',
+      'US': 'United States',
+      'GB': 'United Kingdom',
+      'CA': 'Canada',
+      'AU': 'Australia',
+      'DE': 'Germany',
+      'FR': 'France',
+      'JP': 'Japan',
+      'CN': 'China',
+      'BR': 'Brazil',
+      'MX': 'Mexico',
+      'IT': 'Italy',
+      'ES': 'Spain',
+      'RU': 'Russia',
+      'KR': 'South Korea',
+      'NL': 'Netherlands',
+      'SE': 'Sweden',
+      'NO': 'Norway',
+      'DK': 'Denmark',
+      'FI': 'Finland',
+      'PL': 'Poland',
+      'CZ': 'Czech Republic',
+      'HU': 'Hungary',
+      'GR': 'Greece',
+      'PT': 'Portugal',
+      'IE': 'Ireland',
+      'BE': 'Belgium',
+      'CH': 'Switzerland',
+      'AT': 'Austria',
+      'IL': 'Israel',
+      'TR': 'Turkey',
+      'SA': 'Saudi Arabia',
+      'AE': 'UAE',
+      'EG': 'Egypt',
+      'ZA': 'South Africa',
+      'NG': 'Nigeria',
+      'KE': 'Kenya',
+      'GH': 'Ghana',
+      'SG': 'Singapore',
+      'MY': 'Malaysia',
+      'TH': 'Thailand',
+      'ID': 'Indonesia',
+      'PH': 'Philippines',
+      'VN': 'Vietnam',
+      'BD': 'Bangladesh',
+      'PK': 'Pakistan',
+      'LK': 'Sri Lanka',
+      'NP': 'Nepal',
+      'AR': 'Argentina',
+      'CL': 'Chile',
+      'CO': 'Colombia',
+      'PE': 'Peru',
+      'VE': 'Venezuela',
+      'UY': 'Uruguay',
+      'EC': 'Ecuador',
+      'BO': 'Bolivia',
+      'PY': 'Paraguay',
+      'CR': 'Costa Rica',
+      'PA': 'Panama',
+      'GT': 'Guatemala',
+      'HN': 'Honduras',
+      'SV': 'El Salvador',
+      'NI': 'Nicaragua',
+      'DO': 'Dominican Republic',
+      'JM': 'Jamaica',
+      'TT': 'Trinidad and Tobago',
+      'BB': 'Barbados',
+      'BS': 'Bahamas',
+      'BZ': 'Belize',
+      'GY': 'Guyana',
+      'SR': 'Suriname',
+      'FK': 'Falkland Islands',
+      'GF': 'French Guiana',
+      'UZ': 'Uzbekistan',
+      'KZ': 'Kazakhstan',
+      'KG': 'Kyrgyzstan',
+      'TJ': 'Tajikistan',
+      'TM': 'Turkmenistan',
+      'AF': 'Afghanistan',
+      'IR': 'Iran',
+      'IQ': 'Iraq',
+      'SY': 'Syria',
+      'LB': 'Lebanon',
+      'JO': 'Jordan',
+      'PS': 'Palestine',
+      'YE': 'Yemen',
+      'OM': 'Oman',
+      'QA': 'Qatar',
+      'BH': 'Bahrain',
+      'KW': 'Kuwait',
+      'LY': 'Libya',
+      'TN': 'Tunisia',
+      'DZ': 'Algeria',
+      'MA': 'Morocco',
+      'SD': 'Sudan',
+      'ET': 'Ethiopia',
+      'SO': 'Somalia',
+      'DJ': 'Djibouti',
+      'ER': 'Eritrea',
+      'UG': 'Uganda',
+      'TZ': 'Tanzania',
+      'RW': 'Rwanda',
+      'BI': 'Burundi',
+      'CD': 'Democratic Republic of Congo',
+      'CG': 'Republic of Congo',
+      'CF': 'Central African Republic',
+      'TD': 'Chad',
+      'CM': 'Cameroon',
+      'GA': 'Gabon',
+      'GQ': 'Equatorial Guinea',
+      'ST': 'São Tomé and Príncipe',
+      'CV': 'Cape Verde',
+      'GW': 'Guinea-Bissau',
+      'GN': 'Guinea',
+      'SL': 'Sierra Leone',
+      'LR': 'Liberia',
+      'CI': 'Ivory Coast',
+      'BF': 'Burkina Faso',
+      'ML': 'Mali',
+      'NE': 'Niger',
+      'SN': 'Senegal',
+      'GM': 'Gambia',
+      'MR': 'Mauritania',
+      'EH': 'Western Sahara',
+      'MW': 'Malawi',
+      'ZM': 'Zambia',
+      'ZW': 'Zimbabwe',
+      'BW': 'Botswana',
+      'NA': 'Namibia',
+      'SZ': 'Eswatini',
+      'LS': 'Lesotho',
+      'MG': 'Madagascar',
+      'MU': 'Mauritius',
+      'SC': 'Seychelles',
+      'KM': 'Comoros',
+      'YT': 'Mayotte',
+      'RE': 'Réunion',
+      'MZ': 'Mozambique',
+      'AO': 'Angola'
+    }
+    return countryMap[countryCode] || countryCode
+  }
+
   // Pagination
   const totalPages = Math.ceil(filteredFreelancers.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
@@ -255,12 +546,33 @@ export default function FreelancerRequests() {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Freelancer Requests ({filteredFreelancers.length})</span>
-            <Button onClick={fetchFreelancerRequests} variant="outline" size="sm">
-              Refresh
-            </Button>
+        <CardHeader className="bg-gradient-to-r from-[#003087] to-[#0066cc] text-white rounded-t-lg">
+          <CardTitle className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-lg">
+                <User className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold">Freelancer Requests</h2>
+                <p className="text-blue-100 text-xs sm:text-sm">
+                  {filteredFreelancers.length} pending application{filteredFreelancers.length !== 1 ? 's' : ''} awaiting review
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+              <Badge className="bg-white/20 text-white border-white/30 px-2 sm:px-3 py-1 text-xs sm:text-sm">
+                {filteredFreelancers.length} Pending
+              </Badge>
+              <Button 
+                onClick={fetchFreelancerRequests} 
+                variant="secondary" 
+                size="sm"
+                className="bg-white/20 hover:bg-white/30 text-white border-white/30 flex-1 sm:flex-none"
+              >
+                <RefreshCw className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Refresh</span>
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -317,7 +629,7 @@ export default function FreelancerRequests() {
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <MapPin className="w-3 h-3 text-muted-foreground" />
-                          {freelancer.details.country}
+                          {getCountryName(freelancer.details.country)}
                         </div>
                       </TableCell>
                       <TableCell>{getStatusBadge(freelancer.status)}</TableCell>
