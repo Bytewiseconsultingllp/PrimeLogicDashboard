@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 import { getUserDetails } from "@/lib/api/storage"
 import { toast } from "sonner"
+import { selectFreelancerForProject } from "@/lib/api/projects"
 
 interface FreelancerProfile {
   id: string
@@ -302,28 +303,22 @@ export default function FreelancerEditPage() {
 
     setIsSaving(true)
     try {
-      const userDetails = getUserDetails()
-      const token = userDetails?.accessToken
+      const projectSlug = projectIdInput.trim()
+      const userName = freelancer?.user?.username || ""
+      if (!userName) {
+        toast.error("Freelancer username not available for assignment")
+        return
+      }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/projects/${projectIdInput.trim()}/assign`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          freelancerId: freelancerId
-        })
-      })
+      const response = await selectFreelancerForProject(projectSlug, userName)
 
-      if (response.ok) {
+      if (response.status === 200) {
         toast.success("Project assigned successfully")
         setIsProjectDialogOpen(false)
         setProjectIdInput("")
         fetchFreelancerDetails()
       } else {
-        const errorData = await response.json()
-        toast.error(errorData.message || "Failed to assign project")
+        toast.error("Failed to assign project")
       }
     } catch (error) {
       console.error("Error assigning project:", error)
@@ -538,21 +533,21 @@ export default function FreelancerEditPage() {
                           </div>
                         </div>
 
-                        {/* Project ID Input */}
+                        {/* Project Slug Input */}
                         <div className="space-y-2">
                           <Label htmlFor="projectId" className="text-sm font-medium text-gray-700">
-                            Project ID <span className="text-red-500">*</span>
+                            Project Slug <span className="text-red-500">*</span>
                           </Label>
                           <Input
                             id="projectId"
                             type="text"
                             value={projectIdInput}
                             onChange={(e) => setProjectIdInput(e.target.value)}
-                            placeholder="Enter or paste project ID here..."
+                            placeholder="Enter or paste project slug here (not the UUID)"
                             className="w-full"
                           />
                           <p className="text-xs text-gray-500">
-                            Enter the unique project ID that you want to assign to this freelancer
+                            This endpoint expects the project <strong>slug</strong>. If you used a UUID and get Not Found, please use the slug.
                           </p>
                         </div>
 

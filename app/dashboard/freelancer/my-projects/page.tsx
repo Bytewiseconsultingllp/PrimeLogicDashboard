@@ -325,9 +325,18 @@ export default function MyProjectsPage() {
                   {/* Project ID */}
                   <div className="pt-2 border-t">
                     <p className="text-xs text-muted-foreground mb-1">Project ID</p>
-                    <code className="text-xs bg-gray-100 px-2 py-1 rounded block truncate">
-                      {project.id}
-                    </code>
+                    <div className="flex items-center gap-2">
+                      <code className="text-xs bg-gray-100 px-2 py-1 rounded block truncate flex-1">
+                        {project.id}
+                      </code>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => { e.preventDefault(); navigator.clipboard.writeText(String(project.id)); }}
+                      >
+                        Copy
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
