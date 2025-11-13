@@ -325,6 +325,16 @@ export default function ProjectStatusPage() {
               <CardContent className="space-y-4">
                 {/* Project Info */}
                 <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="font-mono">ID: {project.id}</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => { e.preventDefault(); navigator.clipboard.writeText(String(project.id)); }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Building className="w-4 h-4 text-muted-foreground" />
                     <span className="text-muted-foreground">Business Type:</span>
