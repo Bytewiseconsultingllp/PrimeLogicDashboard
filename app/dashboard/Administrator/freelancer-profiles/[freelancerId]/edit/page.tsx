@@ -49,6 +49,13 @@ interface FreelancerProfile {
     role: string
     kpiRankPoints: number
     kpiRank: string
+    // Optional fields from alternate responses
+    kpiPoints?: number
+    kpi_score?: number
+    rank?: string
+    kpiLevel?: string
+    kpiUpdatedAt?: string
+    updatedAt?: string
   }
   assignedProjects?: Array<{
     id: string
@@ -65,6 +72,21 @@ interface FreelancerProfile {
     completedAt: string
     client: {
       name: string
+    }
+  }>
+  bids?: Array<{
+    id: string
+    bidAmount: number
+    status: "PENDING" | "ACCEPTED" | "REJECTED"
+    submittedAt?: string
+    project?: { 
+      id?: string; 
+      title?: string; 
+      name?: string; 
+      projectName?: string; 
+      slug?: string;
+      client?: { name?: string }; 
+      clientName?: string 
     }
   }>
 }
@@ -96,6 +118,16 @@ export default function FreelancerEditPage() {
   const [projectIdInput, setProjectIdInput] = useState("")
   const [kpiData, setKpiData] = useState<{points: number, rank: string, lastUpdated: string} | null>(null)
   const [isKpiLoading, setIsKpiLoading] = useState(false)
+  const [viewBid, setViewBid] = useState<any | null>(null)
+
+  // Helpers
+  const getBidProjectTitle = (p?: { title?: string; name?: string; projectName?: string }) => {
+    return p?.title || p?.name || p?.projectName || "Untitled Project"
+  }
+
+  const getBidClientName = (p?: { client?: { name?: string }; clientName?: string }) => {
+    return p?.client?.name || p?.clientName || "-"
+  }
 
   useEffect(() => {
     fetchFreelancerDetails()
@@ -121,15 +153,17 @@ export default function FreelancerEditPage() {
 
       if (response.ok) {
         const data = await response.json()
-        setFreelancer(data.data)
+        const payload = data.data || {}
+        const assigned = payload.assignedProjects || payload.selectedProjects || payload.projectsAssigned || payload.projects || []
+        setFreelancer({ ...payload, assignedProjects: assigned })
         
         // Set KPI data from freelancer data if available
         if (data.data?.user) {
-          setKpiData({
-            points: data.data.user.kpiRankPoints || 0,
-            rank: data.data.user.kpiRank || 'BRONZE',
-            lastUpdated: new Date().toISOString()
-          })
+          const u = data.data.user
+          const points = (u.kpiRankPoints ?? u.kpiPoints ?? u.kpi_score ?? 0) as number
+          const rank = (u.kpiRank ?? u.rank ?? u.kpiLevel ?? 'BRONZE') as string
+          const lastUpdated = (u.kpiUpdatedAt ?? u.updatedAt ?? new Date().toISOString()) as string
+          setKpiData({ points, rank, lastUpdated })
         }
       } else {
         toast.error("Failed to load freelancer details")
@@ -171,11 +205,11 @@ export default function FreelancerEditPage() {
 
         if (response.ok) {
           const data = await response.json()
-          setKpiData({
-            points: data.data?.kpiRankPoints || data.kpiRankPoints || 0,
-            rank: data.data?.kpiRank || data.kpiRank || 'BRONZE',
-            lastUpdated: data.data?.lastUpdated || data.lastUpdated || new Date().toISOString()
-          })
+          const kd = data.data ?? data
+          const points = (kd?.kpiRankPoints ?? kd?.kpiPoints ?? kd?.kpi_score ?? 0) as number
+          const rank = (kd?.kpiRank ?? kd?.rank ?? kd?.kpiLevel ?? 'BRONZE') as string
+          const lastUpdated = (kd?.lastUpdated ?? kd?.updatedAt ?? new Date().toISOString()) as string
+          setKpiData({ points, rank, lastUpdated })
           return
         }
       } catch (kpiError) {
@@ -193,31 +227,31 @@ export default function FreelancerEditPage() {
       if (freelancerResponse.ok) {
         const freelancerData = await freelancerResponse.json()
         if (freelancerData.data?.user) {
-          setKpiData({
-            points: freelancerData.data.user.kpiRankPoints || 0,
-            rank: freelancerData.data.user.kpiRank || 'BRONZE',
-            lastUpdated: new Date().toISOString()
-          })
+          const u = freelancerData.data.user
+          const points = (u.kpiRankPoints ?? u.kpiPoints ?? u.kpi_score ?? 0) as number
+          const rank = (u.kpiRank ?? u.rank ?? u.kpiLevel ?? 'BRONZE') as string
+          const lastUpdated = (u.kpiUpdatedAt ?? u.updatedAt ?? new Date().toISOString()) as string
+          setKpiData({ points, rank, lastUpdated })
         }
       } else {
         // Last fallback: use existing freelancer data
         if (freelancer?.user) {
-          setKpiData({
-            points: freelancer.user.kpiRankPoints || 0,
-            rank: freelancer.user.kpiRank || 'BRONZE',
-            lastUpdated: new Date().toISOString()
-          })
+          const u = freelancer.user
+          const points = (u.kpiRankPoints ?? u.kpiPoints ?? u.kpi_score ?? 0) as number
+          const rank = (u.kpiRank ?? u.rank ?? u.kpiLevel ?? 'BRONZE') as string
+          const lastUpdated = (u.kpiUpdatedAt ?? u.updatedAt ?? new Date().toISOString()) as string
+          setKpiData({ points, rank, lastUpdated })
         }
       }
     } catch (error) {
       console.error("Error fetching KPI data:", error)
       // Final fallback to existing freelancer data
       if (freelancer?.user) {
-        setKpiData({
-          points: freelancer.user.kpiRankPoints || 0,
-          rank: freelancer.user.kpiRank || 'BRONZE',
-          lastUpdated: new Date().toISOString()
-        })
+        const u = freelancer.user
+        const points = (u.kpiRankPoints ?? u.kpiPoints ?? u.kpi_score ?? 0) as number
+        const rank = (u.kpiRank ?? u.rank ?? u.kpiLevel ?? 'BRONZE') as string
+        const lastUpdated = (u.kpiUpdatedAt ?? u.updatedAt ?? new Date().toISOString()) as string
+        setKpiData({ points, rank, lastUpdated })
       }
     } finally {
       setIsKpiLoading(false)
@@ -439,6 +473,14 @@ export default function FreelancerEditPage() {
                   <User className="w-5 h-5" />
                   Personal Information
                 </CardTitle>
+                <div className="mt-2">
+                  <Label className="text-xs text-gray-500">Primary Domain</Label>
+                  <div className="mt-1">
+                    <Badge className="bg-[#003087] text-white px-3 py-1 text-sm">
+                      {freelancer.details.primaryDomain}
+                    </Badge>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -470,12 +512,7 @@ export default function FreelancerEditPage() {
                         {freelancer.details.timeZone}
                       </p>
                     </div>
-                    <div>
-                      <Label className="text-sm font-medium text-gray-500">Primary Domain</Label>
-                      <Badge className="bg-[#003087] text-white px-3 py-1 text-sm mt-1">
-                        {freelancer.details.primaryDomain}
-                      </Badge>
-                    </div>
+                    
                     <div>
                       <Label className="text-sm font-medium text-gray-500">User ID</Label>
                       <p className="font-mono text-sm text-gray-600 mt-1">{freelancer.userId || "N/A"}</p>
@@ -485,180 +522,150 @@ export default function FreelancerEditPage() {
               </CardContent>
             </Card>
 
-            {/* Projects */}
-            <Card className="border-l-4 border-l-green-500">
-              <CardHeader className="bg-green-50">
-                <CardTitle className="text-xl flex items-center justify-between text-green-800">
-                  <div className="flex items-center gap-2">
-                    <Briefcase className="w-5 h-5" />
-                    Projects
-                  </div>
-                  <Dialog open={isProjectDialogOpen} onOpenChange={setIsProjectDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button size="sm" className="bg-green-600 hover:bg-green-700">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Assign Project
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-md">
-                      <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white p-6 -m-6 mb-6 rounded-t-lg">
-                        <DialogHeader>
-                          <DialogTitle className="text-xl font-bold flex items-center gap-2">
-                            <Briefcase className="w-6 h-6" />
-                            Assign Project
-                          </DialogTitle>
-                          <DialogDescription className="text-green-100 mt-2">
-                            Assign a project to this freelancer by entering the project ID
-                          </DialogDescription>
-                        </DialogHeader>
-                      </div>
-                      
-                      <div className="space-y-6">
-                        {/* Freelancer Info */}
-                        <div className="bg-gray-50 rounded-lg p-4 border-l-4 border-l-green-500">
-                          <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                            <User className="w-4 h-4" />
-                            Freelancer Details
-                          </h3>
-                          <div className="space-y-1">
-                            <p className="text-sm">
-                              <span className="font-medium text-gray-600">Name:</span> {freelancer?.details.fullName}
-                            </p>
-                            <p className="text-sm">
-                              <span className="font-medium text-gray-600">ID:</span> {freelancerId}
-                            </p>
-                            <p className="text-sm">
-                              <span className="font-medium text-gray-600">Email:</span> {freelancer?.details.email}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Project Slug Input */}
-                        <div className="space-y-2">
-                          <Label htmlFor="projectId" className="text-sm font-medium text-gray-700">
-                            Project Slug <span className="text-red-500">*</span>
-                          </Label>
-                          <Input
-                            id="projectId"
-                            type="text"
-                            value={projectIdInput}
-                            onChange={(e) => setProjectIdInput(e.target.value)}
-                            placeholder="Enter or paste project slug here (not the UUID)"
-                            className="w-full"
-                          />
-                          <p className="text-xs text-gray-500">
-                            This endpoint expects the project <strong>slug</strong>. If you used a UUID and get Not Found, please use the slug.
-                          </p>
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex justify-end gap-3 pt-4 border-t">
-                          <Button 
-                            variant="outline" 
-                            onClick={() => {
-                              setIsProjectDialogOpen(false)
-                              setProjectIdInput("")
-                            }}
-                            disabled={isSaving}
-                          >
-                            Cancel
-                          </Button>
-                          <Button 
-                            onClick={assignProject} 
-                            disabled={isSaving || !projectIdInput.trim()}
-                            className="bg-green-600 hover:bg-green-700"
-                          >
-                            {isSaving ? (
-                              <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-                            ) : (
-                              <Plus className="w-4 h-4 mr-2" />
-                            )}
-                            Assign Project
-                          </Button>
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+            {/* Bids */}
+            <Card className="border-l-4 border-l-fuchsia-500">
+              <CardHeader className="bg-fuchsia-50">
+                <CardTitle className="text-xl flex items-center gap-2 text-fuchsia-800">
+                  <TrendingUp className="w-5 h-5" />
+                  Bids
+                  {freelancer.bids?.length ? (
+                    <Badge variant="secondary" className="ml-2">{freelancer.bids.length}</Badge>
+                  ) : null}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
-                <div className="space-y-6">
-                  {/* Assigned Projects */}
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-3">Active Projects</h3>
-                    {freelancer.assignedProjects?.length ? (
-                      <div className="space-y-3">
-                        {freelancer.assignedProjects.map((project) => (
-                          <div key={project.id} className="p-4 bg-blue-50 rounded-lg border">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h4 className="font-medium text-gray-900">{project.title}</h4>
-                                <p className="text-sm text-gray-600">Client: {project.client.name}</p>
-                                <Badge variant="outline" className="mt-1">
-                                  {project.status}
-                                </Badge>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Button size="sm" variant="outline">
-                                  <Eye className="w-4 h-4 mr-1" />
-                                  View
-                                </Button>
-                              </div>
+                {freelancer.bids?.length ? (
+                  <div className="space-y-3">
+                    {freelancer.bids.map((bid) => (
+                      <div key={bid.id} className="p-4 rounded-lg border bg-white">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-semibold text-gray-900 truncate max-w-[36ch]">{getBidProjectTitle(bid.project)}</h4>
+                              <span className="text-xs text-gray-500">ID: {bid.project?.id || '-'}</span>
                             </div>
-                            {project.progress !== undefined && (
-                              <div className="mt-3">
-                                <div className="flex justify-between text-sm mb-1">
-                                  <span>Progress</span>
-                                  <span>{project.progress}%</span>
-                                </div>
-                                <div className="w-full bg-gray-200 rounded-full h-2">
-                                  <div
-                                    className="bg-blue-600 h-2 rounded-full"
-                                    style={{ width: `${project.progress}%` }}
-                                  ></div>
-                                </div>
-                              </div>
-                            )}
+                            <p className="text-sm text-gray-600 mt-1">Client: {getBidClientName(bid.project)}</p>
+                            <div className="mt-2 flex items-center gap-2">
+                              <Badge variant="outline">{bid.status}</Badge>
+                              <Badge variant={bid.status === 'PENDING' ? 'default' : 'secondary'}>
+                                {bid.status === 'PENDING' ? 'ACTIVE' : 'CLOSED'}
+                              </Badge>
+                            </div>
                           </div>
-                        ))}
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="font-semibold text-gray-900">{'$'}{bid.bidAmount}</span>
+                            <Button size="sm" variant="outline" onClick={() => setViewBid(bid)}>
+                              <Eye className="w-4 h-4 mr-1" />
+                              View
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                    ) : (
-                      <div className="text-center py-8 text-gray-500">
-                        <Briefcase className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                        <p>No active projects assigned</p>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <TrendingUp className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                    <p>No bids submitted</p>
+                  </div>
+                )}
+
+                <Dialog open={!!viewBid} onOpenChange={(o) => !o && setViewBid(null)}>
+                  <DialogContent className="max-w-2xl p-0 overflow-hidden">
+                    <div className="bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white p-6">
+                      <DialogHeader>
+                        <DialogTitle className="text-2xl">Bid Details</DialogTitle>
+                        <DialogDescription className="text-fuchsia-100">Review the bid information for this project</DialogDescription>
+                      </DialogHeader>
+                    </div>
+                    {viewBid && (
+                      <div className="p-6 space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="p-4 bg-gray-50 rounded border">
+                            <p className="text-xs text-muted-foreground">Project</p>
+                            <p className="font-medium">{getBidProjectTitle(viewBid.project)}</p>
+                            <p className="text-xs text-muted-foreground mt-1">Project ID: {viewBid.project?.id || '-'}</p>
+                            <p className="text-xs text-muted-foreground mt-1">Client: {getBidClientName(viewBid.project)}</p>
+                          </div>
+                          <div className="p-4 bg-gray-50 rounded border">
+                            <p className="text-xs text-muted-foreground">Bid</p>
+                            <p className="font-medium">{'$'}{viewBid.bidAmount}</p>
+                            <div className="mt-2 flex gap-2">
+                              <Badge variant="outline">{viewBid.status}</Badge>
+                              <Badge variant={viewBid.status === 'PENDING' ? 'default' : 'secondary'}>
+                                {viewBid.status === 'PENDING' ? 'ACTIVE' : 'CLOSED'}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="p-4 bg-gray-50 rounded border">
+                            <p className="text-xs text-muted-foreground">Bid Date</p>
+                            <p className="font-medium">{viewBid.submittedAt ? new Date(viewBid.submittedAt).toLocaleDateString() : '-'}</p>
+                          </div>
+                          <div className="p-4 bg-gray-50 rounded border">
+                            <p className="text-xs text-muted-foreground">Bid Time</p>
+                            <p className="font-medium">{viewBid.submittedAt ? new Date(viewBid.submittedAt).toLocaleTimeString() : '-'}</p>
+                          </div>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded border">
+                          <p className="text-xs text-muted-foreground">Freelancer</p>
+                          <p className="font-medium">{freelancer.details.fullName}</p>
+                          <p className="text-xs text-muted-foreground mt-1">Freelancer ID: {freelancerId}</p>
+                        </div>
                       </div>
                     )}
-                  </div>
+                  </DialogContent>
+                </Dialog>
+              </CardContent>
+            </Card>
 
-                  {/* Completed Projects */}
-                  {freelancer.completedProjects?.length && (
-                    <div>
-                      <h3 className="font-semibold text-gray-900 mb-3">Completed Projects</h3>
-                      <div className="space-y-3">
-                        {freelancer.completedProjects.map((project) => (
-                          <div key={project.id} className="p-4 bg-green-50 rounded-lg border">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h4 className="font-medium text-gray-900">{project.title}</h4>
-                                <p className="text-sm text-gray-600">Client: {project.client.name}</p>
-                                <p className="text-sm text-gray-500">
-                                  Completed: {new Date(project.completedAt).toLocaleDateString()}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge className="bg-green-500">Completed</Badge>
-                                <Button size="sm" variant="outline">
-                                  <Eye className="w-4 h-4 mr-1" />
-                                  View
-                                </Button>
-                              </div>
+            {/* Assigned Projects */}
+            <Card className="border-l-4 border-l-green-500">
+              <CardHeader className="bg-green-50">
+                <CardTitle className="text-xl flex items-center gap-2 text-green-800">
+                  <Briefcase className="w-5 h-5" />
+                  Assigned Projects
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                {freelancer.assignedProjects?.length ? (
+                  <div className="space-y-3">
+                    {freelancer.assignedProjects.map((project) => (
+                      <div key={project.id} className="p-4 bg-blue-50 rounded-lg border">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium text-gray-900">{project.title}</h4>
+                            <p className="text-sm text-gray-600">Client: {project.client?.name || (project as any)?.clientName || '-'}</p>
+                            <Badge variant="outline" className="mt-1">{project.status}</Badge>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" variant="outline">
+                              <Eye className="w-4 h-4 mr-1" />
+                              View
+                            </Button>
+                          </div>
+                        </div>
+                        {project.progress !== undefined && (
+                          <div className="mt-3">
+                            <div className="flex justify-between text-sm mb-1">
+                              <span>Progress</span>
+                              <span>{project.progress}%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${project.progress}%` }} />
                             </div>
                           </div>
-                        ))}
+                        )}
                       </div>
-                    </div>
-                  )}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Briefcase className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                    <p>No projects assigned</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
