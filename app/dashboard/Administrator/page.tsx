@@ -183,9 +183,9 @@ export default function AdministratorDashboard() {
           },
         })
 
-        // Fetch latest freelancers
+        // Fetch latest freelancers (pending requests) - load more so all newly registered pending freelancers are visible
         console.log("🔄 Fetching latest freelancers (pending requests)...")
-        const freelancersRes = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/freelancers?status=PENDING_REVIEW&page=1&limit=5`, {
+        const freelancersRes = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/freelancers?status=PENDING_REVIEW&page=1&limit=100`, {
           headers: { 
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json"
@@ -289,10 +289,57 @@ export default function AdministratorDashboard() {
         if (freelancersRes.ok) {
           const freelancersData = await freelancersRes.json()
           console.log("✅ Latest freelancer requests:", freelancersData)
-          const list = Array.isArray(freelancersData)
-            ? freelancersData
-            : (freelancersData?.data?.freelancers || freelancersData?.freelancers || freelancersData?.data?.items || [])
-          setLatestFreelancers(list || [])
+
+          // Robust extraction similar to FreelancerRequests component
+          let freelancersList: any[] = []
+
+          if (Array.isArray(freelancersData)) {
+            freelancersList = freelancersData
+          } else if (freelancersData?.data) {
+            if (Array.isArray(freelancersData.data)) {
+              freelancersList = freelancersData.data
+            } else if (Array.isArray(freelancersData.data.freelancers)) {
+              freelancersList = freelancersData.data.freelancers
+            } else if (Array.isArray(freelancersData.data.items)) {
+              freelancersList = freelancersData.data.items
+            }
+          } else if (Array.isArray(freelancersData?.freelancers)) {
+            freelancersList = freelancersData.freelancers
+          }
+
+          console.log("📋 Extracted latest freelancers list (dashboard):", freelancersList)
+
+          // Filter to valid pending profiles and map to the lightweight card shape
+          let transformed = freelancersList
+            .filter((freelancer: any) => {
+              const isPendingReview = freelancer.status === "PENDING_REVIEW"
+              const details = freelancer.details
+              const hasValidDetails = details && details.fullName && details.email
+              return isPendingReview && hasValidDetails
+            })
+            .map((freelancer: any) => ({
+              id: freelancer.id,
+              status: freelancer.status,
+              createdAt: freelancer.createdAt,
+              details: {
+                fullName: freelancer.details.fullName,
+                email: freelancer.details.email,
+                primaryDomain: freelancer.details.primaryDomain,
+                country: freelancer.details.country,
+              },
+              user: freelancer.user,
+            }))
+
+          // Ensure newest registrations show first based on createdAt when available
+          if (Array.isArray(transformed)) {
+            transformed = [...transformed].sort((a: any, b: any) => {
+              const aTime = a?.createdAt ? new Date(a.createdAt).getTime() : 0
+              const bTime = b?.createdAt ? new Date(b.createdAt).getTime() : 0
+              return bTime - aTime
+            })
+          }
+
+          setLatestFreelancers(transformed || [])
         }
 
       } catch (err) {

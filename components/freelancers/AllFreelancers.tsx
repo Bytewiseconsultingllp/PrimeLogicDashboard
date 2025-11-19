@@ -79,6 +79,7 @@ interface FreelancerProfile {
   assignedProjects?: Array<{
     id: string
     details: {
+      title: string
       companyName: string
     }
     status: string
@@ -723,7 +724,9 @@ export default function AllFreelancers() {
                 </div>
                 <div className="text-left sm:text-right w-full sm:w-auto">
                   <p className="text-xs sm:text-sm text-blue-100">Freelancer ID</p>
-                  <p className="font-mono text-xs sm:text-sm">{selectedFreelancer?.id.slice(0, 8)}...</p>
+                  <p className="font-mono text-[11px] sm:text-xs bg-white/10 px-2 py-1 rounded inline-block break-all">
+                    {selectedFreelancer?.id || "-"}
+                  </p>
                 </div>
               </DialogTitle>
               <DialogDescription className="text-blue-100 mt-2 text-sm">
@@ -809,15 +812,18 @@ export default function AllFreelancers() {
                         {selectedFreelancer.assignedProjects.map((project, index) => (
                           <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                             <div>
-                              <p className="font-medium">{project.details.companyName}</p>
-                              <p className="text-sm text-muted-foreground">Status: {project.status}</p>
+                              <p className="font-medium">{project.details?.companyName || project.details?.title || "Untitled Project"}</p>
+                              <p className="text-xs text-muted-foreground break-all">
+                                ID: {project.id}
+                              </p>
+                              <p className="text-sm text-muted-foreground mt-1">Status: {project.status}</p>
                             </div>
                             {project.progress !== undefined && (
                               <div className="text-right">
                                 <p className="text-sm font-medium">{project.progress}% Complete</p>
-                                <div className="w-20 bg-gray-200 rounded-full h-2 mt-1">
+                                <div className="w-24 bg-gray-200 rounded-full h-2 mt-1">
                                   <div
-                                    className="bg-blue-600 h-2 rounded-full"
+                                    className="bg-[#003087] h-2 rounded-full"
                                     style={{ width: `${project.progress}%` }}
                                   ></div>
                                 </div>

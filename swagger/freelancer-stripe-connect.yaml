@@ -1,0 +1,269 @@
+# Freelancer Stripe Connect OAuth API Documentation
+
+paths:
+  /api/v1/freelancer/stripe-connect-url:
+    get:
+      tags:
+        - Freelancer Stripe Connect
+      summary: Generate Stripe Connect OAuth URL
+      description: |
+        Generates a Stripe Connect OAuth URL that the freelancer can use to authorize
+        the platform to send payments to their Stripe account.
+
+        **How it works:**
+        1. Freelancer calls this endpoint
+        2. Backend generates a secure OAuth URL with state token
+        3. Frontend redirects freelancer to this URL
+        4. Freelancer authorizes on Stripe's website
+        5. Stripe redirects back to callback URL
+        6. Connection is established automatically
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: OAuth URL generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Stripe Connect URL generated"
+                  data:
+                    type: object
+                    properties:
+                      connectUrl:
+                        type: string
+                        example: "https://connect.stripe.com/oauth/authorize?client_id=ca_xxx&state=xxx..."
+                      expiresIn:
+                        type: number
+                        example: 3600
+                        description: "URL expires in seconds"
+        "400":
+          description: Already connected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Stripe account already connected"
+                  data:
+                    type: object
+                    properties:
+                      accountId:
+                        type: string
+                        example: "acct_xxx"
+                      status:
+                        type: string
+                        example: "ACTIVE"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Not a freelancer
+        "404":
+          description: Freelancer profile not found
+        "500":
+          description: Server error
+
+  /api/v1/freelancer/stripe-connect-callback:
+    get:
+      tags:
+        - Freelancer Stripe Connect
+      summary: Handle Stripe OAuth callback
+      description: |
+        This endpoint is called by Stripe after the freelancer authorizes the connection.
+        **DO NOT call this endpoint directly** - Stripe will redirect here automatically.
+
+        **Flow:**
+        1. Stripe redirects here with authorization code
+        2. Backend exchanges code for account access
+        3. Backend saves connected account ID
+        4. Backend redirects to frontend success/error page
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Authorization code from Stripe
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+          description: State token for security verification
+        - name: error
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Error code if user denied authorization
+      responses:
+        "302":
+          description: Redirects to frontend success or error page
+          headers:
+            Location:
+              schema:
+                type: string
+              example: "http://localhost:3000/freelancer/stripe/success?accountId=acct_xxx"
+
+  /api/v1/freelancer/stripe-connect-status:
+    get:
+      tags:
+        - Freelancer Stripe Connect
+      summary: Get Stripe Connect status
+      description: |
+        Get the current status of the freelancer's Stripe Connect integration,
+        including live data from Stripe API.
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Stripe Connect status retrieved"
+                  data:
+                    type: object
+                    properties:
+                      isConnected:
+                        type: boolean
+                        example: true
+                      status:
+                        type: string
+                        enum:
+                          [NOT_CONNECTED, PENDING, ACTIVE, RESTRICTED, DISABLED]
+                        example: "ACTIVE"
+                      verified:
+                        type: boolean
+                        example: true
+                      accountId:
+                        type: string
+                        example: "acct_xxx"
+                        nullable: true
+                      accountDetails:
+                        type: object
+                        nullable: true
+                        properties:
+                          id:
+                            type: string
+                            example: "acct_xxx"
+                          chargesEnabled:
+                            type: boolean
+                            example: true
+                          payoutsEnabled:
+                            type: boolean
+                            example: true
+                          detailsSubmitted:
+                            type: boolean
+                            example: true
+                          requirementsCurrentlyDue:
+                            type: array
+                            items:
+                              type: string
+                            example: []
+                          requirementsPastDue:
+                            type: array
+                            items:
+                              type: string
+                            example: []
+        "401":
+          description: Unauthorized
+        "403":
+          description: Not a freelancer
+        "404":
+          description: Freelancer profile not found
+        "500":
+          description: Server error
+
+  /api/v1/freelancer/stripe-connect:
+    delete:
+      tags:
+        - Freelancer Stripe Connect
+      summary: Disconnect Stripe account
+      description: |
+        Revokes the platform's access to the freelancer's Stripe account.
+        This calls Stripe's deauthorize API and removes the connection.
+
+        **Warning:** After disconnecting:
+        - Admin cannot send new payouts
+        - Freelancer must reconnect to receive payments
+        - Existing payout history is preserved
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Disconnected successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Stripe account disconnected successfully"
+        "400":
+          description: No account connected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "No Stripe account connected"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Not a freelancer
+        "404":
+          description: Freelancer profile not found
+        "500":
+          description: Server error
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    StripeAccountStatus:
+      type: string
+      enum:
+        - NOT_CONNECTED
+        - PENDING
+        - ACTIVE
+        - RESTRICTED
+        - DISABLED
+      description: |
+        Status of the Stripe Connect account:
+        - NOT_CONNECTED: No Stripe account linked
+        - PENDING: Account created but awaiting verification
+        - ACTIVE: Fully verified, can receive payouts
+        - RESTRICTED: Has issues, may not receive payouts
+        - DISABLED: Account disabled, cannot receive payouts
