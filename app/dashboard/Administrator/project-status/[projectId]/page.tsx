@@ -96,6 +96,8 @@ export default function ProjectDetailPage() {
 
   const [project, setProject] = useState<AdminProject | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // Edit milestone state
   const [isMilestoneDialogOpen, setIsMilestoneDialogOpen] = useState(false)
   const [editingMilestone, setEditingMilestone] = useState<any | null>(null)
   const [msTitle, setMsTitle] = useState("")
@@ -103,6 +105,20 @@ export default function ProjectDetailPage() {
   const [msDueDate, setMsDueDate] = useState("")
   const [msProgress, setMsProgress] = useState<string | number>("")
   const [savingMilestone, setSavingMilestone] = useState(false)
+
+  // Create single milestone state
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [createTitle, setCreateTitle] = useState("")
+  const [createDescription, setCreateDescription] = useState("")
+  const [createDueDate, setCreateDueDate] = useState("")
+  const [creatingMilestone, setCreatingMilestone] = useState(false)
+
+  // Create multiple milestones state
+  const [isMultiDialogOpen, setIsMultiDialogOpen] = useState(false)
+  const [multiMilestones, setMultiMilestones] = useState<{ title: string; description: string; dueDate: string }[]>([
+    { title: "", description: "", dueDate: "" },
+  ])
+  const [creatingMultiple, setCreatingMultiple] = useState(false)
   const [paymentStatusData, setPaymentStatusData] = useState<{status: string, amount: number, currency: string} | null>(null)
   const [viewPayment, setViewPayment] = useState<any | null>(null)
   const [bids, setBids] = useState<any[]>([])
@@ -170,6 +186,12 @@ export default function ProjectDetailPage() {
     }
   }
 
+  const resetCreateState = () => {
+    setCreateTitle("")
+    setCreateDescription("")
+    setCreateDueDate("")
+  }
+
   const openMilestoneDialog = (milestone: any | null) => {
     setEditingMilestone(milestone)
     setMsTitle(milestone?.milestoneName || "")
@@ -235,6 +257,166 @@ export default function ProjectDetailPage() {
       toast.error(e?.message || "Failed to update milestone")
     } finally {
       setSavingMilestone(false)
+    }
+  }
+
+  const createMilestone = async () => {
+    if (!createTitle || !createDescription || !createDueDate) {
+      toast.error("Please fill in title, description and due date")
+      return
+    }
+    setCreatingMilestone(true)
+    try {
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+      if (!token) {
+        toast.error("Authentication required")
+        return
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/milestone/createMilestone/${projectId}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: createTitle,
+          description: createDescription,
+          dueDate: createDueDate,
+        }),
+      })
+
+      if (!res.ok) {
+        const msg = await res.text()
+        throw new Error(msg || "Failed to create milestone")
+      }
+
+      toast.success("Milestone created")
+      setIsCreateDialogOpen(false)
+      resetCreateState()
+      await fetchProjectDetails()
+    } catch (e: any) {
+      console.error(e)
+      toast.error(e?.message || "Failed to create milestone")
+    } finally {
+      setCreatingMilestone(false)
+    }
+  }
+
+  const addMultiRow = () => {
+    setMultiMilestones((prev) => [...prev, { title: "", description: "", dueDate: "" }])
+  }
+
+  const updateMultiRow = (index: number, field: "title" | "description" | "dueDate", value: string) => {
+    setMultiMilestones((prev) => {
+      const next = [...prev]
+      next[index] = { ...next[index], [field]: value }
+      return next
+    })
+  }
+
+  const removeMultiRow = (index: number) => {
+    setMultiMilestones((prev) => prev.length === 1 ? prev : prev.filter((_, i) => i !== index))
+  }
+
+  const createMultipleMilestones = async () => {
+    const payload = multiMilestones.filter(m => m.title && m.description && m.dueDate)
+    if (!payload.length) {
+      toast.error("Please add at least one complete milestone row")
+      return
+    }
+    setCreatingMultiple(true)
+    try {
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+      if (!token) {
+        toast.error("Authentication required")
+        return
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/milestone/createMultipleMilestones/${projectId}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ milestones: payload }),
+      })
+
+      if (!res.ok) {
+        const msg = await res.text()
+        throw new Error(msg || "Failed to create milestones")
+      }
+
+      toast.success("Milestones created")
+      setIsMultiDialogOpen(false)
+      setMultiMilestones([{ title: "", description: "", dueDate: "" }])
+      await fetchProjectDetails()
+    } catch (e: any) {
+      console.error(e)
+      toast.error(e?.message || "Failed to create milestones")
+    } finally {
+      setCreatingMultiple(false)
+    }
+  }
+
+  const deleteMilestone = async (milestoneId: string) => {
+    if (!window.confirm("Delete this milestone? This action cannot be undone.")) return
+    try {
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+      if (!token) {
+        toast.error("Authentication required")
+        return
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/milestone/deleteMilestone/${milestoneId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+      if (!res.ok) {
+        const msg = await res.text()
+        throw new Error(msg || "Failed to delete milestone")
+      }
+
+      toast.success("Milestone deleted")
+      await fetchProjectDetails()
+    } catch (e: any) {
+      console.error(e)
+      toast.error(e?.message || "Failed to delete milestone")
+    }
+  }
+
+  const completeMilestone = async (milestoneId: string) => {
+    try {
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+      if (!token) {
+        toast.error("Authentication required")
+        return
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/milestone/completeMilestone/${milestoneId}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+      if (!res.ok) {
+        const msg = await res.text()
+        throw new Error(msg || "Failed to complete milestone")
+      }
+
+      toast.success("Milestone marked as completed")
+      await fetchProjectDetails()
+    } catch (e: any) {
+      console.error(e)
+      toast.error(e?.message || "Failed to complete milestone")
     }
   }
 
@@ -694,7 +876,7 @@ export default function ProjectDetailPage() {
 
           {/* Milestones */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <CardTitle className="flex items-center gap-2">
                 <Target className="w-5 h-5" />
                 Project Milestones
@@ -702,31 +884,88 @@ export default function ProjectDetailPage() {
                   <Badge variant="secondary">{project.milestones.length}</Badge>
                 )}
               </CardTitle>
-              <Button variant="outline" size="sm" onClick={() => project.milestones?.length ? openMilestoneDialog(project.milestones[0]) : toast.info("No milestones to update") }>
-                <Edit className="w-4 h-4 mr-2" />
-                Update
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    resetCreateState()
+                    setIsCreateDialogOpen(true)
+                  }}
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  Add Milestone
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setMultiMilestones([{ title: "", description: "", dueDate: "" }])
+                    setIsMultiDialogOpen(true)
+                  }}
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  Add Multiple
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {project.milestones && project.milestones.length > 0 ? (
                 <div className="space-y-4">
                   {project.milestones.map((milestone: any, index: number) => (
-                    <div key={index} className="p-4 border rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
+                    <div key={index} className="p-4 border rounded-lg bg-white shadow-sm flex flex-col gap-2">
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                         <div className="flex items-center gap-2">
                           <h4 className="font-semibold">{milestone.milestoneName}</h4>
-                          <Badge variant={milestone.isMilestoneCompleted ? 'default' : 'secondary'}>
-                            {milestone.isMilestoneCompleted ? 'COMPLETED' : (milestone.status || 'PENDING')}
+                          <Badge variant={milestone.isMilestoneCompleted ? "default" : "secondary"}>
+                            {milestone.isMilestoneCompleted ? "COMPLETED" : milestone.status || "PENDING"}
                           </Badge>
                         </div>
-                        <Button size="sm" variant="outline" onClick={() => openMilestoneDialog(milestone)}>
-                          <Edit className="w-4 h-4 mr-1" /> Edit
-                        </Button>
+                        <div className="flex flex-wrap gap-2 justify-start md:justify-end">
+                          {!milestone.isMilestoneCompleted && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => completeMilestone(milestone.id)}
+                            >
+                              <CheckCircle className="w-4 h-4 mr-1" /> Complete
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openMilestoneDialog(milestone)}
+                          >
+                            <Edit className="w-4 h-4 mr-1" /> Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-red-600 border-red-300 hover:bg-red-50"
+                            onClick={() => deleteMilestone(milestone.id)}
+                          >
+                            <XCircle className="w-4 h-4 mr-1" /> Delete
+                          </Button>
+                        </div>
                       </div>
-                      <p className="text-sm text-muted-foreground mb-2">{milestone.description}</p>
-                      <div className="flex items-center gap-4 text-sm">
-                        {milestone.deadline && <span>Due: {new Date(milestone.deadline).toLocaleDateString()}</span>}
-                        {typeof milestone.progress === 'number' && <span>Progress: {milestone.progress}%</span>}
+                      <p className="text-sm text-muted-foreground mb-1">{milestone.description}</p>
+                      <div className="flex flex-wrap items-center gap-4 text-sm">
+                        {milestone.deadline && (
+                          <span>
+                            Due: {new Date(milestone.deadline).toLocaleDateString()}
+                          </span>
+                        )}
+                        {typeof milestone.progress === "number" && (
+                          <span>Progress: {milestone.progress}%</span>
+                        )}
+                        {milestone.assignedFreelancer && (
+                          <span className="flex items-center gap-1">
+                            <Users className="w-3 h-3 text-muted-foreground" />
+                            <span>
+                              {milestone.assignedFreelancer.fullName || milestone.assignedFreelancer.name}
+                            </span>
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -737,45 +976,220 @@ export default function ProjectDetailPage() {
                   <p className="text-muted-foreground">No milestones created yet</p>
                 </div>
               )}
+
+              {/* Edit milestone dialog */}
               <Dialog open={isMilestoneDialogOpen} onOpenChange={setIsMilestoneDialogOpen}>
                 <DialogContent className="max-w-lg">
                   <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white -m-6 mb-6 p-6 rounded-t-lg">
                     <DialogHeader>
                       <DialogTitle className="text-xl">Update Milestone</DialogTitle>
-                      <DialogDescription className="text-blue-100">Edit details and progress, then save changes</DialogDescription>
+                      <DialogDescription className="text-blue-100">
+                        Edit details and progress, then save changes
+                      </DialogDescription>
                     </DialogHeader>
                   </div>
                   {editingMilestone ? (
                     <div className="space-y-4">
                       <div className="space-y-2">
                         <Label>Title</Label>
-                        <Input value={msTitle} onChange={(e) => setMsTitle(e.target.value)} placeholder="Milestone title" />
+                        <Input
+                          value={msTitle}
+                          onChange={(e) => setMsTitle(e.target.value)}
+                          placeholder="Milestone title"
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>Description</Label>
-                        <Textarea rows={3} value={msDescription} onChange={(e) => setMsDescription(e.target.value)} placeholder="Describe the milestone" />
+                        <Textarea
+                          rows={3}
+                          value={msDescription}
+                          onChange={(e) => setMsDescription(e.target.value)}
+                          placeholder="Describe the milestone"
+                        />
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Due Date</Label>
-                          <Input type="date" value={msDueDate} onChange={(e) => setMsDueDate(e.target.value)} />
+                          <Input
+                            type="date"
+                            value={msDueDate}
+                            onChange={(e) => setMsDueDate(e.target.value)}
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label>Progress (%)</Label>
-                          <Input type="number" min={0} max={100} value={msProgress} onChange={(e) => setMsProgress(e.target.value)} />
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={msProgress}
+                            onChange={(e) => setMsProgress(e.target.value)}
+                          />
                         </div>
                       </div>
                       <div className="flex justify-end gap-3 pt-2">
-                        <Button variant="outline" onClick={() => setIsMilestoneDialogOpen(false)}>Cancel</Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsMilestoneDialogOpen(false)}
+                        >
+                          Cancel
+                        </Button>
                         <Button onClick={saveMilestoneUpdates} disabled={savingMilestone}>
-                          {savingMilestone ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                          {savingMilestone ? (
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          ) : (
+                            <Save className="w-4 h-4 mr-2" />
+                          )}
                           Save Changes
                         </Button>
                       </div>
                     </div>
                   ) : (
-                    <div className="text-sm text-muted-foreground">Select a milestone to edit</div>
+                    <div className="text-sm text-muted-foreground">
+                      Select a milestone to edit
+                    </div>
                   )}
+                </DialogContent>
+              </Dialog>
+
+              {/* Create single milestone dialog */}
+              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                <DialogContent className="max-w-lg">
+                  <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white -m-6 mb-6 p-6 rounded-t-lg">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl">Create Milestone</DialogTitle>
+                      <DialogDescription className="text-emerald-100">
+                        Add a new milestone for this project
+                      </DialogDescription>
+                    </DialogHeader>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Title</Label>
+                      <Input
+                        value={createTitle}
+                        onChange={(e) => setCreateTitle(e.target.value)}
+                        placeholder="Milestone title"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Description</Label>
+                      <Textarea
+                        rows={3}
+                        value={createDescription}
+                        onChange={(e) => setCreateDescription(e.target.value)}
+                        placeholder="Describe the milestone"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Due Date</Label>
+                      <Input
+                        type="date"
+                        value={createDueDate}
+                        onChange={(e) => setCreateDueDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex justify-end gap-3 pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setIsCreateDialogOpen(false)
+                          resetCreateState()
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button onClick={createMilestone} disabled={creatingMilestone}>
+                        {creatingMilestone ? (
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        ) : (
+                          <Save className="w-4 h-4 mr-2" />
+                        )}
+                        Create
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              {/* Create multiple milestones dialog */}
+              <Dialog open={isMultiDialogOpen} onOpenChange={setIsMultiDialogOpen}>
+                <DialogContent className="max-w-3xl">
+                  <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white -m-6 mb-6 p-6 rounded-t-lg">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl">Create Multiple Milestones</DialogTitle>
+                      <DialogDescription className="text-indigo-100">
+                        Add several milestones at once. Each row represents one milestone.
+                      </DialogDescription>
+                    </DialogHeader>
+                  </div>
+                  <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                    {multiMilestones.map((ms, index) => (
+                      <div
+                        key={index}
+                        className="grid grid-cols-1 md:grid-cols-[1.5fr_2fr_1.2fr_auto] gap-3 items-end"
+                      >
+                        <div className="space-y-1">
+                          <Label>Title</Label>
+                          <Input
+                            value={ms.title}
+                            onChange={(e) => updateMultiRow(index, "title", e.target.value)}
+                            placeholder="Design Phase"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Description</Label>
+                          <Input
+                            value={ms.description}
+                            onChange={(e) => updateMultiRow(index, "description", e.target.value)}
+                            placeholder="Short description"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Due Date</Label>
+                          <Input
+                            type="date"
+                            value={ms.dueDate}
+                            onChange={(e) => updateMultiRow(index, "dueDate", e.target.value)}
+                          />
+                        </div>
+                        <div className="flex items-center justify-end pb-1">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="text-red-600 border-red-300 hover:bg-red-50"
+                            onClick={() => removeMultiRow(index)}
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex justify-between items-center pt-2">
+                      <Button variant="outline" size="sm" onClick={addMultiRow}>
+                        + Add Row
+                      </Button>
+                      <div className="flex gap-3">
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsMultiDialogOpen(false)}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={createMultipleMilestones}
+                          disabled={creatingMultiple}
+                        >
+                          {creatingMultiple ? (
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          ) : (
+                            <Save className="w-4 h-4 mr-2" />
+                          )}
+                          Create Milestones
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 </DialogContent>
               </Dialog>
             </CardContent>

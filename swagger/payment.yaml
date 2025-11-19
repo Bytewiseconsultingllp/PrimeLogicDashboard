@@ -220,6 +220,89 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerError"
 
+  /payment/verify-session:
+    post:
+      tags:
+        - Payment
+      summary: Verify checkout session (fallback for missed webhooks)
+      description: |
+        Client-side verification endpoint that checks Stripe directly for payment status.
+        This acts as a fallback mechanism when webhooks fail or are delayed.
+        Frontend should call this endpoint after user returns from Stripe checkout.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sessionId
+              properties:
+                sessionId:
+                  type: string
+                  description: Stripe checkout session ID
+                  example: cs_test_a1B2c3D4e5F6g7H8i9J0
+      responses:
+        "200":
+          description: Payment verification completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Payment verified and status updated (webhook was missed)
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum: [SUCCEEDED, PENDING, FAILED]
+                        example: SUCCEEDED
+                      projectId:
+                        type: string
+                        nullable: true
+                        example: clp1234567890
+                      wasOutOfSync:
+                        type: boolean
+                        description: True if webhook was missed and we had to update from Stripe
+                        example: true
+                      paidAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        example: "2024-11-09T12:34:56.789Z"
+        "400":
+          description: Invalid request (missing sessionId)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          description: Payment not found or access denied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Payment not found or you don't have permission to access it
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
   /payment/webhook:
     post:
       tags:
@@ -380,7 +463,22 @@ paths:
         - Payment
         - Project Payment
       summary: Create project payment checkout session
-      description: Create a Stripe checkout session for a project payment using the project's calculated total from the estimate
+      description: |
+        Create a Stripe checkout session for a project payment. Supports:
+        - Full payment (100%)
+        - Deposit payment (percentage-based, defaults to 25%)
+        - Custom amount payment (any dollar amount)
+
+        **IMPORTANT - First Payment Rule:**
+        - The FIRST payment for a project MUST be at least 25% of the total amount.
+        - If you attempt a first payment < 25%, the request will be rejected with an error.
+        - After the first payment (≥ 25%), the project's paymentStatus becomes "SUCCEEDED" and freelancers can bid.
+        - Subsequent payments can be any amount (no minimum).
+
+        **Payment Tracking:**
+        - totalAmountPaid: Cumulative sum of all successful payments
+        - paymentCompletionPercentage: 0-100+% (can exceed 100%)
+        - paymentStatus: "PENDING" initially, becomes "SUCCEEDED" after first payment ≥ 25%, stays "SUCCEEDED"
       security:
         - bearerAuth: []
         - cookieAuth: []
@@ -410,13 +508,61 @@ paths:
                   format: uri
                   example: "http://localhost:3000/payment/cancel"
                   description: URL to redirect to if payment is cancelled
+                currency:
+                  type: string
+                  example: "usd"
+                  default: "usd"
+                  description: Currency code (defaults to USD)
+                depositPercentage:
+                  type: number
+                  format: float
+                  minimum: 25
+                  example: 25
+                  description: |
+                    Optional: Percentage of total project amount to charge (e.g., 25 for 25%).
+                    Defaults to 25% if neither depositPercentage nor customAmount is specified.
+
+                    **First payment MUST be ≥ 25%.** Subsequent payments can be any percentage.
+                    If >= 100, treated as full payment.
+                customAmount:
+                  type: number
+                  format: float
+                  minimum: 0
+                  example: 500.00
+                  description: |
+                    Optional: Custom payment amount in dollars (e.g., 500.00 for $500).
+                    If specified, takes precedence over depositPercentage.
+                    System will calculate the percentage based on project total.
+
+                    **First payment MUST be ≥ 25% of project total.** Subsequent payments can be any amount.
             examples:
-              default:
-                summary: Default example
+              defaultDeposit:
+                summary: Default 25% deposit
                 value:
                   projectId: "403f90bd-0f1f-4bde-a701-adc37ab35252"
                   successUrl: "http://localhost:3000/payment/success?session_id={CHECKOUT_SESSION_ID}"
                   cancelUrl: "http://localhost:3000/payment/cancel"
+              customPercentage:
+                summary: Custom percentage (50%)
+                value:
+                  projectId: "403f90bd-0f1f-4bde-a701-adc37ab35252"
+                  successUrl: "http://localhost:3000/payment/success?session_id={CHECKOUT_SESSION_ID}"
+                  cancelUrl: "http://localhost:3000/payment/cancel"
+                  depositPercentage: 50
+              customAmount:
+                summary: Custom dollar amount ($500)
+                value:
+                  projectId: "403f90bd-0f1f-4bde-a701-adc37ab35252"
+                  successUrl: "http://localhost:3000/payment/success?session_id={CHECKOUT_SESSION_ID}"
+                  cancelUrl: "http://localhost:3000/payment/cancel"
+                  customAmount: 500.00
+              fullPayment:
+                summary: Full payment (100%)
+                value:
+                  projectId: "403f90bd-0f1f-4bde-a701-adc37ab35252"
+                  successUrl: "http://localhost:3000/payment/success?session_id={CHECKOUT_SESSION_ID}"
+                  cancelUrl: "http://localhost:3000/payment/cancel"
+                  depositPercentage: 100
       responses:
         "200":
           description: Checkout session created successfully

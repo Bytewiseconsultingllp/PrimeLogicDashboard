@@ -387,6 +387,39 @@ export default function ProjectStatusPage() {
                     </div>
                   )}
 
+                  {/* Assigned Freelancer(s) */}
+                  {(() => {
+                    const primaryFromSelected = project.selectedFreelancers && project.selectedFreelancers.length > 0
+                      ? project.selectedFreelancers[0]
+                      : null
+
+                    const primaryFromMilestones = !primaryFromSelected && project.milestones && project.milestones.length > 0
+                      ? project.milestones.find((m: any) => m.assignedFreelancer)?.assignedFreelancer
+                      : null
+
+                    const primary = primaryFromSelected || primaryFromMilestones
+                    const additionalCount = project.selectedFreelancers && project.selectedFreelancers.length > 1
+                      ? project.selectedFreelancers.length - 1
+                      : 0
+
+                    if (!primary) return null
+
+                    const name = primary.fullName || primary.name || primary.user?.fullName || "Assigned Freelancer"
+
+                    return (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Users className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-muted-foreground">Assigned:</span>
+                        <span className="font-medium line-clamp-1">{name}</span>
+                        {additionalCount > 0 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{additionalCount} more
+                          </Badge>
+                        )}
+                      </div>
+                    )
+                  })()}
+
                   <div className="flex items-center gap-2 text-sm">
                     <Calendar className="w-4 h-4 text-muted-foreground" />
                     <span className="text-muted-foreground">Created:</span>

@@ -1,0 +1,511 @@
+paths:
+  /admin/payments/{paymentId}/verification-history:
+    get:
+      tags:
+        - Admin - Payment Verification
+      summary: Get payment verification history
+      description: |
+        Get complete verification history for a specific payment.
+        Shows all verification attempts, sources, and any mismatches.
+        Useful for debugging payment issues and customer support.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Payment ID (UUID)
+          example: clp1234567890
+      responses:
+        "200":
+          description: Payment verification history retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Payment verification history retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      payment:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            example: clp1234567890
+                          status:
+                            type: string
+                            enum:
+                              [PENDING, SUCCEEDED, FAILED, CANCELED, REFUNDED]
+                            example: SUCCEEDED
+                          amount:
+                            type: integer
+                            example: 5000
+                          currency:
+                            type: string
+                            example: usd
+                          createdAt:
+                            type: string
+                            format: date-time
+                          paidAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                          stripeSessionId:
+                            type: string
+                            example: cs_test_...
+                          stripePaymentIntentId:
+                            type: string
+                            nullable: true
+                          webhookRetryCount:
+                            type: integer
+                            example: 0
+                          lastCheckedAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                          lastWebhookEventId:
+                            type: string
+                            nullable: true
+                          webhookEventsProcessed:
+                            type: array
+                            items:
+                              type: string
+                      project:
+                        type: object
+                        nullable: true
+                        properties:
+                          id:
+                            type: string
+                          paymentStatus:
+                            type: string
+                      user:
+                        type: object
+                        nullable: true
+                        properties:
+                          uid:
+                            type: string
+                          email:
+                            type: string
+                          fullName:
+                            type: string
+                      verificationLogs:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            verifiedBy:
+                              type: string
+                              enum: [webhook, api_check, cron, manual]
+                              example: webhook
+                            stripeStatus:
+                              type: string
+                              example: paid
+                            ourStatus:
+                              type: string
+                              example: SUCCEEDED
+                            matched:
+                              type: boolean
+                              example: true
+                            eventId:
+                              type: string
+                              nullable: true
+                            createdAt:
+                              type: string
+                              format: date-time
+                      statistics:
+                        type: object
+                        properties:
+                          totalVerifications:
+                            type: integer
+                            example: 1
+                          webhookVerifications:
+                            type: integer
+                            example: 1
+                          apiCheckVerifications:
+                            type: integer
+                            example: 0
+                          mismatches:
+                            type: integer
+                            example: 0
+                          hasWebhookFailure:
+                            type: boolean
+                            example: false
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          description: Forbidden - Admin access required
+        "404":
+          description: Payment not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /admin/payments/verification-stats:
+    get:
+      tags:
+        - Admin - Payment Verification
+      summary: Get payment verification statistics
+      description: |
+        Get comprehensive statistics about payment verification system.
+        Includes webhook reliability, verification sources, system health metrics.
+        Perfect for monitoring dashboard and identifying system issues.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 7
+          description: Number of days to look back
+          example: 7
+      responses:
+        "200":
+          description: Verification statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Verification statistics retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      dateRange:
+                        type: object
+                        properties:
+                          from:
+                            type: string
+                            format: date-time
+                          to:
+                            type: string
+                            format: date-time
+                          days:
+                            type: integer
+                            example: 7
+                      paymentOverview:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                            example: 100
+                          succeeded:
+                            type: integer
+                            example: 95
+                          pending:
+                            type: integer
+                            example: 3
+                          failed:
+                            type: integer
+                            example: 2
+                      webhookReliability:
+                        type: object
+                        properties:
+                          successfulWebhooks:
+                            type: integer
+                            example: 90
+                          failedWebhooks:
+                            type: integer
+                            example: 5
+                          successRate:
+                            type: number
+                            format: float
+                            example: 94.74
+                          failureRate:
+                            type: number
+                            format: float
+                            example: 5.26
+                      verificationSources:
+                        type: object
+                        properties:
+                          webhook:
+                            type: integer
+                            example: 90
+                          api_check:
+                            type: integer
+                            example: 5
+                          cron:
+                            type: integer
+                            example: 0
+                          manual:
+                            type: integer
+                            example: 0
+                          total:
+                            type: integer
+                            example: 95
+                          percentages:
+                            type: object
+                            properties:
+                              webhook:
+                                type: number
+                                example: 94.74
+                              api_check:
+                                type: number
+                                example: 5.26
+                              cron:
+                                type: number
+                                example: 0
+                              manual:
+                                type: number
+                                example: 0
+                      systemHealth:
+                        type: object
+                        properties:
+                          mismatchedVerifications:
+                            type: integer
+                            example: 5
+                          averageTimeToSuccess:
+                            type: number
+                            description: Average time in seconds
+                            example: 12.5
+                          averageTimeToSuccessMinutes:
+                            type: number
+                            example: 0.21
+                          totalVerifications:
+                            type: integer
+                            example: 95
+                      reliability:
+                        type: object
+                        properties:
+                          overallCoverage:
+                            type: number
+                            example: 95
+                          fallbackEffectiveness:
+                            type: number
+                            example: 5.26
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          description: Forbidden - Admin access required
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /admin/payments/verification-issues:
+    get:
+      tags:
+        - Admin - Payment Verification
+      summary: Get payments with verification issues
+      description: |
+        Find payments with verification problems including:
+        - Mismatched verifications (Stripe status != DB status)
+        - Stuck payments (PENDING for > 1 hour)
+        - High webhook retry counts (webhooks failing repeatedly)
+        Critical for identifying and resolving payment issues.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 7
+          description: Number of days to look back
+          example: 7
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+          description: Maximum number of results per category
+          example: 50
+      responses:
+        "200":
+          description: Verification issues retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Verification issues retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      dateRange:
+                        type: object
+                        properties:
+                          from:
+                            type: string
+                            format: date-time
+                          to:
+                            type: string
+                            format: date-time
+                          days:
+                            type: integer
+                            example: 7
+                      summary:
+                        type: object
+                        properties:
+                          mismatchedVerifications:
+                            type: integer
+                            example: 5
+                          stuckPayments:
+                            type: integer
+                            example: 2
+                          highRetryPayments:
+                            type: integer
+                            example: 3
+                      issues:
+                        type: object
+                        properties:
+                          mismatchedVerifications:
+                            type: array
+                            description: Payments where Stripe and DB statuses didn't match
+                            items:
+                              type: object
+                              properties:
+                                logId:
+                                  type: string
+                                paymentId:
+                                  type: string
+                                verifiedBy:
+                                  type: string
+                                stripeStatus:
+                                  type: string
+                                ourStatus:
+                                  type: string
+                                eventId:
+                                  type: string
+                                  nullable: true
+                                createdAt:
+                                  type: string
+                                  format: date-time
+                                payment:
+                                  type: object
+                                project:
+                                  type: object
+                                  nullable: true
+                                user:
+                                  type: object
+                                  nullable: true
+                          stuckPayments:
+                            type: array
+                            description: Payments stuck in PENDING for > 1 hour
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: string
+                                status:
+                                  type: string
+                                amount:
+                                  type: integer
+                                currency:
+                                  type: string
+                                createdAt:
+                                  type: string
+                                  format: date-time
+                                hoursSinceCreation:
+                                  type: string
+                                  example: "2.50"
+                                stripeSessionId:
+                                  type: string
+                                webhookRetryCount:
+                                  type: integer
+                                lastCheckedAt:
+                                  type: string
+                                  format: date-time
+                                  nullable: true
+                                recentVerifications:
+                                  type: array
+                                  items:
+                                    type: object
+                                project:
+                                  type: object
+                                  nullable: true
+                                user:
+                                  type: object
+                                  nullable: true
+                          highRetryPayments:
+                            type: array
+                            description: Payments with multiple webhook retry attempts
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: string
+                                status:
+                                  type: string
+                                amount:
+                                  type: integer
+                                currency:
+                                  type: string
+                                webhookRetryCount:
+                                  type: integer
+                                  example: 3
+                                createdAt:
+                                  type: string
+                                  format: date-time
+                                paidAt:
+                                  type: string
+                                  format: date-time
+                                  nullable: true
+                                stripeSessionId:
+                                  type: string
+                                recentVerifications:
+                                  type: array
+                                  items:
+                                    type: object
+                                project:
+                                  type: object
+                                  nullable: true
+                                user:
+                                  type: object
+                                  nullable: true
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          description: Forbidden - Admin access required
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+components:
+  responses:
+    UnauthorizedError:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: Unauthorized
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: Internal server error

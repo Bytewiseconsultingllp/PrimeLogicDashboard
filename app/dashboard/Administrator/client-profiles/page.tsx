@@ -108,7 +108,65 @@ export default function ClientProfilesPage() {
         const data = await response.json()
         console.log("✅ Clients data:", data)
         console.log("✅ First client UID:", data.data?.clients?.[0]?.uid)
-        setClients(data.data?.clients || [])
+
+        const rawClients = (data.data?.clients || []) as any[]
+
+        // Map Swagger AdminClientSummary shape to our ClientProfile, including project counts
+        const mappedClients: ClientProfile[] = rawClients.map((client: any) => ({
+          uid: client.uid,
+          fullName: client.fullName,
+          email: client.email,
+          username: client.username,
+          emailVerifiedAt: client.emailVerifiedAt,
+          role: "CLIENT",
+          createdAt: client.createdAt,
+          updatedAt: client.updatedAt,
+          isActive: client.isActive,
+          address: client.address,
+          phone: client.phone,
+          kpi: client.kpi,
+          projects: client.projects,
+          totalProjectsCount: client._count?.projects ?? 0,
+          totalSpent: undefined,
+        }))
+
+        // For accurate Total Spent, enrich each client with summary from /admin/clients/{clientId}/payments
+        const enrichedClients: ClientProfile[] = await Promise.all(
+          mappedClients.map(async (client) => {
+            try {
+              const paymentsRes = await fetch(
+                `${process.env.NEXT_PUBLIC_PLS}/admin/clients/${client.uid}/payments`,
+                {
+                  headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                  },
+                }
+              )
+
+              if (!paymentsRes.ok) {
+                console.error(`❌ Failed to fetch payments for client ${client.uid}:`, paymentsRes.status)
+                return client
+              }
+
+              const paymentsData = await paymentsRes.json()
+              const totalAmountStr = paymentsData?.data?.summary?.totalAmount as string | undefined
+              if (totalAmountStr) {
+                const parsed = Number(totalAmountStr)
+                if (!Number.isNaN(parsed)) {
+                  return { ...client, totalSpent: parsed }
+                }
+              }
+
+              return client
+            } catch (error) {
+              console.error(`❌ Error fetching payments summary for client ${client.uid}:`, error)
+              return client
+            }
+          })
+        )
+
+        setClients(enrichedClients)
         setTotalPages(data.data?.pagination?.totalPages || 1)
         toast.success(`Loaded ${data.data?.clients?.length || 0} clients`)
       } else if (response.status === 401) {

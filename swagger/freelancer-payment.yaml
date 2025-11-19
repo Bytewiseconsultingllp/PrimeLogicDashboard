@@ -1,0 +1,568 @@
+paths:
+  # ============================================
+  # FREELANCER PAYMENT SELF-SERVICE ENDPOINTS
+  # ============================================
+
+  /freelancer/payment-details:
+    post:
+      tags:
+        - Freelancer - Payment Management
+      summary: Add or update own Stripe account ID
+      description: |
+        Freelancers use this endpoint to add their Stripe account ID to receive payouts.
+        The freelancer must have already created a Stripe account (outside the platform).
+        The system will verify the Stripe account and update the status accordingly.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - stripeAccountId
+              properties:
+                stripeAccountId:
+                  type: string
+                  description: Stripe Connect account ID (must start with 'acct_')
+                  example: "acct_1234567890ABCDEF"
+                  pattern: "^acct_"
+            examples:
+              valid:
+                summary: Valid Stripe Account ID
+                value:
+                  stripeAccountId: "acct_1234567890ABCDEF"
+      responses:
+        "200":
+          description: Stripe account updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Stripe account updated successfully"
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                        example: "f7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                      stripeAccountId:
+                        type: string
+                        example: "acct_1234567890ABCDEF"
+                      stripeAccountStatus:
+                        type: string
+                        enum:
+                          [NOT_CONNECTED, PENDING, ACTIVE, RESTRICTED, DISABLED]
+                        example: "ACTIVE"
+                      paymentDetailsVerified:
+                        type: boolean
+                        example: true
+        "400":
+          description: Invalid Stripe account ID or verification failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Invalid Stripe account ID"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          description: Access denied - Freelancer role required
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Access denied. Freelancer role required."
+        "404":
+          description: Freelancer profile not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Freelancer profile not found for this user"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    get:
+      tags:
+        - Freelancer - Payment Management
+      summary: Get own payment details and status
+      description: |
+        Retrieve your own payment setup details including:
+        - Stripe account ID and status
+        - Payment verification status
+        - Account capabilities and requirements
+        - Any issues or pending actions needed
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Payment details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Payment details retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      freelancer:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          stripeAccountId:
+                            type: string
+                            nullable: true
+                            example: "acct_1234567890ABCDEF"
+                          stripeAccountStatus:
+                            type: string
+                            enum:
+                              [
+                                NOT_CONNECTED,
+                                PENDING,
+                                ACTIVE,
+                                RESTRICTED,
+                                DISABLED,
+                              ]
+                            example: "ACTIVE"
+                          paymentDetailsVerified:
+                            type: boolean
+                            example: true
+                          details:
+                            type: object
+                            properties:
+                              email:
+                                type: string
+                                example: "freelancer@example.com"
+                              fullName:
+                                type: string
+                                example: "John Doe"
+                              country:
+                                type: string
+                                example: "US"
+                      stripeAccountDetails:
+                        type: object
+                        nullable: true
+                        properties:
+                          id:
+                            type: string
+                            example: "acct_1234567890ABCDEF"
+                          chargesEnabled:
+                            type: boolean
+                            example: true
+                          payoutsEnabled:
+                            type: boolean
+                            example: true
+                          requirementsCurrentlyDue:
+                            type: array
+                            items:
+                              type: string
+                            example: []
+                          requirementsEventuallyDue:
+                            type: array
+                            items:
+                              type: string
+                            example: []
+                          disabledReason:
+                            type: string
+                            nullable: true
+                            example: null
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          description: Access denied - Freelancer role required
+        "404":
+          description: Freelancer profile not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    delete:
+      tags:
+        - Freelancer - Payment Management
+      summary: Disconnect Stripe account
+      description: |
+        Remove your Stripe account ID from the platform.
+        This will prevent you from receiving future payouts until you add a new account.
+        **Note:** This does not affect your existing Stripe account, only removes it from this platform.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Stripe account disconnected successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Stripe account disconnected successfully"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          description: Access denied - Freelancer role required
+        "404":
+          description: Freelancer profile not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /freelancer/payouts:
+    get:
+      tags:
+        - Freelancer - Payment Management
+      summary: Get own payout history
+      description: |
+        Retrieve a paginated list of all payouts you have received.
+        Includes payment details, status, associated projects/milestones, and dates.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Payout history retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Payout history retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      payouts:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                            amount:
+                              type: number
+                              format: float
+                              example: 1500.00
+                            currency:
+                              type: string
+                              example: "usd"
+                            status:
+                              type: string
+                              enum:
+                                [PENDING, PROCESSING, PAID, FAILED, CANCELLED]
+                              example: "PAID"
+                            payoutType:
+                              type: string
+                              enum: [MILESTONE, PROJECT, BONUS, MANUAL]
+                              example: "MILESTONE"
+                            description:
+                              type: string
+                              example: "Payment for milestone completion"
+                            createdAt:
+                              type: string
+                              format: date-time
+                              example: "2025-11-15T10:30:00.000Z"
+                            processedAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                              example: "2025-11-15T10:31:00.000Z"
+                            paidAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                              example: "2025-11-15T10:35:00.000Z"
+                            project:
+                              type: object
+                              nullable: true
+                              properties:
+                                id:
+                                  type: string
+                                details:
+                                  type: object
+                                  properties:
+                                    companyName:
+                                      type: string
+                                      example: "Acme Corp"
+                            milestone:
+                              type: object
+                              nullable: true
+                              properties:
+                                id:
+                                  type: string
+                                milestoneName:
+                                  type: string
+                                  example: "Phase 1 - Backend Development"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          description: Access denied - Freelancer role required
+        "404":
+          description: Freelancer profile not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /freelancer/payouts/{payoutId}:
+    get:
+      tags:
+        - Freelancer - Payment Management
+      summary: Get specific payout details
+      description: |
+        Retrieve detailed information about a specific payout.
+        You can only view your own payouts - attempting to view another freelancer's payout will return 403 Forbidden.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: payoutId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The ID of the payout
+          example: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+      responses:
+        "200":
+          description: Payout details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Payout details retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      amount:
+                        type: number
+                        format: float
+                        example: 1500.00
+                      currency:
+                        type: string
+                        example: "usd"
+                      status:
+                        type: string
+                        enum: [PENDING, PROCESSING, PAID, FAILED, CANCELLED]
+                        example: "PAID"
+                      payoutType:
+                        type: string
+                        enum: [MILESTONE, PROJECT, BONUS, MANUAL]
+                        example: "MILESTONE"
+                      description:
+                        type: string
+                        nullable: true
+                        example: "Payment for milestone completion"
+                      notes:
+                        type: string
+                        nullable: true
+                        example: "Approved by project manager"
+                      stripeTransferId:
+                        type: string
+                        nullable: true
+                        example: "tr_1234567890ABCDEF"
+                      failureReason:
+                        type: string
+                        nullable: true
+                      createdAt:
+                        type: string
+                        format: date-time
+                      updatedAt:
+                        type: string
+                        format: date-time
+                      processedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      paidAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      project:
+                        type: object
+                        nullable: true
+                        properties:
+                          id:
+                            type: string
+                          details:
+                            type: object
+                            properties:
+                              companyName:
+                                type: string
+                              businessEmail:
+                                type: string
+                      milestone:
+                        type: object
+                        nullable: true
+                        properties:
+                          id:
+                            type: string
+                          milestoneName:
+                            type: string
+                          description:
+                            type: string
+                            nullable: true
+        "400":
+          description: Invalid payout ID
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          description: Access denied - Not your payout or freelancer role required
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "You don't have permission to view this payout"
+        "404":
+          description: Payout not found or freelancer profile not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# ============================================
+# COMPONENTS - Shared Schemas
+# ============================================
+
+components:
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number for pagination
+
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+      description: Number of items per page
+
+  schemas:
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 10
+        total:
+          type: integer
+          example: 45
+        pages:
+          type: integer
+          example: 5
+
+  responses:
+    UnauthorizedError:
+      description: Authentication required or token invalid
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: "Authentication required"
+
+    ForbiddenError:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: "Access denied"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: "Internal server error"
+              error:
+                type: string

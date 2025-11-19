@@ -1,0 +1,478 @@
+# Admin Refund Endpoints
+
+/admin/refunds/process:
+  post:
+    tags:
+      - Admin
+      - Refunds
+    summary: Process a refund for a payment
+    description: |
+      Admin endpoint to process a refund. This will:
+      - Create a refund in Stripe
+      - Update payment and project totals
+      - Send email notification to client
+
+      **Important:**
+      - Refund amount must not exceed (paymentAmount - totalRefundedAmount)
+      - Refunds are processed instantly (no approval workflow)
+      - Email notification sent to client automatically
+    security:
+      - bearerAuth: []
+      - cookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - paymentId
+              - amount
+            properties:
+              paymentId:
+                type: string
+                format: uuid
+                description: ID of the payment to refund
+                example: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+              amount:
+                type: number
+                format: float
+                minimum: 0.01
+                description: Refund amount in dollars (e.g., 250.00 for $250)
+                example: 250.00
+              reason:
+                type: string
+                description: Optional reason for the refund
+                example: "Client requested cancellation"
+              notes:
+                type: string
+                description: Optional internal admin notes
+                example: "Approved by manager"
+          examples:
+            partialRefund:
+              summary: Partial refund
+              value:
+                paymentId: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                amount: 250.00
+                reason: "Client requested partial refund"
+            fullRefund:
+              summary: Full refund
+              value:
+                paymentId: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                amount: 1000.00
+                reason: "Project cancelled"
+                notes: "Approved by CEO"
+    responses:
+      "200":
+        description: Refund processed successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                message:
+                  type: string
+                  example: "Refund processed successfully"
+                data:
+                  type: object
+                  properties:
+                    refundId:
+                      type: string
+                      example: "abc123..."
+                    stripeRefundId:
+                      type: string
+                      example: "re_1ABC..."
+                    amount:
+                      type: number
+                      example: 250.00
+                    status:
+                      type: string
+                      example: "SUCCEEDED"
+                    message:
+                      type: string
+                      example: "Refund processed successfully"
+      "400":
+        description: Bad request - invalid data
+      "401":
+        description: Unauthorized - admin auth required
+      "500":
+        description: Server error - refund failed
+
+/admin/refunds/{refundId}:
+  get:
+    tags:
+      - Admin
+      - Refunds
+    summary: Get refund details by ID
+    security:
+      - bearerAuth: []
+      - cookieAuth: []
+    parameters:
+      - name: refundId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Refund ID
+    responses:
+      "200":
+        description: Refund details retrieved
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                message:
+                  type: string
+                data:
+                  type: object
+                  description: Refund details with payment, project, and admin information
+      "404":
+        description: Refund not found
+
+/admin/projects/{projectId}/refunds:
+  get:
+    tags:
+      - Admin
+      - Refunds
+    summary: Get all refunds for a project
+    description: Returns all refunds for a project with summary financials
+    security:
+      - bearerAuth: []
+      - cookieAuth: []
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Project ID
+    responses:
+      "200":
+        description: Project refunds retrieved
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                message:
+                  type: string
+                data:
+                  type: object
+                  properties:
+                    refunds:
+                      type: array
+                      items:
+                        type: object
+                    summary:
+                      type: object
+                      properties:
+                        totalAmountPaid:
+                          type: number
+                        totalRefunded:
+                          type: number
+                        netAmountReceived:
+                          type: number
+                        projectTotal:
+                          type: number
+                        paymentCompletionPercentage:
+                          type: number
+                        netCompletionPercentage:
+                          type: number
+
+/admin/payments/{paymentId}/refunds:
+  get:
+    tags:
+      - Admin
+      - Refunds
+    summary: Get all refunds for a payment
+    security:
+      - bearerAuth: []
+      - cookieAuth: []
+    parameters:
+      - name: paymentId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Payment ID
+    responses:
+      "200":
+        description: Payment refunds retrieved
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                message:
+                  type: string
+                data:
+                  type: array
+                  items:
+                    type: object
+
+/admin/refunds:
+  get:
+    tags:
+      - Admin
+      - Refunds
+    summary: Get all refunds with filters
+    security:
+      - bearerAuth: []
+      - cookieAuth: []
+    parameters:
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum: [PENDING, SUCCEEDED, FAILED, CANCELLED]
+        description: Filter by refund status
+      - name: adminId
+        in: query
+        schema:
+          type: string
+        description: Filter by admin who processed the refund
+      - name: startDate
+        in: query
+        schema:
+          type: string
+          format: date
+        description: Filter by creation date (start)
+      - name: endDate
+        in: query
+        schema:
+          type: string
+          format: date
+        description: Filter by creation date (end)
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 50
+        description: Number of results to return
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          default: 0
+        description: Number of results to skip
+    responses:
+      "200":
+        description: Refunds retrieved
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                message:
+                  type: string
+                data:
+                  type: object
+                  properties:
+                    refunds:
+                      type: array
+                      items:
+                        type: object
+                    total:
+                      type: integer
+                    limit:
+                      type: integer
+                    offset:
+                      type: integer
+
+/admin/projects/{projectId}/net-amount:
+  get:
+    tags:
+      - Admin
+      - Refunds
+    summary: Calculate project net amount
+    description: |
+      Returns financial summary:
+      - totalAmountPaid: All payments received
+      - totalRefunded: All refunds processed
+      - netAmountReceived: totalAmountPaid - totalRefunded
+      - paymentCompletionPercentage: Based on payments only
+      - netCompletionPercentage: Based on net amount
+    security:
+      - bearerAuth: []
+      - cookieAuth: []
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Net amount calculated
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                message:
+                  type: string
+                data:
+                  type: object
+                  properties:
+                    totalAmountPaid:
+                      type: number
+                    totalRefunded:
+                      type: number
+                    netAmountReceived:
+                      type: number
+                    projectTotal:
+                      type: number
+                    paymentCompletionPercentage:
+                      type: number
+                    netCompletionPercentage:
+                      type: number
+
+/admin/payments/{paymentId}/sync-payment-intent:
+  post:
+    tags:
+      - Admin
+      - Payments
+    summary: Sync payment intent ID from Stripe session
+    description: |
+      **CRITICAL FIX:** Retrieves and stores the payment intent ID from Stripe session for existing payments.
+
+      This endpoint is needed because the webhook handler previously did not store payment intent IDs.
+      Without payment intent IDs, refunds cannot be processed.
+
+      **Use cases:**
+      - Fix existing payments missing payment intent IDs
+      - Manually sync a specific payment
+
+      **Important:**
+      - Only works for payments with a stripeSessionId
+      - Idempotent - safe to call multiple times
+      - Returns success if payment already has a payment intent ID
+    security:
+      - bearerAuth: []
+      - cookieAuth: []
+    parameters:
+      - name: paymentId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Payment ID to sync
+        example: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+    responses:
+      "200":
+        description: Payment intent ID synced successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                message:
+                  type: string
+                  example: "Payment intent ID synced successfully"
+                data:
+                  type: object
+                  properties:
+                    paymentId:
+                      type: string
+                      example: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                    stripePaymentIntentId:
+                      type: string
+                      example: "pi_3ABC123..."
+                    synced:
+                      type: boolean
+                      example: true
+                    alreadySynced:
+                      type: boolean
+                      description: True if payment already had payment intent ID
+                      example: false
+      "400":
+        description: Bad request - payment has no session ID or unable to extract payment intent
+      "401":
+        description: Unauthorized - admin auth required
+      "404":
+        description: Payment not found
+
+/admin/payments/bulk-sync-payment-intents:
+  post:
+    tags:
+      - Admin
+      - Payments
+    summary: Bulk sync payment intent IDs for all payments
+    description: |
+      **CRITICAL FIX:** Syncs payment intent IDs for all payments missing them.
+
+      This endpoint is a one-time fix for existing payments that were created before
+      the webhook handler was fixed to store payment intent IDs.
+
+      **What it does:**
+      - Finds all successful payments with stripeSessionId but no stripePaymentIntentId
+      - Retrieves each session from Stripe
+      - Extracts and stores payment intent ID
+      - Limited to 100 payments per request to prevent timeout
+
+      **Important:**
+      - Only processes SUCCEEDED payments
+      - Returns detailed results with success/failure counts
+      - Safe to run multiple times (idempotent)
+      - Processes up to 100 payments per call
+    security:
+      - bearerAuth: []
+      - cookieAuth: []
+    responses:
+      "200":
+        description: Bulk sync completed
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                message:
+                  type: string
+                  example: "Bulk sync completed"
+                data:
+                  type: object
+                  properties:
+                    total:
+                      type: integer
+                      description: Total number of payments found
+                      example: 5
+                    synced:
+                      type: integer
+                      description: Number of payments successfully synced
+                      example: 4
+                    failed:
+                      type: integer
+                      description: Number of payments that failed to sync
+                      example: 1
+                    errors:
+                      type: array
+                      description: Error messages for failed syncs
+                      items:
+                        type: string
+                      example:
+                        - "Payment abc123: No payment intent in session"
+      "401":
+        description: Unauthorized - admin auth required
+      "500":
+        description: Server error during bulk sync

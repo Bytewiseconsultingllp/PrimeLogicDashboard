@@ -57,6 +57,10 @@ interface FreelancerProfile {
     kpiUpdatedAt?: string
     updatedAt?: string
   }
+  kpi?: {
+    points: number
+    rank: string
+  }
   assignedProjects?: Array<{
     id: string
     title: string
@@ -120,6 +124,20 @@ export default function FreelancerEditPage() {
   const [isKpiLoading, setIsKpiLoading] = useState(false)
   const [viewBid, setViewBid] = useState<any | null>(null)
 
+  // Payout & payment state
+  const [paymentDetails, setPaymentDetails] = useState<any | null>(null)
+  const [stripeAccount, setStripeAccount] = useState<any | null>(null)
+  const [payouts, setPayouts] = useState<any[]>([])
+  const [isPaymentLoading, setIsPaymentLoading] = useState(false)
+  const [isPayoutLoading, setIsPayoutLoading] = useState(false)
+  const [payoutAmount, setPayoutAmount] = useState("")
+  const [payoutCurrency, setPayoutCurrency] = useState("usd")
+  const [payoutType, setPayoutType] = useState<"MILESTONE" | "PROJECT" | "BONUS" | "MANUAL">("MILESTONE")
+  const [payoutDescription, setPayoutDescription] = useState("")
+  const [payoutNotes, setPayoutNotes] = useState("")
+  const [payoutProjectId, setPayoutProjectId] = useState("")
+  const [payoutMilestoneId, setPayoutMilestoneId] = useState("")
+
   // Helpers
   const getBidProjectTitle = (p?: { title?: string; name?: string; projectName?: string }) => {
     return p?.title || p?.name || p?.projectName || "Untitled Project"
@@ -155,15 +173,25 @@ export default function FreelancerEditPage() {
         const data = await response.json()
         const payload = data.data || {}
         const assigned = payload.assignedProjects || payload.selectedProjects || payload.projectsAssigned || payload.projects || []
-        setFreelancer({ ...payload, assignedProjects: assigned })
+
+        // Build KPI object same way as AllFreelancers list (from user KPI fields)
+        const user = payload.user
+        const kpi = user
+          ? {
+              points: user.kpiRankPoints || 0,
+              rank: user.kpiRank || "BRONZE",
+            }
+          : undefined
+
+        setFreelancer({ ...payload, assignedProjects: assigned, kpi })
         
-        // Set KPI data from freelancer data if available
-        if (data.data?.user) {
-          const u = data.data.user
-          const points = (u.kpiRankPoints ?? u.kpiPoints ?? u.kpi_score ?? 0) as number
-          const rank = (u.kpiRank ?? u.rank ?? u.kpiLevel ?? 'BRONZE') as string
-          const lastUpdated = (u.kpiUpdatedAt ?? u.updatedAt ?? new Date().toISOString()) as string
-          setKpiData({ points, rank, lastUpdated })
+        // Initialize KPI data used by KPI card from the same source
+        if (kpi) {
+          setKpiData({
+            points: kpi.points,
+            rank: kpi.rank,
+            lastUpdated: (user?.kpiUpdatedAt ?? user?.updatedAt ?? new Date().toISOString()) as string,
+          })
         }
       } else {
         toast.error("Failed to load freelancer details")
@@ -258,10 +286,12 @@ export default function FreelancerEditPage() {
     }
   }
 
-  // Fetch KPI data after freelancer data is loaded
+  // Fetch KPI & payout data after freelancer data is loaded
   useEffect(() => {
     if (freelancer) {
       fetchKpiData()
+      fetchPaymentDetails()
+      fetchPayoutHistory()
     }
   }, [freelancer])
 
@@ -363,17 +393,123 @@ export default function FreelancerEditPage() {
   }
 
   const getKPIBadge = (rank: string) => {
-    const colors = {
-      BRONZE: "bg-amber-600",
-      SILVER: "bg-gray-400", 
-      GOLD: "bg-yellow-500",
-      PLATINIUM: "bg-blue-500",
-      DIAMOND: "bg-purple-500",
-      CROWN: "bg-pink-500",
-      ACE: "bg-red-500",
-      CONQUERER: "bg-black"
+    // Use only brand colors for KPI ranks
+    const isTopTier = ["DIAMOND", "CROWN", "ACE", "CONQUERER"].includes(rank)
+    const baseClass = isTopTier
+      ? "bg-[#ff6b35]"
+      : "bg-[#003087]"
+
+    return (
+      <Badge className={`${baseClass} text-white`}>{rank}</Badge>
+    )
+  }
+
+  const fetchPaymentDetails = async () => {
+    try {
+      setIsPaymentLoading(true)
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+
+      if (!token) return
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/freelancers/${freelancerId}/payment-details`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        const d = data.data || {}
+        setPaymentDetails(d.freelancer || d)
+        setStripeAccount(d.stripeAccountDetails || null)
+      }
+    } catch (error) {
+      console.warn("Error fetching payment details", error)
+    } finally {
+      setIsPaymentLoading(false)
     }
-    return <Badge className={`${colors[rank as keyof typeof colors] || "bg-gray-500"} text-white`}>{rank}</Badge>
+  }
+
+  const fetchPayoutHistory = async () => {
+    try {
+      setIsPayoutLoading(true)
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+      if (!token) return
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/freelancers/${freelancerId}/payouts?page=1&limit=5`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        const d = data.data || {}
+        setPayouts(Array.isArray(d.payouts) ? d.payouts : [])
+      }
+    } catch (error) {
+      console.warn("Error fetching payout history", error)
+    } finally {
+      setIsPayoutLoading(false)
+    }
+  }
+
+  const initiatePayout = async () => {
+    if (!payoutAmount || Number(payoutAmount) <= 0) {
+      toast.error("Enter a valid payout amount")
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+      if (!token) {
+        toast.error("Authentication required")
+        return
+      }
+
+      const body: any = {
+        amount: Number(payoutAmount),
+        currency: payoutCurrency,
+        payoutType,
+      }
+      if (payoutDescription) body.description = payoutDescription
+      if (payoutNotes) body.notes = payoutNotes
+      if (payoutProjectId) body.projectId = payoutProjectId
+      if (payoutMilestoneId) body.milestoneId = payoutMilestoneId
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/freelancers/${freelancerId}/payout`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      })
+
+      if (!res.ok) {
+        const msg = await res.text()
+        throw new Error(msg || "Failed to initiate payout")
+      }
+
+      toast.success("Payout initiated successfully")
+      setPayoutAmount("")
+      setPayoutDescription("")
+      setPayoutNotes("")
+      setPayoutProjectId("")
+      setPayoutMilestoneId("")
+      fetchPayoutHistory()
+    } catch (error: any) {
+      console.error("Error initiating payout", error)
+      toast.error(error?.message || "Failed to initiate payout")
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   if (isLoading) {
@@ -406,7 +542,7 @@ export default function FreelancerEditPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-[#003087] to-[#0066cc] text-white">
+      <div className="bg-gradient-to-r from-[#003087] to-[#ff6b35] text-white">
         <div className="max-w-7xl mx-auto px-6 py-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -437,7 +573,14 @@ export default function FreelancerEditPage() {
                   <Badge className="bg-white/20 text-white border-white/30">
                     {freelancer.details.primaryDomain}
                   </Badge>
-                  {freelancer.user && getKPIBadge(freelancer.user.kpiRank)}
+                  {freelancer.kpi && (
+                    <div className="flex items-center gap-2">
+                      {getKPIBadge(freelancer.kpi.rank)}
+                      <span className="text-xs text-blue-100">
+                        {freelancer.kpi.points} pts
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -467,9 +610,9 @@ export default function FreelancerEditPage() {
           {/* Left Column - Main Info */}
           <div className="lg:col-span-2 space-y-8">
             {/* Personal Information */}
-            <Card className="border-l-4 border-l-blue-500">
-              <CardHeader className="bg-blue-50">
-                <CardTitle className="text-xl flex items-center gap-2 text-blue-800">
+            <Card className="border-l-4 border-l-[#003087]">
+              <CardHeader className="bg-[#003087]/5">
+                <CardTitle className="text-xl flex items-center gap-2 text-[#003087]">
                   <User className="w-5 h-5" />
                   Personal Information
                 </CardTitle>
@@ -523,9 +666,9 @@ export default function FreelancerEditPage() {
             </Card>
 
             {/* Bids */}
-            <Card className="border-l-4 border-l-fuchsia-500">
-              <CardHeader className="bg-fuchsia-50">
-                <CardTitle className="text-xl flex items-center gap-2 text-fuchsia-800">
+            <Card className="border-l-4 border-l-[#003087]">
+              <CardHeader className="bg-[#003087]/5">
+                <CardTitle className="text-xl flex items-center gap-2 text-[#003087]">
                   <TrendingUp className="w-5 h-5" />
                   Bids
                   {freelancer.bids?.length ? (
@@ -572,7 +715,7 @@ export default function FreelancerEditPage() {
 
                 <Dialog open={!!viewBid} onOpenChange={(o) => !o && setViewBid(null)}>
                   <DialogContent className="max-w-2xl p-0 overflow-hidden">
-                    <div className="bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white p-6">
+                    <div className="bg-gradient-to-r from-[#003087] to-[#ff6b35] text-white p-6">
                       <DialogHeader>
                         <DialogTitle className="text-2xl">Bid Details</DialogTitle>
                         <DialogDescription className="text-fuchsia-100">Review the bid information for this project</DialogDescription>
@@ -621,44 +764,56 @@ export default function FreelancerEditPage() {
             </Card>
 
             {/* Assigned Projects */}
-            <Card className="border-l-4 border-l-green-500">
-              <CardHeader className="bg-green-50">
-                <CardTitle className="text-xl flex items-center gap-2 text-green-800">
+            <Card className="border-l-4 border-l-[#003087]">
+              <CardHeader className="bg-[#003087]/5">
+                <CardTitle className="text-xl flex items-center gap-2 text-[#003087]">
                   <Briefcase className="w-5 h-5" />
                   Assigned Projects
+                  {freelancer.assignedProjects?.length ? (
+                    <Badge variant="secondary" className="ml-2">
+                      {freelancer.assignedProjects.length}
+                    </Badge>
+                  ) : null}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
                 {freelancer.assignedProjects?.length ? (
                   <div className="space-y-3">
-                    {freelancer.assignedProjects.map((project) => (
-                      <div key={project.id} className="p-4 bg-blue-50 rounded-lg border">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-medium text-gray-900">{project.title}</h4>
-                            <p className="text-sm text-gray-600">Client: {project.client?.name || (project as any)?.clientName || '-'}</p>
-                            <Badge variant="outline" className="mt-1">{project.status}</Badge>
+                    {freelancer.assignedProjects.map((project) => {
+                      const anyProj: any = project as any
+                      const title = anyProj.details?.companyName || project.title || anyProj.name || "Untitled Project"
+                      const clientName = project.client?.name || anyProj.clientName || anyProj.details?.clientName || "-"
+                      const status = project.status || anyProj.projectStatus || anyProj.status || "-"
+                      return (
+                        <div key={project.id} className="p-4 bg-[#003087]/5 rounded-lg border border-[#003087]/20">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="font-medium text-gray-900 truncate max-w-[30ch]">{title}</h4>
+                              <p className="text-xs text-gray-500 break-all mt-1">ID: {project.id}</p>
+                              <p className="text-sm text-gray-600 mt-1">Client: {clientName}</p>
+                              <Badge variant="outline" className="mt-1 text-xs border-[#003087] text-[#003087] bg-white">{status}</Badge>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button size="sm" variant="outline">
+                                <Eye className="w-4 h-4 mr-1" />
+                                View
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Button size="sm" variant="outline">
-                              <Eye className="w-4 h-4 mr-1" />
-                              View
-                            </Button>
-                          </div>
+                          {project.progress !== undefined && (
+                            <div className="mt-3">
+                              <div className="flex justify-between text-sm mb-1">
+                                <span>Progress</span>
+                                <span>{project.progress}%</span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div className="bg-[#003087] h-2 rounded-full" style={{ width: `${project.progress}%` }} />
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        {project.progress !== undefined && (
-                          <div className="mt-3">
-                            <div className="flex justify-between text-sm mb-1">
-                              <span>Progress</span>
-                              <span>{project.progress}%</span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-2">
-                              <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${project.progress}%` }} />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-8 text-gray-500">
@@ -668,21 +823,192 @@ export default function FreelancerEditPage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Payments & Payouts - moved under Assigned Projects, horizontal layout */}
+            <Card className="border-l-4 border-l-[#ff6b35] shadow-md">
+              <CardHeader className="bg-gradient-to-r from-[#003087] to-[#ff6b35] text-white">
+                <CardTitle className="text-lg flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-5 h-5" />
+                    Freelancer Payments
+                  </div>
+                  {paymentDetails?.stripeAccountStatus && (
+                    <Badge className="bg-white/20 text-white border-white/30 text-xs">
+                      {paymentDetails.stripeAccountStatus}
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="flex flex-col gap-4 lg:flex-row">
+                  {/* Stripe account summary */}
+                  <div className="lg:w-1/3">
+                    <div className="p-3 rounded-lg bg-[#ff6b35]/5 border border-[#ff6b35]/30 h-full flex flex-col justify-between">
+                      <div>
+                        <p className="text-xs text-[#ff6b35] font-medium">Stripe Account</p>
+                        <p className="text-sm font-semibold text-[#ff6b35] break-all mt-1">
+                          {paymentDetails?.stripeAccountId || "Not connected"}
+                        </p>
+                      </div>
+                      <div className="text-right text-xs text-[#ff6b35] mt-3">
+                        <p>Charges: {stripeAccount?.chargesEnabled ? "Enabled" : "Disabled"}</p>
+                        <p>Payouts: {stripeAccount?.payoutsEnabled ? "Enabled" : "Disabled"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* New payout form */}
+                  <div className="lg:w-1/3">
+                    <div className="space-y-3 p-3 rounded-lg bg-[#003087]/5 border border-[#003087]/20 h-full">
+                      <p className="text-xs font-semibold text-[#003087]">Initiate Payout</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-xs text-gray-600">Amount (USD)</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={payoutAmount}
+                            onChange={(e) => setPayoutAmount(e.target.value)}
+                            className="mt-1 h-9"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-gray-600">Payout Type</Label>
+                          <Select
+                            value={payoutType}
+                            onValueChange={(v) => setPayoutType(v as any)}
+                          >
+                            <SelectTrigger className="mt-1 h-9 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="MILESTONE">Milestone</SelectItem>
+                              <SelectItem value="PROJECT">Project</SelectItem>
+                              <SelectItem value="BONUS">Bonus</SelectItem>
+                              <SelectItem value="MANUAL">Manual</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-xs text-gray-600">Project ID (optional)</Label>
+                          <Input
+                            value={payoutProjectId}
+                            onChange={(e) => setPayoutProjectId(e.target.value)}
+                            className="mt-1 h-9"
+                            placeholder="Project UUID"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-gray-600">Milestone ID (optional)</Label>
+                          <Input
+                            value={payoutMilestoneId}
+                            onChange={(e) => setPayoutMilestoneId(e.target.value)}
+                            className="mt-1 h-9"
+                            placeholder="Milestone UUID"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div>
+                          <Label className="text-xs text-gray-600">Description</Label>
+                          <Input
+                            value={payoutDescription}
+                            onChange={(e) => setPayoutDescription(e.target.value)}
+                            className="mt-1 h-9"
+                            placeholder="Payment for milestone completion"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-gray-600">Admin Notes</Label>
+                          <Textarea
+                            rows={2}
+                            className="mt-1 text-xs"
+                            value={payoutNotes}
+                            onChange={(e) => setPayoutNotes(e.target.value)}
+                            placeholder="Internal notes (optional)"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end pt-1">
+                        <Button
+                          size="sm"
+                          className="bg-[#ff6b35] hover:bg-[#ff6b35]/90 text-white"
+                          onClick={initiatePayout}
+                          disabled={isSaving}
+                        >
+                          {isSaving ? (
+                            <RefreshCw className="w-3 h-3 animate-spin mr-2" />
+                          ) : (
+                            <DollarSign className="w-3 h-3 mr-2" />
+                          )}
+                          Send Payout
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payout history */}
+                  <div className="lg:w-1/3">
+                    <div className="space-y-3 p-3 rounded-lg bg-white border border-gray-200 h-full">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold text-gray-700">Recent Payouts</p>
+                        {isPayoutLoading && (
+                          <RefreshCw className="w-3 h-3 animate-spin text-gray-400" />
+                        )}
+                      </div>
+                      {payouts.length ? (
+                        <div className="space-y-2 max-h-56 overflow-auto pr-1">
+                          {payouts.map((payout) => (
+                            <div
+                              key={payout.id}
+                              className="p-2 rounded-lg border bg-gray-50 flex items-center justify-between text-xs"
+                            >
+                              <div className="space-y-1">
+                                <p className="font-semibold text-gray-800">
+                                  {payout.amount} {payout.currency?.toUpperCase?.() || "USD"}
+                                </p>
+                                <p className="text-gray-500">
+                                  {payout.payoutType} • {payout.description || "No description"}
+                                </p>
+                                <p className="text-gray-400">
+                                  {payout.createdAt ? new Date(payout.createdAt).toLocaleDateString() : ""}
+                                </p>
+                              </div>
+                              <Badge
+                                className="text-[10px] px-2"
+                                variant={payout.status === "PAID" ? "default" : "secondary"}
+                              >
+                                {payout.status}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500">No payouts recorded yet.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Right Column - KPI & Actions */}
           <div className="space-y-8">
             {/* KPI Management */}
-            <Card className="border-l-4 border-l-purple-500">
-              <CardHeader className="bg-purple-50">
-                <CardTitle className="text-xl flex items-center justify-between text-purple-800">
+            <Card className="border-l-4 border-l-[#003087]">
+              <CardHeader className="bg-[#003087]/5">
+                <CardTitle className="text-xl flex items-center justify-between text-[#003087]">
                   <div className="flex items-center gap-2">
                     <Award className="w-5 h-5" />
                     KPI Rank
                   </div>
                   <Dialog open={isKpiDialogOpen} onOpenChange={setIsKpiDialogOpen}>
                     <DialogTrigger asChild>
-                      <Button size="sm" className="bg-purple-600 hover:bg-purple-700">
+                      <Button size="sm" className="bg-[#003087] hover:bg-[#003087]/90 text-white">
                         <TrendingUp className="w-4 h-4 mr-2" />
                         Update KPI
                       </Button>
@@ -734,16 +1060,16 @@ export default function FreelancerEditPage() {
               <CardContent className="p-6 text-center">
                 {isKpiLoading ? (
                   <div className="space-y-4">
-                    <RefreshCw className="w-8 h-8 text-purple-400 mx-auto animate-spin" />
+                    <RefreshCw className="w-8 h-8 text-[#003087] mx-auto animate-spin" />
                     <p className="text-gray-500">Loading KPI data...</p>
                   </div>
                 ) : kpiData ? (
                   <div className="space-y-4">
-                    <div className="text-4xl font-bold text-purple-600">
-                      {kpiData.points}
+                    <div className="text-4xl font-bold text-[#003087]">
+                      {freelancer.kpi?.points}
                     </div>
                     <div className="text-sm text-gray-500">Points</div>
-                    {getKPIBadge(kpiData.rank)}
+                    {getKPIBadge(freelancer.kpi?.rank || "")}
                     <Separator />
                     <div className="text-xs text-gray-500">
                       Last updated: {new Date(kpiData.lastUpdated).toLocaleDateString()}
@@ -752,7 +1078,7 @@ export default function FreelancerEditPage() {
                       size="sm" 
                       variant="outline" 
                       onClick={fetchKpiData}
-                      className="mt-2"
+                      className="mt-2 border-[#003087] text-[#003087]"
                     >
                       <RefreshCw className="w-3 h-3 mr-1" />
                       Refresh
@@ -760,13 +1086,13 @@ export default function FreelancerEditPage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <Award className="w-12 h-12 text-gray-400 mx-auto" />
+                    <Award className="w-12 h-12 text-[#003087]/40 mx-auto" />
                     <p className="text-gray-500">No KPI data available</p>
                     <Button 
                       size="sm" 
                       variant="outline" 
                       onClick={fetchKpiData}
-                      className="mt-2"
+                      className="mt-2 border-[#003087] text-[#003087]"
                     >
                       <RefreshCw className="w-3 h-3 mr-1" />
                       Load KPI Data
@@ -776,11 +1102,12 @@ export default function FreelancerEditPage() {
               </CardContent>
             </Card>
 
+
             {/* Skills */}
             {freelancer.details.eliteSkillCards?.length && (
-              <Card className="border-l-4 border-l-orange-500">
-                <CardHeader className="bg-orange-50">
-                  <CardTitle className="text-xl flex items-center gap-2 text-orange-800">
+              <Card className="border-l-4 border-l-[#ff6b35]">
+                <CardHeader className="bg-[#ff6b35]/5">
+                  <CardTitle className="text-xl flex items-center gap-2 text-[#ff6b35]">
                     <Star className="w-5 h-5" />
                     Elite Skills
                   </CardTitle>
@@ -788,7 +1115,10 @@ export default function FreelancerEditPage() {
                 <CardContent className="p-6">
                   <div className="flex flex-wrap gap-2">
                     {freelancer.details.eliteSkillCards.map((skill: string, index: number) => (
-                      <Badge key={index} className="bg-orange-100 text-orange-800 border-orange-200">
+                      <Badge
+                        key={index}
+                        className="bg-[#ff6b35]/10 text-[#ff6b35] border border-[#ff6b35]/40"
+                      >
                         {skill}
                       </Badge>
                     ))}
@@ -799,9 +1129,9 @@ export default function FreelancerEditPage() {
 
             {/* Professional Links */}
             {freelancer.details.professionalLinks?.length && (
-              <Card className="border-l-4 border-l-indigo-500">
-                <CardHeader className="bg-indigo-50">
-                  <CardTitle className="text-xl flex items-center gap-2 text-indigo-800">
+              <Card className="border-l-4 border-l-[#003087]">
+                <CardHeader className="bg-[#003087]/5">
+                  <CardTitle className="text-xl flex items-center gap-2 text-[#003087]">
                     <Globe className="w-5 h-5" />
                     Professional Links
                   </CardTitle>
@@ -816,8 +1146,8 @@ export default function FreelancerEditPage() {
                         rel="noopener noreferrer"
                         className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border hover:bg-gray-100 transition-colors"
                       >
-                        <ExternalLink className="w-4 h-4 text-indigo-600" />
-                        <span className="text-blue-600 hover:underline truncate">{link}</span>
+                        <ExternalLink className="w-4 h-4 text-[#003087]" />
+                        <span className="text-[#003087] hover:underline truncate">{link}</span>
                       </a>
                     ))}
                   </div>
