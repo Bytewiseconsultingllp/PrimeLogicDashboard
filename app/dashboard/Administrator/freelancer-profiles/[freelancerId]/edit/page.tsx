@@ -176,6 +176,7 @@ export default function FreelancerEditPage() {
 
         // Build KPI object same way as AllFreelancers list (from user KPI fields)
         const user = payload.user
+        console.log("User data:", user);
         const kpi = user
           ? {
               points: user.kpiRankPoints || 0,
@@ -538,7 +539,7 @@ export default function FreelancerEditPage() {
       </div>
     )
   }
-
+ console.log("Freelancer data:", freelancer);
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -824,7 +825,7 @@ export default function FreelancerEditPage() {
               </CardContent>
             </Card>
 
-            {/* Payments & Payouts - moved under Assigned Projects, horizontal layout */}
+            {/* Payments & Payouts */}
             <Card className="border-l-4 border-l-[#ff6b35] shadow-md">
               <CardHeader className="bg-gradient-to-r from-[#003087] to-[#ff6b35] text-white">
                 <CardTitle className="text-lg flex items-center justify-between">
@@ -839,157 +840,217 @@ export default function FreelancerEditPage() {
                   )}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-6">
-                <div className="flex flex-col gap-4 lg:flex-row">
-                  {/* Stripe account summary */}
-                  <div className="lg:w-1/3">
-                    <div className="p-3 rounded-lg bg-[#ff6b35]/5 border border-[#ff6b35]/30 h-full flex flex-col justify-between">
+              <CardContent className="p-6 space-y-6">
+                {/* Stripe Account Details - Top Section */}
+                <div className="space-y-2">
+                  <h3 className="font-medium text-gray-900 flex items-center gap-2">
+                    <Settings className="w-4 h-4" />
+                    Stripe Account Details
+                  </h3>
+                  <div className="p-4 rounded-lg bg-gray-50 border border-gray-200">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <p className="text-xs text-[#ff6b35] font-medium">Stripe Account</p>
-                        <p className="text-sm font-semibold text-[#ff6b35] break-all mt-1">
+                        <p className="text-xs text-gray-500">Stripe Account ID</p>
+                        <p className="text-sm font-medium text-gray-900 break-all">
                           {paymentDetails?.stripeAccountId || "Not connected"}
                         </p>
                       </div>
-                      <div className="text-right text-xs text-[#ff6b35] mt-3">
-                        <p>Charges: {stripeAccount?.chargesEnabled ? "Enabled" : "Disabled"}</p>
-                        <p>Payouts: {stripeAccount?.payoutsEnabled ? "Enabled" : "Disabled"}</p>
+                      <div>
+                        <p className="text-xs text-gray-500">Status</p>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${
+                            paymentDetails?.stripeAccountStatus === 'active' ? 'bg-green-500' : 'bg-yellow-500'
+                          }`} />
+                          <span className="text-sm font-medium">
+                            {paymentDetails?.stripeAccountStatus?.toUpperCase() || 'INACTIVE'}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Charges</p>
+                        <Badge variant={stripeAccount?.chargesEnabled ? 'default' : 'secondary'} className="text-xs">
+                          {stripeAccount?.chargesEnabled ? 'Enabled' : 'Disabled'}
+                        </Badge>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Payouts</p>
+                        <Badge variant={stripeAccount?.payoutsEnabled ? 'default' : 'secondary'} className="text-xs">
+                          {stripeAccount?.payoutsEnabled ? 'Enabled' : 'Disabled'}
+                        </Badge>
                       </div>
                     </div>
-                  </div>
-
-                  {/* New payout form */}
-                  <div className="lg:w-1/3">
-                    <div className="space-y-3 p-3 rounded-lg bg-[#003087]/5 border border-[#003087]/20 h-full">
-                      <p className="text-xs font-semibold text-[#003087]">Initiate Payout</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label className="text-xs text-gray-600">Amount (USD)</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            value={payoutAmount}
-                            onChange={(e) => setPayoutAmount(e.target.value)}
-                            className="mt-1 h-9"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs text-gray-600">Payout Type</Label>
-                          <Select
-                            value={payoutType}
-                            onValueChange={(v) => setPayoutType(v as any)}
-                          >
-                            <SelectTrigger className="mt-1 h-9 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="MILESTONE">Milestone</SelectItem>
-                              <SelectItem value="PROJECT">Project</SelectItem>
-                              <SelectItem value="BONUS">Bonus</SelectItem>
-                              <SelectItem value="MANUAL">Manual</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label className="text-xs text-gray-600">Project ID (optional)</Label>
-                          <Input
-                            value={payoutProjectId}
-                            onChange={(e) => setPayoutProjectId(e.target.value)}
-                            className="mt-1 h-9"
-                            placeholder="Project UUID"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs text-gray-600">Milestone ID (optional)</Label>
-                          <Input
-                            value={payoutMilestoneId}
-                            onChange={(e) => setPayoutMilestoneId(e.target.value)}
-                            className="mt-1 h-9"
-                            placeholder="Milestone UUID"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div>
-                          <Label className="text-xs text-gray-600">Description</Label>
-                          <Input
-                            value={payoutDescription}
-                            onChange={(e) => setPayoutDescription(e.target.value)}
-                            className="mt-1 h-9"
-                            placeholder="Payment for milestone completion"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs text-gray-600">Admin Notes</Label>
-                          <Textarea
-                            rows={2}
-                            className="mt-1 text-xs"
-                            value={payoutNotes}
-                            onChange={(e) => setPayoutNotes(e.target.value)}
-                            placeholder="Internal notes (optional)"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex justify-end pt-1">
-                        <Button
-                          size="sm"
-                          className="bg-[#ff6b35] hover:bg-[#ff6b35]/90 text-white"
-                          onClick={initiatePayout}
-                          disabled={isSaving}
-                        >
-                          {isSaving ? (
-                            <RefreshCw className="w-3 h-3 animate-spin mr-2" />
+                    {stripeAccount?.detailsSubmitted !== undefined && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <p className="text-xs text-gray-500 mb-1">Verification</p>
+                        <div className="flex items-center gap-2">
+                          {stripeAccount.detailsSubmitted ? (
+                            <CheckCircle className="w-4 h-4 text-green-500" />
                           ) : (
-                            <DollarSign className="w-3 h-3 mr-2" />
+                            <XCircle className="w-4 h-4 text-yellow-500" />
                           )}
-                          Send Payout
-                        </Button>
+                          <span className="text-xs">
+                            {stripeAccount.detailsSubmitted 
+                              ? 'KYC details submitted and verified' 
+                              : 'KYC details pending submission'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Initiate Payout - Middle Section */}
+                <div className="space-y-2">
+                  <h3 className="font-medium text-gray-900 flex items-center gap-2">
+                    <DollarSign className="w-4 h-4" />
+                    Initiate Payout
+                  </h3>
+                  <div className="p-4 rounded-lg bg-white border border-gray-200">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-xs text-gray-600">Amount (USD)</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={payoutAmount}
+                          onChange={(e) => setPayoutAmount(e.target.value)}
+                          className="mt-1 h-9"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-600">Payout Type</Label>
+                        <Select
+                          value={payoutType}
+                          onValueChange={(v) => setPayoutType(v as any)}
+                        >
+                          <SelectTrigger className="mt-1 h-9 text-xs">
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="MILESTONE">Milestone</SelectItem>
+                            <SelectItem value="PROJECT">Project</SelectItem>
+                            <SelectItem value="BONUS">Bonus</SelectItem>
+                            <SelectItem value="MANUAL">Manual</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-600">Project ID (optional)</Label>
+                        <Input
+                          value={payoutProjectId}
+                          onChange={(e) => setPayoutProjectId(e.target.value)}
+                          className="mt-1 h-9 text-xs"
+                          placeholder="Project UUID"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-600">Milestone ID (optional)</Label>
+                        <Input
+                          value={payoutMilestoneId}
+                          onChange={(e) => setPayoutMilestoneId(e.target.value)}
+                          className="mt-1 h-9 text-xs"
+                          placeholder="Milestone UUID"
+                        />
                       </div>
                     </div>
-                  </div>
-
-                  {/* Payout history */}
-                  <div className="lg:w-1/3">
-                    <div className="space-y-3 p-3 rounded-lg bg-white border border-gray-200 h-full">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-semibold text-gray-700">Recent Payouts</p>
-                        {isPayoutLoading && (
-                          <RefreshCw className="w-3 h-3 animate-spin text-gray-400" />
-                        )}
+                    <div className="mt-4 space-y-3">
+                      <div>
+                        <Label className="text-xs text-gray-600">Description</Label>
+                        <Input
+                          value={payoutDescription}
+                          onChange={(e) => setPayoutDescription(e.target.value)}
+                          className="mt-1 h-9 text-sm"
+                          placeholder="Payment for milestone completion"
+                        />
                       </div>
-                      {payouts.length ? (
-                        <div className="space-y-2 max-h-56 overflow-auto pr-1">
-                          {payouts.map((payout) => (
-                            <div
-                              key={payout.id}
-                              className="p-2 rounded-lg border bg-gray-50 flex items-center justify-between text-xs"
-                            >
+                      <div>
+                        <Label className="text-xs text-gray-600">Admin Notes</Label>
+                        <Textarea
+                          rows={2}
+                          className="mt-1 text-sm"
+                          value={payoutNotes}
+                          onChange={(e) => setPayoutNotes(e.target.value)}
+                          placeholder="Internal notes (optional)"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end pt-3">
+                      <Button
+                        size="sm"
+                        className="bg-[#ff6b35] hover:bg-[#ff6b35]/90 text-white"
+                        onClick={initiatePayout}
+                        disabled={isSaving || !stripeAccount?.payoutsEnabled}
+                      >
+                        {isSaving ? (
+                          <RefreshCw className="w-3 h-3 animate-spin mr-2" />
+                        ) : (
+                          <DollarSign className="w-3 h-3 mr-2" />
+                        )}
+                        {stripeAccount?.payoutsEnabled ? 'Send Payout' : 'Payouts Disabled'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payout History - Bottom Section */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-medium text-gray-900 flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      Recent Payouts
+                    </h3>
+                    {isPayoutLoading && (
+                      <RefreshCw className="w-3 h-3 animate-spin text-gray-400" />
+                    )}
+                  </div>
+                  <div className="border rounded-lg overflow-hidden">
+                    {payouts.length > 0 ? (
+                      <div className="divide-y">
+                        {payouts.map((payout) => (
+                          <div
+                            key={payout.id}
+                            className="p-4 hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="flex items-start justify-between">
                               <div className="space-y-1">
-                                <p className="font-semibold text-gray-800">
-                                  {payout.amount} {payout.currency?.toUpperCase?.() || "USD"}
-                                </p>
-                                <p className="text-gray-500">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">
+                                    ${parseFloat(payout.amount).toFixed(2)} {payout.currency?.toUpperCase?.() || "USD"}
+                                  </span>
+                                  <Badge
+                                    variant={payout.status === "PAID" ? "default" : "secondary"}
+                                    className="text-[10px] px-2 py-0.5"
+                                  >
+                                    {payout.status}
+                                  </Badge>
+                                </div>
+                                <p className="text-sm text-gray-600">
                                   {payout.payoutType} • {payout.description || "No description"}
                                 </p>
-                                <p className="text-gray-400">
-                                  {payout.createdAt ? new Date(payout.createdAt).toLocaleDateString() : ""}
+                                <p className="text-xs text-gray-400">
+                                  {payout.createdAt ? new Date(payout.createdAt).toLocaleString() : ""}
                                 </p>
                               </div>
-                              <Badge
-                                className="text-[10px] px-2"
-                                variant={payout.status === "PAID" ? "default" : "secondary"}
-                              >
-                                {payout.status}
-                              </Badge>
+                              <Button variant="ghost" size="sm" className="h-8">
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </Button>
                             </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-gray-500">No payouts recorded yet.</p>
-                      )}
-                    </div>
+                            {payout.notes && (
+                              <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-600">
+                                {payout.notes}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-6 text-center text-gray-500">
+                        <p>No payouts recorded yet.</p>
+                        <p className="text-xs mt-1">Initiate a payout to see it here.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -1074,15 +1135,7 @@ export default function FreelancerEditPage() {
                     <div className="text-xs text-gray-500">
                       Last updated: {new Date(kpiData.lastUpdated).toLocaleDateString()}
                     </div>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      onClick={fetchKpiData}
-                      className="mt-2 border-[#003087] text-[#003087]"
-                    >
-                      <RefreshCw className="w-3 h-3 mr-1" />
-                      Refresh
-                    </Button>
+                    
                   </div>
                 ) : (
                   <div className="space-y-4">
