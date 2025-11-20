@@ -394,15 +394,17 @@ export default function FreelancerEditPage() {
   }
 
   const getKPIBadge = (rank: string) => {
-    // Use only brand colors for KPI ranks
-    const isTopTier = ["DIAMOND", "CROWN", "ACE", "CONQUERER"].includes(rank)
-    const baseClass = isTopTier
-      ? "bg-[#ff6b35]"
-      : "bg-[#003087]"
-
-    return (
-      <Badge className={`${baseClass} text-white`}>{rank}</Badge>
-    )
+    const colors = {
+      BRONZE: "bg-amber-600",
+      SILVER: "bg-gray-400",
+      GOLD: "bg-yellow-500",
+      PLATINIUM: "bg-blue-500",
+      DIAMOND: "bg-purple-500",
+      CROWN: "bg-pink-500",
+      ACE: "bg-red-500",
+      CONQUERER: "bg-black"
+    }
+    return <Badge className={`${colors[rank as keyof typeof colors] || "bg-gray-500"} text-white`}>{rank}</Badge>
   }
 
   const fetchPaymentDetails = async () => {
@@ -1124,18 +1126,30 @@ export default function FreelancerEditPage() {
                     <RefreshCw className="w-8 h-8 text-[#003087] mx-auto animate-spin" />
                     <p className="text-gray-500">Loading KPI data...</p>
                   </div>
-                ) : kpiData ? (
+                ) : kpiData || freelancer.user ? (
                   <div className="space-y-4">
-                    <div className="text-4xl font-bold text-[#003087]">
-                      {freelancer.kpi?.points}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-500">KPI Points</p>
+                        <p className="text-3xl font-bold text-gray-900">
+                          {kpiData?.points || freelancer.user?.kpiRankPoints || 0}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-gray-500">Rank</p>
+                        <div className="mt-1">
+                          {getKPIBadge((kpiData?.rank || freelancer.user?.kpiRank || "BRONZE").toUpperCase())}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-500">Points</div>
-                    {getKPIBadge(freelancer.kpi?.rank || "")}
                     <Separator />
                     <div className="text-xs text-gray-500">
-                      Last updated: {new Date(kpiData.lastUpdated).toLocaleDateString()}
+                      Last updated: {kpiData?.lastUpdated 
+                        ? new Date(kpiData.lastUpdated).toLocaleDateString() 
+                        : freelancer.user?.kpiUpdatedAt 
+                          ? new Date(freelancer.user.kpiUpdatedAt).toLocaleDateString()
+                          : 'N/A'}
                     </div>
-                    
                   </div>
                 ) : (
                   <div className="space-y-4">
