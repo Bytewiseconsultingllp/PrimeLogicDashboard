@@ -84,7 +84,7 @@ export default function ProjectStatusPage() {
         console.log("🔄 Fetching freelancer's assigned projects with milestones...")
         
         // Fetch projects assigned to this freelancer
-        const response = await fetch(`${process.env.NEXT_PUBLIC_PLS}/api/v1/projects/my-projects?page=1&limit=20`, {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_PLS}/freelancer/my-projects?page=1&limit=20`, {
           headers: { 
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json"
@@ -103,7 +103,7 @@ export default function ProjectStatusPage() {
               data.data.projects.map(async (project: any) => {
                 try {
                   // Fetch milestones for this project
-                  const milestonesResponse = await fetch(`${process.env.NEXT_PUBLIC_PLS}/api/v1/projects/${project.id}/milestones`, {
+                  const milestonesResponse = await fetch(`${process.env.NEXT_PUBLIC_PLS}/freelancer/my-projects/${project.id}/milestones`, {
                     headers: { 
                       "Authorization": `Bearer ${token}`,
                       "Content-Type": "application/json"

@@ -35,7 +35,8 @@ import {
   Briefcase,
   Target,
   CreditCard,
-  Save
+  Save,
+  PlusCircle
 } from "lucide-react"
 import { getUserDetails } from "@/lib/api/storage"
 import { toast } from "sonner"
@@ -111,14 +112,12 @@ export default function ProjectDetailPage() {
   const [createTitle, setCreateTitle] = useState("")
   const [createDescription, setCreateDescription] = useState("")
   const [createDueDate, setCreateDueDate] = useState("")
+  const [createPriority, setCreatePriority] = useState<"LOW" | "MEDIUM" | "HIGH" | "CRITICAL">("MEDIUM")
+  const [createPhase, setCreatePhase] = useState<"DISCOVERY" | "DESIGN" | "IMPLEMENTATION" | "TESTING" | "DEPLOYMENT">("IMPLEMENTATION")
+  const [createEstimatedHours, setCreateEstimatedHours] = useState<number | null>(null)
+  const [createFreelancerId, setCreateFreelancerId] = useState<string>("")
   const [creatingMilestone, setCreatingMilestone] = useState(false)
 
-  // Create multiple milestones state
-  const [isMultiDialogOpen, setIsMultiDialogOpen] = useState(false)
-  const [multiMilestones, setMultiMilestones] = useState<{ title: string; description: string; dueDate: string }[]>([
-    { title: "", description: "", dueDate: "" },
-  ])
-  const [creatingMultiple, setCreatingMultiple] = useState(false)
   const [paymentStatusData, setPaymentStatusData] = useState<{status: string, amount: number, currency: string} | null>(null)
   const [viewPayment, setViewPayment] = useState<any | null>(null)
   const [bids, setBids] = useState<any[]>([])
@@ -190,6 +189,10 @@ export default function ProjectDetailPage() {
     setCreateTitle("")
     setCreateDescription("")
     setCreateDueDate("")
+    setCreatePriority("MEDIUM")
+    setCreatePhase("IMPLEMENTATION")
+    setCreateEstimatedHours(null)
+    setCreateFreelancerId("")
   }
 
   const openMilestoneDialog = (milestone: any | null) => {
@@ -213,38 +216,39 @@ export default function ProjectDetailPage() {
         return
       }
 
-      const basicPayload: any = {}
-      if (msTitle) basicPayload.title = msTitle
-      if (msDescription) basicPayload.description = msDescription
-      if (msDueDate) basicPayload.dueDate = msDueDate
-
-      if (Object.keys(basicPayload).length > 0) {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/milestone/updateMilestone/${editingMilestone.id}`, {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(basicPayload),
-        })
-        if (!res.ok) {
-          const msg = await res.text()
-          throw new Error(msg || "Failed to update milestone details")
+      // Prepare the update payload according to the API spec
+      const updatePayload: any = {}
+      if (msTitle) updatePayload.milestoneName = msTitle
+      if (msDescription) updatePayload.description = msDescription
+      if (msDueDate) updatePayload.deadline = new Date(msDueDate).toISOString()
+      if (msProgress !== "" && !Number.isNaN(Number(msProgress))) {
+        updatePayload.progress = Number(msProgress)
+        // Update status based on progress if needed
+        if (Number(msProgress) >= 100) {
+          updatePayload.status = "COMPLETED"
+          updatePayload.isMilestoneCompleted = true
+        } else if (Number(msProgress) > 0) {
+          updatePayload.status = "IN_PROGRESS"
         }
       }
 
-      if (msProgress !== "" && !Number.isNaN(Number(msProgress))) {
-        const res2 = await fetch(`${process.env.NEXT_PUBLIC_PLS}/milestone/updateMilestoneProgress/${editingMilestone.id}`, {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ progress: Number(msProgress) }),
-        })
-        if (!res2.ok) {
-          const msg = await res2.text()
-          throw new Error(msg || "Failed to update milestone progress")
+      // Only proceed if we have fields to update
+      if (Object.keys(updatePayload).length > 0) {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_PLS}/projects/${projectId}/milestones/${editingMilestone.id}`,
+          {
+            method: "PATCH",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(updatePayload),
+          }
+        )
+        
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}))
+          throw new Error(errorData.message || "Failed to update milestone")
         }
       }
 
@@ -261,10 +265,16 @@ export default function ProjectDetailPage() {
   }
 
   const createMilestone = async () => {
-    if (!createTitle || !createDescription || !createDueDate) {
-      toast.error("Please fill in title, description and due date")
+    if (!createTitle || !createDueDate) {
+      toast.error("Please fill in required fields: title and due date")
       return
     }
+    
+    if (!createFreelancerId) {
+      toast.error("Please select a freelancer for this milestone")
+      return
+    }
+    
     setCreatingMilestone(true)
     try {
       const userDetails = getUserDetails()
@@ -274,90 +284,45 @@ export default function ProjectDetailPage() {
         return
       }
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/milestone/createMilestone/${projectId}`, {
+      // Prepare the payload according to the API spec
+      const payload = {
+        milestoneName: createTitle,
+        description: createDescription || "",
+        deadline: new Date(createDueDate).toISOString(),
+        status: "PLANNED",
+        priority: createPriority,
+        phase: createPhase,
+        assignedFreelancerId: createFreelancerId,
+        progress: 0,
+        isMilestoneCompleted: false,
+        riskLevel: "MEDIUM", // Default risk level
+        blocked: false,
+        ...(createEstimatedHours && { estimatedHours: Number(createEstimatedHours) })
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/projects/${projectId}/milestones`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          title: createTitle,
-          description: createDescription,
-          dueDate: createDueDate,
-        }),
+        body: JSON.stringify(payload),
       })
 
       if (!res.ok) {
-        const msg = await res.text()
-        throw new Error(msg || "Failed to create milestone")
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.message || "Failed to create milestone")
       }
 
-      toast.success("Milestone created")
+      toast.success("Milestone created successfully")
       setIsCreateDialogOpen(false)
       resetCreateState()
       await fetchProjectDetails()
     } catch (e: any) {
-      console.error(e)
-      toast.error(e?.message || "Failed to create milestone")
+      console.error("Error creating milestone:", e)
+      toast.error(e?.message || "Failed to create milestone. Please try again.")
     } finally {
       setCreatingMilestone(false)
-    }
-  }
-
-  const addMultiRow = () => {
-    setMultiMilestones((prev) => [...prev, { title: "", description: "", dueDate: "" }])
-  }
-
-  const updateMultiRow = (index: number, field: "title" | "description" | "dueDate", value: string) => {
-    setMultiMilestones((prev) => {
-      const next = [...prev]
-      next[index] = { ...next[index], [field]: value }
-      return next
-    })
-  }
-
-  const removeMultiRow = (index: number) => {
-    setMultiMilestones((prev) => prev.length === 1 ? prev : prev.filter((_, i) => i !== index))
-  }
-
-  const createMultipleMilestones = async () => {
-    const payload = multiMilestones.filter(m => m.title && m.description && m.dueDate)
-    if (!payload.length) {
-      toast.error("Please add at least one complete milestone row")
-      return
-    }
-    setCreatingMultiple(true)
-    try {
-      const userDetails = getUserDetails()
-      const token = userDetails?.accessToken
-      if (!token) {
-        toast.error("Authentication required")
-        return
-      }
-
-      const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/milestone/createMultipleMilestones/${projectId}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ milestones: payload }),
-      })
-
-      if (!res.ok) {
-        const msg = await res.text()
-        throw new Error(msg || "Failed to create milestones")
-      }
-
-      toast.success("Milestones created")
-      setIsMultiDialogOpen(false)
-      setMultiMilestones([{ title: "", description: "", dueDate: "" }])
-      await fetchProjectDetails()
-    } catch (e: any) {
-      console.error(e)
-      toast.error(e?.message || "Failed to create milestones")
-    } finally {
-      setCreatingMultiple(false)
     }
   }
 
@@ -371,16 +336,20 @@ export default function ProjectDetailPage() {
         return
       }
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/milestone/deleteMilestone/${milestoneId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      })
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_PLS}/projects/${projectId}/milestones/${milestoneId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      )
+      
       if (!res.ok) {
-        const msg = await res.text()
-        throw new Error(msg || "Failed to delete milestone")
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.message || "Failed to delete milestone")
       }
 
       toast.success("Milestone deleted")
@@ -391,34 +360,7 @@ export default function ProjectDetailPage() {
     }
   }
 
-  const completeMilestone = async (milestoneId: string) => {
-    try {
-      const userDetails = getUserDetails()
-      const token = userDetails?.accessToken
-      if (!token) {
-        toast.error("Authentication required")
-        return
-      }
-
-      const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/milestone/completeMilestone/${milestoneId}`, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      })
-      if (!res.ok) {
-        const msg = await res.text()
-        throw new Error(msg || "Failed to complete milestone")
-      }
-
-      toast.success("Milestone marked as completed")
-      await fetchProjectDetails()
-    } catch (e: any) {
-      console.error(e)
-      toast.error(e?.message || "Failed to complete milestone")
-    }
-  }
+  
 
   const fetchPaymentStatus = async () => {
     try {
@@ -892,20 +834,10 @@ export default function ProjectDetailPage() {
                     resetCreateState()
                     setIsCreateDialogOpen(true)
                   }}
+                  className="bg-[#003087] hover:bg-[#002366] text-white border-0"
                 >
-                  <Save className="w-4 h-4 mr-2" />
-                  Add Milestone
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setMultiMilestones([{ title: "", description: "", dueDate: "" }])
-                    setIsMultiDialogOpen(true)
-                  }}
-                >
-                  <Users className="w-4 h-4 mr-2" />
-                  Add Multiple
+                  <PlusCircle className="w-4 h-4 mr-2" />
+                  Create Milestone
                 </Button>
               </div>
             </CardHeader>
@@ -922,15 +854,7 @@ export default function ProjectDetailPage() {
                           </Badge>
                         </div>
                         <div className="flex flex-wrap gap-2 justify-start md:justify-end">
-                          {!milestone.isMilestoneCompleted && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => completeMilestone(milestone.id)}
-                            >
-                              <CheckCircle className="w-4 h-4 mr-1" /> Complete
-                            </Button>
-                          )}
+                          
                           <Button
                             size="sm"
                             variant="outline"
@@ -1052,142 +976,157 @@ export default function ProjectDetailPage() {
                 </DialogContent>
               </Dialog>
 
-              {/* Create single milestone dialog */}
+              {/* Create milestone dialog */}
               <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                <DialogContent className="max-w-lg">
-                  <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white -m-6 mb-6 p-6 rounded-t-lg">
+                <DialogContent className="max-w-2xl">
+                  <div className="bg-gradient-to-r from-[#003087] to-[#1a4b9c] text-white -m-6 mb-6 p-6 rounded-t-lg">
                     <DialogHeader>
-                      <DialogTitle className="text-xl">Create Milestone</DialogTitle>
-                      <DialogDescription className="text-emerald-100">
-                        Add a new milestone for this project
-                      </DialogDescription>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <DialogTitle className="text-xl">Create New Milestone</DialogTitle>
+                          <DialogDescription className="text-blue-100">
+                            Project ID: {projectId}
+                          </DialogDescription>
+                        </div>
+                        <Badge variant="secondary" className="bg-white/20 text-white border-0">
+                          {project?.details?.companyName || 'Project'}
+                        </Badge>
+                      </div>
                     </DialogHeader>
                   </div>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Title</Label>
-                      <Input
-                        value={createTitle}
-                        onChange={(e) => setCreateTitle(e.target.value)}
-                        placeholder="Milestone title"
-                      />
+                  
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label className="flex items-center">
+                            Milestone Name <span className="text-red-500 ml-1">*</span>
+                          </Label>
+                          <Input
+                            value={createTitle}
+                            onChange={(e) => setCreateTitle(e.target.value)}
+                            placeholder="e.g., Design Phase, Development, Testing"
+                            className="border-gray-300 focus-visible:ring-[#003087]"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Description</Label>
+                          <Textarea
+                            rows={3}
+                            value={createDescription}
+                            onChange={(e) => setCreateDescription(e.target.value)}
+                            placeholder="Detailed description of the milestone..."
+                            className="border-gray-300 focus-visible:ring-[#003087]"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="flex items-center">
+                            Deadline <span className="text-red-500 ml-1">*</span>
+                          </Label>
+                          <Input
+                            type="datetime-local"
+                            value={createDueDate}
+                            onChange={(e) => setCreateDueDate(e.target.value)}
+                            className="border-gray-300 focus-visible:ring-[#003087]"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label className="flex items-center">
+                            Assigned Freelancer <span className="text-red-500 ml-1">*</span>
+                          </Label>
+                          <select
+                            value={createFreelancerId}
+                            onChange={(e) => setCreateFreelancerId(e.target.value)}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003087] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <option value="">Select freelancer</option>
+                            {project?.selectedFreelancers?.map((freelancer: any) => (
+                              <option key={freelancer.id} value={freelancer.id}>
+                                {freelancer.details?.fullName || `Freelancer ${freelancer.id.substring(0, 6)}`}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Priority</Label>
+                            <select
+                              value={createPriority}
+                              onChange={(e) => setCreatePriority(e.target.value as any)}
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003087] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <option value="LOW">Low</option>
+                              <option value="MEDIUM">Medium</option>
+                              <option value="HIGH">High</option>
+                              <option value="CRITICAL">Critical</option>
+                            </select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Phase</Label>
+                            <select
+                              value={createPhase}
+                              onChange={(e) => setCreatePhase(e.target.value as any)}
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003087] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <option value="DISCOVERY">Discovery</option>
+                              <option value="DESIGN">Design</option>
+                              <option value="IMPLEMENTATION">Implementation</option>
+                              <option value="TESTING">Testing</option>
+                              <option value="DEPLOYMENT">Deployment</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Estimated Hours (optional)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={createEstimatedHours || ''}
+                            onChange={(e) => setCreateEstimatedHours(e.target.value ? Number(e.target.value) : null)}
+                            placeholder="Estimated hours to complete"
+                            className="border-gray-300 focus-visible:ring-[#003087]"
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Description</Label>
-                      <Textarea
-                        rows={3}
-                        value={createDescription}
-                        onChange={(e) => setCreateDescription(e.target.value)}
-                        placeholder="Describe the milestone"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Due Date</Label>
-                      <Input
-                        type="date"
-                        value={createDueDate}
-                        onChange={(e) => setCreateDueDate(e.target.value)}
-                      />
-                    </div>
-                    <div className="flex justify-end gap-3 pt-2">
+
+                    <div className="flex justify-end gap-3 pt-2 border-t border-gray-200">
                       <Button
                         variant="outline"
                         onClick={() => {
                           setIsCreateDialogOpen(false)
                           resetCreateState()
                         }}
+                        disabled={creatingMilestone}
+                        className="border-gray-300 text-gray-700 hover:bg-gray-50"
                       >
                         Cancel
                       </Button>
-                      <Button onClick={createMilestone} disabled={creatingMilestone}>
-                        {creatingMilestone ? (
-                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                        ) : (
-                          <Save className="w-4 h-4 mr-2" />
-                        )}
-                        Create
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-
-              {/* Create multiple milestones dialog */}
-              <Dialog open={isMultiDialogOpen} onOpenChange={setIsMultiDialogOpen}>
-                <DialogContent className="max-w-3xl">
-                  <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white -m-6 mb-6 p-6 rounded-t-lg">
-                    <DialogHeader>
-                      <DialogTitle className="text-xl">Create Multiple Milestones</DialogTitle>
-                      <DialogDescription className="text-indigo-100">
-                        Add several milestones at once. Each row represents one milestone.
-                      </DialogDescription>
-                    </DialogHeader>
-                  </div>
-                  <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-                    {multiMilestones.map((ms, index) => (
-                      <div
-                        key={index}
-                        className="grid grid-cols-1 md:grid-cols-[1.5fr_2fr_1.2fr_auto] gap-3 items-end"
+                      <Button 
+                        onClick={createMilestone} 
+                        disabled={creatingMilestone}
+                        className="bg-[#FF6B35] hover:bg-[#e65a2b] text-white"
                       >
-                        <div className="space-y-1">
-                          <Label>Title</Label>
-                          <Input
-                            value={ms.title}
-                            onChange={(e) => updateMultiRow(index, "title", e.target.value)}
-                            placeholder="Design Phase"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Description</Label>
-                          <Input
-                            value={ms.description}
-                            onChange={(e) => updateMultiRow(index, "description", e.target.value)}
-                            placeholder="Short description"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Due Date</Label>
-                          <Input
-                            type="date"
-                            value={ms.dueDate}
-                            onChange={(e) => updateMultiRow(index, "dueDate", e.target.value)}
-                          />
-                        </div>
-                        <div className="flex items-center justify-end pb-1">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="text-red-600 border-red-300 hover:bg-red-50"
-                            onClick={() => removeMultiRow(index)}
-                          >
-                            <XCircle className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                    <div className="flex justify-between items-center pt-2">
-                      <Button variant="outline" size="sm" onClick={addMultiRow}>
-                        + Add Row
-                      </Button>
-                      <div className="flex gap-3">
-                        <Button
-                          variant="outline"
-                          onClick={() => setIsMultiDialogOpen(false)}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          onClick={createMultipleMilestones}
-                          disabled={creatingMultiple}
-                        >
-                          {creatingMultiple ? (
+                        {creatingMilestone ? (
+                          <>
                             <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                          ) : (
+                            Creating...
+                          </>
+                        ) : (
+                          <>
                             <Save className="w-4 h-4 mr-2" />
-                          )}
-                          Create Milestones
-                        </Button>
-                      </div>
+                            Create Milestone
+                          </>
+                        )}
+                      </Button>
                     </div>
                   </div>
                 </DialogContent>

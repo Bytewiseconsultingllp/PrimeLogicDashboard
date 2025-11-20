@@ -36,6 +36,11 @@ const navItems = [
     icon: DollarSign,
   },
   {
+    title: "Payments",
+    href: "/dashboard/freelancer/payments",
+    icon: DollarSign,
+  },
+  {
     title: "Contact",
     href: "/dashboard/freelancer/contact-us",
     icon: Mail,

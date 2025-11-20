@@ -117,7 +117,7 @@ export default function ProjectDetailPage() {
         console.log("🔄 Fetching project details for ID:", projectId)
         
         // Fetch project details
-        const projectResponse = await fetch(`${process.env.NEXT_PUBLIC_PLS}/api/v1/projects/${projectId}`, {
+        const projectResponse = await fetch(`${process.env.NEXT_PUBLIC_PLS}/freelancer/my-projects/${projectId}`, {
           headers: { 
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json"
@@ -132,7 +132,7 @@ export default function ProjectDetailPage() {
             setProject(projectData.data)
             
             // Fetch milestones for this project
-            const milestonesResponse = await fetch(`${process.env.NEXT_PUBLIC_PLS}/api/v1/projects/${projectId}/milestones`, {
+            const milestonesResponse = await fetch(`${process.env.NEXT_PUBLIC_PLS}/freelancer/my-projects/${projectId}/milestones`, {
               headers: { 
                 "Authorization": `Bearer ${token}`,
                 "Content-Type": "application/json"
