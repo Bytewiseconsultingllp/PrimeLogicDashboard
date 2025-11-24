@@ -634,7 +634,7 @@ export default function ProceedOptions({ projectData, onUpdate }: ProceedOptions
       console.log('Using project ID for payment:', projectId)
 
       // Create checkout session using the project payment endpoint
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/payment/project/create-checkout-session`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/payment/project/create-checkout-session`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
