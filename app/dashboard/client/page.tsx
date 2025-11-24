@@ -381,9 +381,9 @@ export default function DashboardHome() {
         }
 
         // Fetch payment history
-        console.log("🔄 Fetching payment history from:", `${process.env.NEXT_PUBLIC_PLS}/api/v1/payment/history`)
+        console.log("🔄 Fetching payment history from:", `${process.env.NEXT_PUBLIC_PLS}/payment/history`)
         
-        const paymentRes = await fetch(`${process.env.NEXT_PUBLIC_PLS}/api/v1/payment/history`, {
+        const paymentRes = await fetch(`${process.env.NEXT_PUBLIC_PLS}/payment/history`, {
           headers: { 
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json"
@@ -409,9 +409,9 @@ export default function DashboardHome() {
         }
 
         // Fetch client KPI data
-        console.log("🔄 Fetching client KPI data from:", `${process.env.NEXT_PUBLIC_PLS}/api/v1/kpi/client/dashboard`)
+        console.log("🔄 Fetching client KPI data from:", `${process.env.NEXT_PUBLIC_PLS}/kpi/client/dashboard`)
         
-        const kpiRes = await fetch(`${process.env.NEXT_PUBLIC_PLS}/api/v1/kpi/client/dashboard`, {
+        const kpiRes = await fetch(`${process.env.NEXT_PUBLIC_PLS}/kpi/client/dashboard`, {
           headers: { 
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json"

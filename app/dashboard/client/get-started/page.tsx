@@ -344,259 +344,6 @@ export default function GetStartedPage() {
     }
   }, [visitorId])
 
-  // Helper function to transform services data for API
-  const transformServicesForAPI = (services: any[]) => {
-    const grouped = services.reduce((acc: any, item: any) => {
-      const categoryMap: any = {
-        "Software Development": "SOFTWARE_DEVELOPMENT",
-        "Data and Analytics": "DATA_AND_ANALYTICS",
-        "Cloud and DevOps": "CLOUD_AND_DEVOPS",
-        "Emerging Technologies": "EMERGING_TECHNOLOGIES",
-        "Creative and Design": "CREATIVE_AND_DESIGN",
-        "Digital Marketing": "DIGITAL_MARKETING"
-      }
-      
-      const apiCategory = categoryMap[item.category] || item.category
-      if (!acc[apiCategory]) {
-        acc[apiCategory] = []
-      }
-      if (item.service) {
-        acc[apiCategory].push(item.service)
-      }
-      return acc
-    }, {})
-
-    return Object.entries(grouped).map(([name, childServices]) => ({
-      name,
-      childServices: (childServices as string[]).filter(Boolean)
-    }))
-  }
-
-  // Helper function to transform industries data for API
-  const transformIndustriesForAPI = (industries: any[]) => {
-    const categoryMap: any = {
-      "Healthcare & Life Sciences": "HEALTHCARE_AND_LIFE_SCIENCES",
-      "Financial Services": "FINANCIAL_SERVICES",
-      "Retail & E-commerce": "RETAIL_AND_ECOMMERCE",
-      "Manufacturing": "MANUFACTURING",
-      "Education": "EDUCATION",
-      "Government & Public Sector": "GOVERNMENT_AND_PUBLIC_SECTOR"
-    }
-
-    // Map UI-friendly industry names to backend enum values
-    const subIndustryMap: any = {
-      // Healthcare & Life Sciences
-      "Healthcare Providers": "HEALTHCARE_PROVIDERS",
-      "Pharmaceuticals": "PHARMACEUTICALS",
-      "Medical Devices": "MEDICAL_DEVICES",
-      "Biotechnology": "BIOTECHNOLOGY",
-      "Health Insurance": "HEALTH_INSURANCE",
-      
-      // Financial Services
-      "Banking": "BANKING",
-      "Insurance": "INSURANCE",
-      "Investment Management": "INVESTMENT_MANAGEMENT",
-      "Payments": "PAYMENTS",
-      "Lending": "LENDING",
-      "Blockchain & Crypto": "BLOCKCHAIN_AND_CRYPTO",
-      
-      // Retail & E-commerce
-      "Online Retail": "ONLINE_RETAIL",
-      "Brick & Mortar": "BRICK_AND_MORTAR",
-      "Omnichannel": "OMNICHANNEL",
-      "Fashion & Apparel": "FASHION_AND_APPAREL",
-      "Consumer Goods": "CONSUMER_GOODS",
-      
-      // Manufacturing
-      "Automotive": "AUTOMOTIVE",
-      "Industrial Equipment": "INDUSTRIAL_EQUIPMENT",
-      "Electronics": "ELECTRONICS",
-      "Aerospace & Defense": "AEROSPACE_AND_DEFENSE",
-      "Chemical & Materials": "CHEMICAL_AND_MATERIALS",
-      "Smart Manufacturing": "SMART_MANUFACTURING",
-      
-      // Education
-      "K-12 Education": "K_12_EDUCATION",
-      "Higher Education": "HIGHER_EDUCATION",
-      "Professional Training": "PROFESSIONAL_TRAINING",
-      "EdTech": "EDTECH",
-      "Research & Development": "RESEARCH_AND_DEVELOPMENT",
-      
-      // Government & Public Sector
-      "Federal Government": "FEDERAL_GOVERNMENT",
-      "State & Local": "STATE_AND_LOCAL",
-      "Public Healthcare": "PUBLIC_HEALTHCARE",
-      "Public Infrastructure": "PUBLIC_INFRASTRUCTURE",
-      "Civic Technology": "CIVIC_TECHNOLOGY"
-    }
-    
-    const grouped = industries.reduce((acc: any, item: any) => {
-      const apiCategory = categoryMap[item.category] || item.category
-      if (!acc[apiCategory]) {
-        acc[apiCategory] = []
-      }
-      // Use 'industry' field and map to backend enum
-      if (item.industry) {
-        const apiSubIndustry = subIndustryMap[item.industry] || item.industry
-        acc[apiCategory].push(apiSubIndustry)
-      }
-      return acc
-    }, {})
-
-    return Object.entries(grouped).map(([category, subIndustries]) => ({
-      category,
-      subIndustries: (subIndustries as string[]).filter(Boolean) // Filter out any null/undefined values
-    }))
-  }
-
-  // Helper function to transform technologies data for API
-  const transformTechnologiesForAPI = (technologies: any[]) => {
-    const categoryMap: any = {
-      "Frontend Technologies": "FRONTEND",
-      "Backend Technologies": "BACKEND",
-      "Database Technologies": "DATABASE",
-      "AI & Data Science": "AI_AND_DATA_SCIENCE",
-      "DevOps & Infrastructure": "DEVOPS_AND_INFRASTRUCTURE",
-      "Mobile Technologies": "MOBILE"
-    }
-
-    // Map UI-friendly technology names to backend enum values
-    const technologyMap: any = {
-      // Frontend
-      "React": "REACT",
-      "Angular": "ANGULAR",
-      "Vue.js": "VUE_JS",
-      "Next.js": "NEXT_JS",
-      "Svelte": "SVELTE",
-      "jQuery": "JQUERY",
-      
-      // Backend
-      "Node.js": "NODE_JS",
-      "Python/Django": "PYTHON_DJANGO",
-      "Java/Spring": "JAVA_SPRING",
-      "PHP/Laravel": "PHP_LARAVEL",
-      "Ruby on Rails": "RUBY_ON_RAILS",
-      ".NET Core": "DOTNET_CORE",
-      
-      // Database
-      "PostgreSQL": "POSTGRESQL",
-      "MongoDB": "MONGODB",
-      "MySQL": "MYSQL",
-      "Redis": "REDIS",
-      "Firebase": "FIREBASE",
-      "SQL Server": "SQL_SERVER",
-      
-      // AI & Data Science
-      "TensorFlow": "TENSORFLOW",
-      "PyTorch": "PYTORCH",
-      "OpenAI API": "OPENAI_API",
-      "Scikit-learn": "SCIKIT_LEARN",
-      "Pandas": "PANDAS",
-      "Computer Vision": "COMPUTER_VISION",
-      
-      // DevOps & Infrastructure
-      "AWS": "AWS",
-      "Docker": "DOCKER",
-      "Kubernetes": "KUBERNETES",
-      "GitHub Actions": "GITHUB_ACTIONS",
-      "Terraform": "TERRAFORM",
-      "Jenkins": "JENKINS",
-      
-      // Mobile
-      "React Native": "REACT_NATIVE",
-      "Flutter": "FLUTTER",
-      "Swift/iOS": "SWIFT_IOS",
-      "Kotlin/Android": "KOTLIN_ANDROID",
-      "Xamarin": "XAMARIN",
-      "Ionic": "IONIC"
-    }
-    
-    const grouped = technologies.reduce((acc: any, item: any) => {
-      const apiCategory = categoryMap[item.category] || item.category
-      if (!acc[apiCategory]) {
-        acc[apiCategory] = []
-      }
-      if (item.technology) {
-        const apiTechnology = technologyMap[item.technology] || item.technology
-        acc[apiCategory].push(apiTechnology)
-      }
-      return acc
-    }, {})
-
-    return Object.entries(grouped).map(([category, technologies]) => ({
-      category,
-      technologies: (technologies as string[]).filter(Boolean)
-    }))
-  }
-
-  // Helper function to transform features data for API
-  const transformFeaturesForAPI = (features: any[]) => {
-    const categoryMap: any = {
-      "User Management": "USER_MANAGEMENT",
-      "Content Management": "CONTENT_MANAGEMENT",
-      "E-commerce": "ECOMMERCE",
-      "Analytics & Reporting": "ANALYTICS_AND_REPORTING",
-      "Communication": "COMMUNICATION",
-      "Integration & API": "INTEGRATION_AND_API"
-    }
-
-    // Map UI-friendly feature names to backend enum values
-    const featureMap: any = {
-      // User Management
-      "Authentication": "AUTHENTICATION",
-      "Role-Based Access Control": "ROLE_BASED_ACCESS_CONTROL",
-      "User Profiles": "USER_PROFILES",
-      "Social Login": "SOCIAL_LOGIN",
-      
-      // Content Management
-      "Rich Text Editor": "RICH_TEXT_EDITOR",
-      "Media Library": "MEDIA_LIBRARY",
-      "Content Versioning": "CONTENT_VERSIONING",
-      "Content Scheduling": "CONTENT_SCHEDULING",
-      
-      // E-commerce
-      "Product Catalog": "PRODUCT_CATALOG",
-      "Shopping Cart": "SHOPPING_CART",
-      "Payment Processing": "PAYMENT_PROCESSING",
-      "Inventory Management": "INVENTORY_MANAGEMENT",
-      
-      // Analytics & Reporting
-      "Dashboard": "DASHBOARD",
-      "Custom Reports": "CUSTOM_REPORTS",
-      "User Analytics": "USER_ANALYTICS",
-      "Performance Metrics": "PERFORMANCE_METRICS",
-      
-      // Communication
-      "Email Notifications": "EMAIL_NOTIFICATIONS",
-      "In-App Messaging": "IN_APP_MESSAGING",
-      "Push Notifications": "PUSH_NOTIFICATIONS",
-      "Comments & Feedback": "COMMENTS_AND_FEEDBACK",
-      
-      // Integration & API
-      "RESTful API": "RESTFUL_API",
-      "Webhooks": "WEBHOOKS",
-      "Third-Party Integrations": "THIRD_PARTY_INTEGRATIONS",
-      "Data Import/Export": "DATA_IMPORT_EXPORT"
-    }
-    
-    const grouped = features.reduce((acc: any, item: any) => {
-      const apiCategory = categoryMap[item.category] || item.category
-      if (!acc[apiCategory]) {
-        acc[apiCategory] = []
-      }
-      if (item.feature) {
-        const apiFeature = featureMap[item.feature] || item.feature
-        acc[apiCategory].push(apiFeature)
-      }
-      return acc
-    }, {})
-
-    return Object.entries(grouped).map(([category, features]) => ({
-      category,
-      features: (features as string[]).filter(Boolean)
-    }))
-  }
-
   // Navigate to next step with API calls
   const goToNextStep = async () => {
     if (currentStepIndex < steps.length - 1) {
@@ -611,220 +358,125 @@ export default function GetStartedPage() {
       try {
         // Handle API calls for each step before proceeding
         switch (currentStepIndex) {
-          case 0: // Step 1: Register Yourself - Check and Create Visitor
-            const email = formData.registerYourself.businessEmail
-            
-            // First, check if visitor already exists
+          case 0: // Step 1: Register Yourself - Create Project Draft
             try {
-              const checkResult = await api.checkVisitorByEmail(email)
-              console.log('Visitor check result:', checkResult)
+              // Create a new project draft with business details
+              const draftResult = await api.createProjectDraft({
+                companyName: formData.registerYourself.companyName,
+                companyWebsite: formData.registerYourself.companyWebsite || undefined,
+                businessAddress: formData.registerYourself.businessAddress || undefined,
+                businessType: formData.registerYourself.businessType
+              })
               
-              if (checkResult.success && checkResult.data) {
-                const { isClient, isVisitor, visitorId, message } = checkResult.data
-                
-                if (isClient) {
-                  // Client already exists - show notification and prevent continuation
-                  setStepSubmissionError('This email is already registered as a client. Please use a different email or contact support.')
-                  console.log('Client already exists:', message)
-                  // Show enhanced toast notification
-                  enhancedToast.error('This email is already registered as a client. Please use a different email or contact support.', {
-                    title: 'Email Already Registered',
-                    duration: 6000
-                  })
-                  return
-                } else if (isVisitor && visitorId) {
-                  // Existing visitor - use existing visitor ID
-                  setVisitorId(visitorId)
-                  console.log('Existing visitor found:', message)
-                  // Show success message
-                  enhancedToast.success('Welcome back! Continuing from where you left off.', {
-                    title: 'Returning Visitor',
-                    duration: 4000
-                  })
-                } else {
-                  // New visitor - create new visitor
-                  const visitorResult = await api.createVisitor({
-                    fullName: formData.registerYourself.fullName,
-                    businessEmail: formData.registerYourself.businessEmail,
-                    phoneNumber: formData.registerYourself.phoneNumber || undefined,
-                    companyName: formData.registerYourself.companyName,
-                    companyWebsite: formData.registerYourself.companyWebsite || undefined,
-                    businessAddress: formData.registerYourself.businessAddress || undefined,
-                    businessType: formData.registerYourself.businessType,
-                    referralSource: formData.registerYourself.referralSource
-                  })
-                  if (visitorResult.data && visitorResult.data.id) {
-                    setVisitorId(visitorResult.data.id)
-                  }
-                  console.log('New visitor created successfully:', visitorResult)
-                  // Show success message
-                  enhancedToast.success('Registration successful! Welcome to Prime Logic Solutions.', {
-                    title: 'Welcome Aboard!',
-                    duration: 4000
-                  })
-                }
-              } else {
-                // If check fails, create new visitor as fallback
-                const visitorResult = await api.createVisitor({
-                  fullName: formData.registerYourself.fullName,
-                  businessEmail: formData.registerYourself.businessEmail,
-                  phoneNumber: formData.registerYourself.phoneNumber || undefined,
-                  companyName: formData.registerYourself.companyName,
-                  companyWebsite: formData.registerYourself.companyWebsite || undefined,
-                  businessAddress: formData.registerYourself.businessAddress || undefined,
-                  businessType: formData.registerYourself.businessType,
-                  referralSource: formData.registerYourself.referralSource
-                })
-                if (visitorResult.data && visitorResult.data.id) {
-                  setVisitorId(visitorResult.data.id)
-                }
-                console.log('Visitor created successfully (fallback):', visitorResult)
-              }
-            } catch (error) {
-              console.error('Error checking/creating visitor:', error)
-              // Handle the error with enhanced toast
-              handleApiError(error, 'Visitor Registration')
-              // Fallback to creating new visitor if check fails
-              try {
-                const visitorResult = await api.createVisitor({
-                  fullName: formData.registerYourself.fullName,
-                  businessEmail: formData.registerYourself.businessEmail,
-                  phoneNumber: formData.registerYourself.phoneNumber || undefined,
-                  companyName: formData.registerYourself.companyName,
-                  companyWebsite: formData.registerYourself.companyWebsite || undefined,
-                  businessAddress: formData.registerYourself.businessAddress || undefined,
-                  businessType: formData.registerYourself.businessType,
-                  referralSource: formData.registerYourself.referralSource
-                })
-                if (visitorResult.data && visitorResult.data.id) {
-                  setVisitorId(visitorResult.data.id)
-                }
-                console.log('Visitor created successfully (error fallback):', visitorResult)
-                enhancedToast.success('Registration completed successfully!', {
+              if (draftResult.success && draftResult.data) {
+                setVisitorId(draftResult.data.id)
+                console.log('New project draft created:', draftResult)
+                enhancedToast.success('Project draft created successfully!', {
                   title: 'Welcome!',
                   duration: 4000
                 })
-              } catch (fallbackError) {
-                handleApiError(fallbackError, 'Visitor Creation Fallback')
-                throw fallbackError
+              } else {
+                throw new Error(draftResult.message || 'Failed to create project draft')
               }
+            } catch (error) {
+              console.error('Error creating project draft:', error)
+              handleApiError(error, 'Project Draft Creation')
+              throw error
             }
             break
 
           case 1: // Step 2: Services
             if (!visitorId) {
-              enhancedToast.error('Session expired. Please start over from the registration step.', {
-                title: 'Session Error'
-              })
-              throw new Error('Visitor ID not found')
+              throw new Error('Project draft ID not found')
             }
             const servicesData = transformServicesForAPI(formData.services)
-            await api.addVisitorServices(visitorId, servicesData)
-            console.log('Services added successfully')
-            enhancedToast.success('Services selection saved successfully!', {
+            await api.addDraftServices(visitorId, servicesData)
+            console.log('Services added to draft')
+            enhancedToast.success('Services selection saved!', {
               duration: 2000
             })
             break
 
           case 2: // Step 3: Industries
             if (!visitorId) {
-              enhancedToast.error('Session expired. Please start over from the registration step.', {
-                title: 'Session Error'
-              })
-              throw new Error('Visitor ID not found')
+              throw new Error('Project draft ID not found')
             }
             const industriesData = transformIndustriesForAPI(formData.industries)
-            await api.addVisitorIndustries(visitorId, industriesData)
-            console.log('Industries added successfully')
-            enhancedToast.success('Industry selection saved successfully!', {
+            await api.addDraftIndustries(visitorId, industriesData)
+            console.log('Industries added to draft')
+            enhancedToast.success('Industry selection saved!', {
               duration: 2000
             })
             break
 
           case 3: // Step 4: Technologies
             if (!visitorId) {
-              enhancedToast.error('Session expired. Please start over from the registration step.', {
-                title: 'Session Error'
-              })
-              throw new Error('Visitor ID not found')
+              throw new Error('Project draft ID not found')
             }
             const technologiesData = transformTechnologiesForAPI(formData.technologies)
-            await api.addVisitorTechnologies(visitorId, technologiesData)
-            console.log('Technologies added successfully')
-            enhancedToast.success('Technology stack saved successfully!', {
+            await api.addDraftTechnologies(visitorId, technologiesData)
+            console.log('Technologies added to draft')
+            enhancedToast.success('Technology stack saved!', {
               duration: 2000
             })
             break
 
           case 4: // Step 5: Features
             if (!visitorId) {
-              enhancedToast.error('Session expired. Please start over from the registration step.', {
-                title: 'Session Error'
-              })
-              throw new Error('Visitor ID not found')
+              throw new Error('Project draft ID not found')
             }
             const featuresData = transformFeaturesForAPI(formData.features)
-            await api.addVisitorFeatures(visitorId, featuresData)
-            console.log('Features added successfully')
-            enhancedToast.success('Features selection saved successfully!', {
+            await api.addDraftFeatures(visitorId, featuresData)
+            console.log('Features added to draft')
+            enhancedToast.success('Features selection saved!', {
               duration: 2000
             })
             break
 
           case 5: // Step 6: Special Offers/Discount
-            // Call the discount submission function from the component
             if (formData.specialOffers.submitFunction) {
               const success = await formData.specialOffers.submitFunction()
               if (!success) {
                 throw new Error('Failed to submit discount selection')
               }
-              console.log('Discount submitted successfully via Next button')
-            } else {
-              throw new Error('Discount submission function not available')
+              console.log('Discount submitted successfully')
             }
             break
 
           case 6: // Step 7: Timeline
             if (!visitorId) {
-              enhancedToast.error('Session expired. Please start over from the registration step.', {
-                title: 'Session Error'
-              })
-              throw new Error('Visitor ID not found')
+              throw new Error('Project draft ID not found')
             }
-            const timelineMap: any = {
-              "standard": { option: "STANDARD_BUILD", rushFeePercent: 0, estimatedDays: 90 },
-              "priority": { option: "PRIORITY_BUILD", rushFeePercent: 15, estimatedDays: 60 },
-              "accelerated": { option: "ACCELERATED_BUILD", rushFeePercent: 25, estimatedDays: 45 },
-              "rapid": { option: "RAPID_BUILD", rushFeePercent: 35, estimatedDays: 30 },
-              "fast-track": { option: "FAST_TRACK_BUILD", rushFeePercent: 50, estimatedDays: 20 }
+            const timelineMap: Record<string, any> = {
+              "standard": { option: "STANDARD", rushFeePercent: 0, estimatedDays: 90 },
+              "priority": { option: "PRIORITY", rushFeePercent: 15, estimatedDays: 60 },
+              "accelerated": { option: "ACCELERATED", rushFeePercent: 25, estimatedDays: 45 },
+              "rapid": { option: "RAPID", rushFeePercent: 35, estimatedDays: 30 },
+              "fast-track": { option: "FAST_TRACK", rushFeePercent: 50, estimatedDays: 20 }
             }
+            
             const timelineData = timelineMap[formData.timeline] || timelineMap["standard"]
-            await api.addVisitorTimeline(visitorId, timelineData)
-            console.log('Timeline added successfully')
-            enhancedToast.success('Timeline preference saved successfully!', {
+            await api.addDraftTimeline(visitorId, timelineData)
+            console.log('Timeline added to draft')
+            enhancedToast.success('Timeline preference saved!', {
               duration: 2000
             })
             break
 
-          case 7: // Step 8: Estimate - Accept estimate
-            // This will be handled in the estimate component
+          case 7: // Step 8: Estimate - Handled in component
             break
 
           case 8: // Step 9: Service Agreement
-            // Call the agreement submission function from the component
             if (formData.agreement.submitFunction) {
               const success = await formData.agreement.submitFunction()
               if (!success) {
                 throw new Error('Failed to submit service agreement')
               }
-              console.log('Service agreement submitted successfully via Next button')
-            } else {
-              throw new Error('Agreement submission function not available')
+              console.log('Service agreement submitted')
             }
             break
 
-          case 9: // Step 10: Proceed Options
-            // This is the final step, handled in the component
+          case 9: // Step 10: Proceed Options - Handled in component
             break
         }
 
@@ -1222,4 +874,109 @@ export default function GetStartedPage() {
       </div>
     </div>
   )
+}
+
+// Transformation functions for API data
+
+/**
+ * Transforms services data for API submission
+ */
+function transformServicesForAPI(services: any[]) {
+  return services.map(service => ({
+    name: service.category,
+    childServices: service.services || []
+  }))
+}
+
+/**
+ * Transforms industries data for API submission
+ */
+function transformIndustriesForAPI(industries: any[]) {
+  // Map UI category names to backend enum values
+  const categoryMap: Record<string, string> = {
+    "Technology": "TECHNOLOGY",
+    "Healthcare": "HEALTHCARE",
+    "Finance": "FINANCE",
+    "Retail": "RETAIL",
+    "Education": "EDUCATION",
+    "Manufacturing": "MANUFACTURING",
+    "Entertainment": "ENTERTAINMENT",
+    "Other": "OTHER"
+  }
+
+  // Map UI sub-industry names to backend enum values
+  const subIndustryMap: Record<string, string> = {
+    // Technology sub-industries
+    "SaaS": "SAAS",
+    "E-commerce": "ECOMMERCE",
+    "Mobile Apps": "MOBILE_APPS",
+    "Web Development": "WEB_DEVELOPMENT",
+    "AI/ML": "AI_ML",
+    "Cybersecurity": "CYBERSECURITY",
+    "Cloud Computing": "CLOUD_COMPUTING",
+    "IoT": "IOT",
+    "Blockchain": "BLOCKCHAIN",
+    "Gaming": "GAMING"
+  }
+
+  const grouped = industries.reduce((acc: Record<string, string[]>, item: any) => {
+    const apiCategory = categoryMap[item.category] || item.category
+    if (!acc[apiCategory]) {
+      acc[apiCategory] = []
+    }
+    if (item.industry) {
+      const apiSubIndustry = subIndustryMap[item.industry] || item.industry
+      acc[apiCategory].push(apiSubIndustry)
+    }
+    return acc
+  }, {})
+
+  return Object.entries(grouped).map(([category, subIndustries]) => ({
+    category,
+    subIndustries
+  }))
+}
+
+/**
+ * Transforms technologies data for API submission
+ */
+function transformTechnologiesForAPI(technologies: any[]) {
+  const categoryMap: Record<string, string> = {
+    "Frontend Technologies": "FRONTEND",
+    "Backend Technologies": "BACKEND",
+    "Database Technologies": "DATABASE",
+    "AI & Data Science": "AI_AND_DATA_SCIENCE",
+    "DevOps & Infrastructure": "DEVOPS_AND_INFRASTRUCTURE",
+    "Mobile Technologies": "MOBILE"
+  }
+
+  return technologies.map(tech => ({
+    category: categoryMap[tech.category] || tech.category,
+    technologies: tech.technologies || []
+  }))
+}
+
+/**
+ * Transforms features data for API submission
+ */
+function transformFeaturesForAPI(features: any[]) {
+  const categoryMap: Record<string, string> = {
+    "User Management": "USER_MANAGEMENT",
+    "Authentication": "AUTHENTICATION",
+    "Payment Processing": "PAYMENT_PROCESSING",
+    "Analytics": "ANALYTICS",
+    "Notifications": "NOTIFICATIONS",
+    "File Management": "FILE_MANAGEMENT",
+    "Search": "SEARCH",
+    "API Integration": "API_INTEGRATION",
+    "Reporting": "REPORTING",
+    "Multi-language Support": "MULTI_LANGUAGE_SUPPORT",
+    "Accessibility": "ACCESSIBILITY",
+    "Offline Support": "OFFLINE_SUPPORT"
+  }
+
+  return features.map(feature => ({
+    category: categoryMap[feature.category] || feature.category,
+    features: feature.features || []
+  }))
 }
