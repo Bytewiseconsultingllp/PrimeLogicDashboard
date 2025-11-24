@@ -13,6 +13,7 @@ import { AlertCircle, CheckCircle, Clock, Briefcase, Plus, User, CreditCard, Mes
 import { getCurrentUserDetails } from "@/lib/api/auth"
 import { getUserDetails } from "@/lib/api/storage"
 import { toast } from "sonner"
+import { getToken } from "@/lib/auth"
 
 interface PaymentRecord {
   id: string
@@ -519,47 +520,61 @@ export default function DashboardHome() {
 
   // Handle payment redirect with processing states
   const handlePaymentRedirect = async (projectId: string) => {
-    try {
-      setPaymentProcessing(projectId)
-      toast.info("Processing payment...")
-      
-      const userDetails = getUserDetails()
-      if (!userDetails) {
-        setPaymentProcessing(null)
-        toast.error("Authentication required")
-        return
-      }
-      
-      const token = userDetails.accessToken
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_PLS}/api/v1/payment/project/create-checkout-session`, {
-        method: "POST",
-        headers: { 
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          projectId,
-          successUrl: `${window.location.origin}/dashboard/client?payment=success&projectId=${projectId}`,
-          cancelUrl: `${window.location.origin}/dashboard/client?payment=cancelled&projectId=${projectId}`
-        })
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        toast.success("Redirecting to payment page...")
-        window.location.href = data.data.url
-      } else {
-        const errorData = await response.json()
-        toast.error(errorData.message || "Failed to create payment session")
-        setPaymentProcessing(null)
-      }
-    } catch (error) {
-      console.error("Payment redirect error:", error)
-      toast.error("Failed to redirect to payment")
+  try {
+    setPaymentProcessing(projectId)
+    toast.info("Processing payment...")
+    
+    const token = getToken()
+    if (!token) {
       setPaymentProcessing(null)
+      toast.error("Authentication required. Please log in again.")
+      window.location.href = '/login'
+      return
     }
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/payment/project/create-checkout-session`, {
+      method: "POST",
+      headers: { 
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        projectId,
+        successUrl: `${window.location.origin}/dashboard/client?payment=success&projectId=${projectId}`,
+        cancelUrl: `${window.location.origin}/dashboard/client?payment=cancelled&projectId=${projectId}`
+      })
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Failed to create payment session")
+    }
+
+    const data = await response.json()
+    
+    if (data.data?.url) {
+      // Store payment session info
+      localStorage.setItem(
+        "paymentSession",
+        JSON.stringify({
+          sessionId: data.data.sessionId,
+          paymentId: data.data.paymentId,
+          projectId: projectId,
+          timestamp: new Date().toISOString(),
+        })
+      )
+      
+      // Redirect to payment page
+      window.location.href = data.data.url
+    } else {
+      throw new Error("No payment URL received from server")
+    }
+  } catch (error) {
+    console.error("Payment redirect error:", error)
+    toast.error(error instanceof Error ? error.message : "Failed to process payment")
+    setPaymentProcessing(null)
   }
+}
 
   // Handle feedback submission
   const handleFeedbackSubmit = async () => {

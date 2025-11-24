@@ -59,6 +59,14 @@ interface FormData {
   proceedOptions: {
     selectedOption: string | null
     completed: boolean
+    paymentStatus?: {
+      paidAmount: number
+      totalAmount: number
+      status: 'pending' | 'processing' | 'succeeded' | 'failed'
+      lastUpdated: string
+      paymentMethod?: string
+      nextPaymentDue?: string
+    }
   }
 }
 
@@ -537,6 +545,29 @@ export default function GetStartedPage() {
       }
     }
   }
+
+  // Handle payment completion
+  const handlePaymentComplete = (paymentData: any) => {
+    setFormData(prev => ({
+      ...prev,
+      proceedOptions: {
+        ...prev.proceedOptions,
+        paymentStatus: {
+          paidAmount: paymentData.paidAmount,
+          totalAmount: paymentData.totalAmount,
+          status: paymentData.status,
+          lastUpdated: paymentData.lastUpdated,
+          paymentMethod: paymentData.paymentMethod,
+          nextPaymentDue: paymentData.nextPaymentDue
+        }
+      }
+    }));
+
+    // Show success message
+    enhancedToast.success('Payment processed successfully!', {
+      duration: 3000
+    });
+  };
 
   // Calculate progress percentage
   const progressPercentage = Math.round(((currentStepIndex + 1) / steps.length) * 100)
