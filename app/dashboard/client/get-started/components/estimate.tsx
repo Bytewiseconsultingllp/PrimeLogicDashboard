@@ -42,18 +42,18 @@ export default function Estimate({
       setEstimateError(null)
 
       try {
-        const result = await api.getVisitorEstimate(visitorId)
+        const result = await api.getDraftEstimate(visitorId)
         console.log('Estimate fetched:', result)
         setApiEstimate(result.data)
-        setEstimateAccepted(result.data?.estimateAccepted || false)
+        setEstimateAccepted(false) // Default to false as we'll update based on service agreement
         
         // Update parent component
         if (onUpdate && result.data) {
           onUpdate({
-            accepted: result.data.estimateAccepted,
+            accepted: false, // Will be updated when service agreement is accepted
             finalPrice: {
-              min: result.data.estimateFinalPriceMin,
-              max: result.data.estimateFinalPriceMax
+              min: result.data.totalPrice, // Using totalPrice as the final price
+              max: result.data.totalPrice  // Same min/max since we have exact amount now
             }
           })
         }
@@ -84,17 +84,17 @@ export default function Estimate({
     setEstimateError(null)
 
     try {
-      const result = await api.acceptVisitorEstimate(visitorId)
+      const result = await api.acceptDraftEstimate(visitorId)
       console.log('Estimate accepted:', result)
       setEstimateAccepted(true)
       
       // Update parent component
-      if (onUpdate) {
+      if (onUpdate && apiEstimate) {
         onUpdate({
           accepted: true,
           finalPrice: {
-            min: apiEstimate?.estimateFinalPriceMin,
-            max: apiEstimate?.estimateFinalPriceMax
+            min: apiEstimate.totalPrice,
+            max: apiEstimate.totalPrice
           }
         })
       }

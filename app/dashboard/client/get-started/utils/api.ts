@@ -1,6 +1,16 @@
-// API utilities for the get-started flow
+// API utilities for the project draft flow
+import axios, { AxiosRequestConfig } from "axios"
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+// Create an axios instance with default config
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
 
 export interface ApiResponse<T = any> {
   success: boolean
@@ -9,49 +19,31 @@ export interface ApiResponse<T = any> {
   statusCode?: number
 }
 
-export interface ApiError {
+export interface ApiError extends Omit<ApiResponse, 'success'> {
   success: false
-  message: string
   error?: string
 }
 
-// Generic API call function
-async function apiCall<T = any>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<ApiResponse<T>> {
-  try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    })
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      throw new Error(data.message || `HTTP error! status: ${response.status}`)
-    }
-
-    return data
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-    throw new Error(errorMessage)
-  }
+// Project Draft Types
+export interface ProjectDraft {
+  id: string
+  clientId: string
+  isFinalized: boolean
+  projectId?: string
+  details?: ProjectDraftDetails
+  services?: ProjectDraftService[]
+  industries?: ProjectDraftIndustry[]
+  technologies?: ProjectDraftTechnology[]
+  features?: ProjectDraftFeature[]
+  discount?: ProjectDraftDiscount
+  timeline?: ProjectDraftTimeline
+  estimate?: ProjectDraftEstimate
+  serviceAgreement?: ProjectDraftServiceAgreement
+  createdAt: string
+  updatedAt: string
 }
 
-// Check if visitor exists by email
-export async function checkVisitorByEmail(email: string): Promise<ApiResponse> {
-  return apiCall('/api/v1/visitors/check-email', {
-    method: 'POST',
-    body: JSON.stringify({ email }),
-  })
-}
-
-// Step 1: Create visitor
-export async function createVisitor(visitorData: {
+export interface ProjectDraftDetails {
   fullName: string
   businessEmail: string
   phoneNumber?: string
@@ -59,171 +51,301 @@ export async function createVisitor(visitorData: {
   companyWebsite?: string
   businessAddress?: string
   businessType: string
-  referralSource: string
-}): Promise<ApiResponse> {
-  return apiCall('/api/v1/visitors/create', {
-    method: 'POST',
-    body: JSON.stringify(visitorData),
-  })
 }
 
-// Step 2: Add services
-export async function addVisitorServices(
-  visitorId: string,
-  services: Array<{
-    name: string
-    childServices: string[]
-  }>
-): Promise<ApiResponse> {
-  return apiCall(`/api/v1/visitors/${visitorId}/services`, {
-    method: 'POST',
-    body: JSON.stringify(services),
-  })
+export interface ProjectDraftService {
+  name: string
+  childServices: string[]
 }
 
-// Step 3: Add industries
-export async function addVisitorIndustries(
-  visitorId: string,
-  industries: Array<{
-    category: string
-    subIndustries: string[]
-  }>
-): Promise<ApiResponse> {
-  return apiCall(`/api/v1/visitors/${visitorId}/industries`, {
-    method: 'POST',
-    body: JSON.stringify(industries),
-  })
+export interface ProjectDraftIndustry {
+  category: string
+  subIndustries: string[]
 }
 
-// Step 4: Add technologies
-export async function addVisitorTechnologies(
-  visitorId: string,
-  technologies: Array<{
-    category: string
-    technologies: string[]
-  }>
-): Promise<ApiResponse> {
-  return apiCall(`/api/v1/visitors/${visitorId}/technologies`, {
-    method: 'POST',
-    body: JSON.stringify(technologies),
-  })
+export interface ProjectDraftTechnology {
+  category: string
+  technologies: string[]
 }
 
-// Step 5: Add features
-export async function addVisitorFeatures(
-  visitorId: string,
-  features: Array<{
-    category: string
-    features: string[]
-  }>
-): Promise<ApiResponse> {
-  return apiCall(`/api/v1/visitors/${visitorId}/features`, {
-    method: 'POST',
-    body: JSON.stringify(features),
-  })
+export interface ProjectDraftFeature {
+  category: string
+  features: string[]
 }
 
-// Step 6: Add discount
-export async function addVisitorDiscount(
-  visitorId: string,
-  discount: {
-    type: string
-    percent: number
-    notes?: string
+export interface ProjectDraftDiscount {
+  type: 'STARTUP_FOUNDER' | 'VETERAN_OWNED_BUSINESS' | 'NONPROFIT_ORGANIZATION' | 'NOT_ELIGIBLE'
+  percent: number
+  notes?: string
+}
+
+export interface ProjectDraftTimeline {
+  option: 'STANDARD' | 'FAST_TRACK' | 'CUSTOM'
+  rushFeePercent: number
+  estimatedDays: number
+  description?: string
+}
+
+export interface ProjectDraftEstimate {
+  basePrice: number
+  discountAmount: number
+  rushFeeAmount: number
+  totalPrice: number
+  currency: string
+  validUntil: string
+}
+
+export interface ProjectDraftServiceAgreement {
+  accepted: boolean
+  acceptedAt?: string
+  ipAddress?: string
+}
+
+// Generic API call function
+async function apiCall<T = any>(
+  endpoint: string,
+  options: AxiosRequestConfig = {}
+): Promise<ApiResponse<T>> {
+  try {
+    const response = await apiClient({
+      url: endpoint,
+      method: options.method || 'GET',
+      data: options.data,
+      headers: {
+        ...options.headers,
+      },
+    })
+
+    return response.data
+  } catch (error: any) {
+    console.error(`API call failed: ${endpoint}`, error)
+    throw new Error(error.response?.data?.message || error.message || 'API request failed')
   }
+}
+
+// Project Draft API
+
+/**
+ * Step 1: Create a new project draft with business details
+ */
+export async function createProjectDraft(details: {
+  companyName: string
+  companyWebsite?: string
+  businessAddress?: string
+  businessType: string
+}): Promise<ApiResponse<{ id: string }>> {
+  // Get user email from localStorage or any other auth context
+  const userEmail = typeof window !== 'undefined' ? localStorage.getItem('userEmail') || '' : ''
+  
+  return apiCall('/api/v1/projects/draft/create', {
+    method: 'POST',
+    data: {
+      ...details,
+      fullName: details.companyName, // Using company name as full name
+      businessEmail: userEmail,
+    },
+  })
+}
+
+/**
+ * Get all drafts for the authenticated client
+ */
+export async function getProjectDrafts(): Promise<ApiResponse<ProjectDraft[]>> {
+  return apiCall('/api/v1/projects/draft/my-drafts')
+}
+
+/**
+ * Get a single draft by ID
+ */
+export async function getProjectDraft(draftId: string): Promise<ApiResponse<ProjectDraft>> {
+  return apiCall(`/api/v1/projects/draft/${draftId}`)
+}
+
+/**
+ * Step 2: Add services to draft
+ */
+export async function addDraftServices(
+  draftId: string,
+  services: ProjectDraftService[]
 ): Promise<ApiResponse> {
-  return apiCall(`/api/v1/visitors/${visitorId}/discount`, {
+  return apiCall(`/api/v1/projects/draft/${draftId}/services`, {
     method: 'POST',
-    body: JSON.stringify(discount),
+    data: services,
   })
 }
 
-// Step 7: Add timeline
-export async function addVisitorTimeline(
-  visitorId: string,
-  timeline: {
-    option: string
-    rushFeePercent: number
-    estimatedDays: number
-    description?: string
-  }
+/**
+ * Step 3: Add industries to draft
+ */
+export async function addDraftIndustries(
+  draftId: string,
+  industries: ProjectDraftIndustry[]
 ): Promise<ApiResponse> {
-  return apiCall(`/api/v1/visitors/${visitorId}/timeline`, {
+  return apiCall(`/api/v1/projects/draft/${draftId}/industries`, {
     method: 'POST',
-    body: JSON.stringify(timeline),
+    data: industries,
   })
 }
 
-// Step 8: Get estimate (auto-calculated after timeline)
-export async function getVisitorEstimate(visitorId: string): Promise<ApiResponse> {
-  return apiCall(`/api/v1/visitors/${visitorId}/estimate`, {
-    method: 'GET',
+/**
+ * Step 4: Add technologies to draft
+ */
+export async function addDraftTechnologies(
+  draftId: string,
+  technologies: ProjectDraftTechnology[]
+): Promise<ApiResponse> {
+  return apiCall(`/api/v1/projects/draft/${draftId}/technologies`, {
+    method: 'POST',
+    data: technologies,
   })
 }
 
-// Step 8: Accept estimate
-export async function acceptVisitorEstimate(visitorId: string): Promise<ApiResponse> {
-  return apiCall(`/api/v1/visitors/${visitorId}/estimate/accept`, {
+/**
+ * Step 5: Add features to draft
+ */
+export async function addDraftFeatures(
+  draftId: string,
+  features: ProjectDraftFeature[]
+): Promise<ApiResponse> {
+  return apiCall(`/api/v1/projects/draft/${draftId}/features`, {
+    method: 'POST',
+    data: features,
+  })
+}
+
+/**
+ * Step 6: Add discount to draft
+ */
+export async function addDraftDiscount(
+  draftId: string,
+  discount: ProjectDraftDiscount
+): Promise<ApiResponse> {
+  return apiCall(`/api/v1/projects/draft/${draftId}/discount`, {
+    method: 'POST',
+    data: discount,
+  })
+}
+
+/**
+ * Step 7: Add timeline to draft (auto-calculates estimate)
+ */
+export async function addDraftTimeline(
+  draftId: string,
+  timeline: ProjectDraftTimeline
+): Promise<ApiResponse<{ estimate: ProjectDraftEstimate }>> {
+  return apiCall(`/api/v1/projects/draft/${draftId}/timeline`, {
+    method: 'POST',
+    data: timeline,
+  })
+}
+
+/**
+ * Get draft estimate
+ */
+export async function getDraftEstimate(draftId: string): Promise<ApiResponse<ProjectDraftEstimate>> {
+  return apiCall(`/api/v1/projects/draft/${draftId}/estimate`)
+}
+
+/**
+ * Accept draft estimate
+ */
+export async function acceptDraftEstimate(draftId: string): Promise<ApiResponse> {
+  return apiCall(`/api/v1/projects/draft/${draftId}/estimate/accept`, {
     method: 'POST',
   })
 }
 
-// Step 9: Accept service agreement
-export async function acceptServiceAgreement(
-  visitorId: string,
+/**
+ * Accept service agreement
+ */
+export async function acceptDraftServiceAgreement(
+  draftId: string,
   accepted: boolean
 ): Promise<ApiResponse> {
-  return apiCall(`/api/v1/visitors/${visitorId}/service-agreement`, {
+  return apiCall(`/api/v1/projects/draft/${draftId}/service-agreement`, {
     method: 'POST',
-    body: JSON.stringify({ accepted }),
+    data: { accepted },
   })
 }
 
-// Auth: Register user
-export async function registerUser(userData: {
+/**
+ * Finalize draft and create project
+ */
+export async function finalizeDraft(
+  draftId: string,
+  paymentMethod: 'STRIPE' | 'BANK_TRANSFER' | 'CRYPTO'
+): Promise<ApiResponse<{ projectId: string; paymentUrl?: string }>> {
+  return apiCall(`/api/v1/projects/draft/${draftId}/finalize`, {
+    method: 'POST',
+    data: { paymentMethod },
+  })
+}
+
+// Auth API
+
+export interface RegisterUserData {
   username: string
   fullName: string
   email: string
   password: string
-}): Promise<ApiResponse> {
+}
+
+/**
+ * Register a new user
+ */
+export async function registerUser(userData: RegisterUserData): Promise<ApiResponse> {
   return apiCall('/api/v1/auth/register', {
     method: 'POST',
-    body: JSON.stringify(userData),
+    data: userData,
   })
 }
 
-// Auth: Verify email with OTP
-export async function verifyEmail(email: string, OTP: string): Promise<ApiResponse> {
-  return apiCall('/api/v1/auth/verifyEmail', {
+/**
+ * Verify email with OTP
+ */
+export async function verifyEmail(email: string, otp: string): Promise<ApiResponse> {
+  return apiCall('/api/v1/auth/verify-email', {
     method: 'POST',
-    body: JSON.stringify({ email, OTP }),
+    data: { email, otp },
   })
 }
 
-// Auth: Resend OTP
+/**
+ * Resend OTP
+ */
 export async function resendOTP(email: string): Promise<ApiResponse> {
-  return apiCall('/api/v1/auth/sendOTP', {
+  return apiCall('/api/v1/auth/resend-otp', {
     method: 'POST',
-    body: JSON.stringify({ email }),
+    data: { email },
   })
 }
 
-// Payment: Create checkout session
+// Payment API
+
+/**
+ * Create checkout session
+ */
 export async function createCheckoutSession(
   projectId: string,
   successUrl: string,
-  cancelUrl: string,
-  accessToken: string
-): Promise<ApiResponse> {
-  return apiCall('/api/v1/payment/project/create-checkout-session', {
+  cancelUrl: string
+): Promise<ApiResponse<{ sessionId: string; url: string }>> {
+  return apiCall('/api/v1/payments/checkout-session', {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({
+    data: {
       projectId,
       successUrl,
       cancelUrl,
-    }),
+    },
   })
 }
+// These functions are no longer needed as they've been replaced with the draft equivalents
+// Keeping them for backward compatibility
+export function getVisitorEstimate(visitorId: string) {
+  return getDraftEstimate(visitorId)
+}
+
+export function acceptVisitorEstimate(visitorId: string) {
+  return acceptDraftEstimate(visitorId)
+}
+

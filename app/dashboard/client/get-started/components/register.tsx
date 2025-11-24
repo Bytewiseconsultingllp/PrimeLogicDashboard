@@ -2,8 +2,47 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { ChevronDown, AlertCircle } from "lucide-react"
+import { ChevronDown, AlertCircle, Loader2, CheckCircle } from "lucide-react"
 import { toast } from "react-hot-toast"
+import { useRouter } from "next/navigation"
+import { login } from "@/lib/api/auth"
+import { getAuthToken, setUserDetails } from "@/lib/api/storage"
+
+type ApiResponse<T> = {
+  success: boolean;
+  message: string;
+  data?: T;
+};
+
+type AuthResponse = {
+  uid: string;
+  email: string;
+  refreshToken: string;
+  accessToken: string;
+  visitorConversion?: {
+    attempted: boolean;
+    success: boolean;
+    projectId?: string;
+    error?: string;
+    warnings?: string[];
+  };
+};
+
+type ProjectDraftResponse = {
+  id: string;
+  clientId: string;
+  isFinalized: boolean;
+  details: {
+    fullName: string;
+    businessEmail: string;
+    phoneNumber: string;
+    companyName: string;
+    companyWebsite: string;
+    businessAddress: string;
+    businessType: string;
+  };
+  createdAt: string;
+};
 
 interface RegisterYourselfProps {
   formData?: any
@@ -24,7 +63,18 @@ export default function RegisterYourself({
   onRegistrationSuccess,
   onShowLoginModal,
 }: RegisterYourselfProps) {
-  const [localFormData, setLocalFormData] = useState({
+  interface FormData {
+    fullName: string;
+    businessEmail: string;
+    phoneNumber: string;
+    companyName: string;
+    companyWebsite: string;
+    businessAddress: string;
+    businessType: string;
+    referralSource: string;
+  }
+
+  const [localFormData, setLocalFormData] = useState<FormData>({
     fullName: "",
     businessEmail: "",
     phoneNumber: "",
@@ -34,84 +84,97 @@ export default function RegisterYourself({
     businessType: "",
     referralSource: "",
     ...formData,
-  })
+  });
 
-  const [registerClicked, setRegisterClicked] = useState(false)
-  const [isRegistering, setIsRegistering] = useState(false)
-  const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({})
+  const [registerClicked, setRegisterClicked] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [showOtpVerification, setShowOtpVerification] = useState(false);
+  const [authData, setAuthData] = useState<{
+    email: string;
+    password: string;
+  } | null>(null);
+  
+  const router = useRouter();
+  const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({});
   const [validationStatus, setValidationStatus] = useState<{ [key: string]: "valid" | "invalid" | "untouched" }>({
     businessEmail: "untouched",
     phoneNumber: "untouched",
-  })
+  });
 
-  // Visitor API endpoint
-  const VISITOR_API_URL = `${process.env.NEXT_PUBLIC_API_URL}/visitor/create`
+  // API endpoints
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const AUTH_API_URL = `${API_BASE_URL}/auth/register`;
+  const VERIFY_EMAIL_URL = `${API_BASE_URL}/auth/verifyEmail`;
+  const DRAFT_API_URL = `${API_BASE_URL}/projects/draft/create`;
+
+  // Form validation helpers
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validatePhoneNumber = (phone: string): boolean => {
+    const phoneRegex = /^\+?[0-9]{10,15}$/;
+    return phoneRegex.test(phone.replace(/\D/g, ""));
+  };
 
   // Form validation function
-  const validateForm = () => {
-    const errors: { [key: string]: string } = {}
+  const validateForm = (): boolean => {
+    const errors: { [key: string]: string } = {};
 
     // Full name validation - required and max 25 characters
     if (!localFormData.fullName.trim()) {
-      errors.fullName = "Full name is required"
+      errors.fullName = "Full name is required";
     } else if (localFormData.fullName.trim().length > 25) {
-      errors.fullName = "Full name must be 25 characters or less"
+      errors.fullName = "Full name must be 25 characters or less";
     }
 
     // Email validation
     if (!localFormData.businessEmail.trim()) {
-      errors.businessEmail = "Email is required"
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(localFormData.businessEmail)) {
-      errors.businessEmail = "Please enter a valid email address"
+      errors.businessEmail = "Email is required";
+    } else if (!validateEmail(localFormData.businessEmail)) {
+      errors.businessEmail = "Please enter a valid email address";
     }
 
     // Company name validation - required
     if (!localFormData.companyName.trim()) {
-      errors.companyName = "Company name is required"
+      errors.companyName = "Company name is required";
     }
 
     // Website validation - must match www.example.com format
     if (localFormData.companyWebsite.trim()) {
-      const websitePattern = /^www\.[a-zA-Z0-9-]+\.[a-zA-Z]{2,}$/
+      const websitePattern = /^www\.[a-zA-Z0-9-]+\.[a-zA-Z]{2,}$/;
       if (!websitePattern.test(localFormData.companyWebsite.trim())) {
-        errors.companyWebsite = "Website must be in format: www.example.com (no numbers allowed)"
+        errors.companyWebsite = "Website must be in format: www.example.com (no numbers allowed)";
       }
     }
 
     // Phone number validation - required
     if (!localFormData.phoneNumber.trim()) {
-      errors.phoneNumber = "Phone number is required"
+      errors.phoneNumber = "Phone number is required";
     } else if (!validatePhoneNumber(localFormData.phoneNumber)) {
-      errors.phoneNumber = "Please enter a valid phone number (10-15 digits)"
+      errors.phoneNumber = "Please enter a valid phone number (10-15 digits)";
     }
 
     // Business address validation - required
     if (!localFormData.businessAddress.trim()) {
-      errors.businessAddress = "Business address is required"
+      errors.businessAddress = "Business address is required";
     }
 
     // Business type validation - required
     if (!localFormData.businessType) {
-      errors.businessType = "Please select a business type"
+      errors.businessType = "Please select a business type";
     }
 
     // Referral source validation - required
     if (!localFormData.referralSource) {
-      errors.referralSource = "Please select how you heard about us"
+      errors.referralSource = "Please select how you heard about us";
     }
 
-    setValidationErrors(errors)
-    return Object.keys(errors).length === 0
-  }
-
-  const validateEmail = (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    return emailRegex.test(email)
-  }
-
-  const validatePhoneNumber = (phone: string): boolean => {
-    const phoneRegex = /^\+?[0-9]{10,15}$/
-    return phoneRegex.test(phone.replace(/\D/g, ""))
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
   }
 
   // Generate a simple client ID for tracking
@@ -121,158 +184,302 @@ export default function RegisterYourself({
     return `client_${timestamp}_${randomString}`
   }
 
+  // Generate a temporary password for the user
+  const generateTemporaryPassword = (): string => {
+    const length = 12
+    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+~`|}{[]\\:;?><,./-='
+    let password = ''
+    for (let i = 0; i < length; i++) {
+      const randomIndex = Math.floor(Math.random() * charset.length)
+      password += charset[randomIndex]
+    }
+    return password
+  }
+
   const handleRegisterClick = async () => {
-    // Check if already registered (prevent double submission)
     if (registerClicked) {
       toast.success("You have already registered successfully!", {
-        icon: <AlertCircle />,
+        icon: <AlertCircle className="text-blue-500" />,
         duration: 4000,
-      })
-      return
+      });
+      return;
     }
 
     // Validate form before proceeding
     if (!validateForm()) {
-      // Show specific validation errors for each field
       Object.entries(validationErrors).forEach(([field, message]) => {
         if (message) {
-          const fieldName = field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1')
-          toast.error(`${fieldName}: ${message}`)
+          const fieldName = field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1');
+          toast.error(`${fieldName}: ${message}`, {
+            duration: 5000,
+          });
         }
-      })
-      return
+      });
+      return;
     }
 
-    setIsRegistering(true)
-    setValidationErrors({})
+    setIsRegistering(true);
+    setValidationErrors({});
 
     try {
-      // Prepare the data to send
+      // Generate a secure password
+      const password = generateTemporaryPassword();
+      
+      // Prepare the registration data for authentication
       const registrationData = {
+        username: localFormData.businessEmail.trim(),
+        email: localFormData.businessEmail.trim(),
+        password: password,
         fullName: localFormData.fullName.trim(),
-        businessEmail: localFormData.businessEmail.trim(),
-        phoneNumber: localFormData.phoneNumber.trim(),
-        companyName: localFormData.companyName.trim(),
-        companyWebsite: localFormData.companyWebsite.trim(),
-        businessAddress: localFormData.businessAddress.trim(),
-        businessType: localFormData.businessType,
-        referralSource: localFormData.referralSource,
-        timestamp: new Date().toISOString(),
-        clientId: generateClientId(),
-      }
+        phone: localFormData.phoneNumber.trim(),
+        company: localFormData.companyName.trim(),
+        role: 'CLIENT',
+        isEmailVerified: false,
+        isActive: true
+      };
 
-      console.log("Sending registration data:", registrationData)
-
-      // Send registration data to visitor API
-      const response = await fetch(VISITOR_API_URL, {
-        method: "POST",
+      // Step 1: Register the user in the auth system
+      const authResponse = await fetch(AUTH_API_URL, {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify(registrationData),
-      })
+      });
 
-      // Handle different response types
-      let result: RegistrationResponse
-      const contentType = response.headers.get("content-type")
-
-      if (contentType && contentType.indexOf("application/json") !== -1) {
-        result = await response.json()
-      } else {
-        const text = await response.text()
-        result = {
-          success: response.ok,
-          message: text || "Registration completed successfully!",
-        }
+      let authResult;
+      try {
+        authResult = await authResponse.json();
+      } catch (e) {
+        console.error('Failed to parse auth response:', e);
+        throw new Error('Failed to process registration. Please try again.');
       }
 
-      if (response.ok && result.success !== false) {
-        // Success case
-        setRegisterClicked(true)
-
-        // Show success toast
-        toast.success(result.message || "Registration successful! Welcome to Prime Logic Solutions.", {
-          duration: 4000
-        })
-
-        // Call success callback if provided
-        if (onRegistrationSuccess) {
-          onRegistrationSuccess({
-            ...registrationData,
-            registrationId: result.user?.id || Date.now().toString(),
-            registeredAt: new Date().toISOString(),
-          })
-        }
-
-        console.log("Registration successful!")
-
-        // Optional: Show additional success message after a delay
-        setTimeout(() => {
-          toast("Check your email for next steps!", {
-            icon: "ℹ️",
-            duration: 3000
-          })
-        }, 1000)
-      } else {
-        // Handle different HTTP error codes
-        let errorMessage = "Registration failed. Please try again."
-
-        switch (response.status) {
-          case 400:
-            errorMessage = result.message || "Invalid data provided. Please check your information."
-            break
-          case 409:
-            errorMessage = result.message || "This email is already registered."
-            // Show specific toast for existing email
-            toast.error(errorMessage, {
-              duration: 5000
-            })
-            return
-          case 422:
-            errorMessage = result.message || "Please check your information and try again."
-            break
-          case 500:
-            errorMessage = "Server error. Please try again later."
-            break
-          case 503:
-            errorMessage = "Service temporarily unavailable. Please try again later."
-            break
-          default:
-            errorMessage = result.message || `Error ${response.status}: Registration failed.`
-        }
-
-        toast.error(`${response.status}: ${errorMessage}`)
+      if (!authResponse.ok) {
+        throw new Error(authResult?.message || 'Registration failed. Please try again.');
       }
-    } catch (error) {
-      console.error("Registration error:", error)
 
-      // Handle errors with a simple toast
-      console.error('Registration error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
-      toast.error(`Registration failed: ${errorMessage}`)
+      // Store auth data for OTP verification
+      setAuthData({
+        email: registrationData.email,
+        password: password
+      });
+      
+      // Show OTP verification UI
+      setShowOtpVerification(true);
+      toast.success('Please check your email for the verification code', {
+        duration: 5000,
+      });
+
+    } catch (error: unknown) {
+      console.error("Registration error:", error);
+      let errorMessage = 'An unexpected error occurred';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = String(error.message);
+      }
+      
+      toast.error(errorMessage, {
+        duration: 5000,
+      });
     } finally {
-      setIsRegistering(false)
+      setIsRegistering(false);
     }
-  }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!authData || !otp) {
+      toast.error('Please enter the verification code');
+      return;
+    }
+
+    setIsVerifying(true);
+
+    try {
+      // Verify OTP with the server
+      const verifyResponse = await fetch(VERIFY_EMAIL_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: authData.email,
+          OTP: otp,
+        }),
+      });
+
+      // Handle non-OK responses
+      if (!verifyResponse.ok) {
+        let errorMessage = 'Verification failed. Please try again.';
+        try {
+          const errorData = await verifyResponse.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch (e) {
+          console.error('Failed to parse error response:', e);
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result: ApiResponse<AuthResponse> = await verifyResponse.json();
+
+      if (!result.success) {
+        throw new Error(result.message || 'Verification failed. Please try again.');
+      }
+
+      // Store user details and tokens
+      if (result.data) {
+        const { uid, email, refreshToken, accessToken } = result.data;
+        
+        // Store tokens in localStorage and context
+        setUserDetails({
+          uid,
+          username: email,
+          email,
+          accessToken,
+          refreshToken,
+          role: 'CLIENT',
+        });
+
+        // Create project draft with error handling
+        try {
+          await createProjectDraft(accessToken, {
+            companyName: localFormData.companyName.trim(),
+            companyWebsite: localFormData.companyWebsite.trim(),
+            businessAddress: localFormData.businessAddress.trim(),
+            businessType: localFormData.businessType,
+          });
+        } catch (draftError) {
+          console.warn('Project draft creation had issues:', draftError);
+          // Continue even if draft creation fails - don't block the user
+        }
+
+        // Mark as registered
+        setRegisterClicked(true);
+        toast.success('Email verified successfully!', { 
+          icon: <CheckCircle className="text-green-500" />,
+          duration: 3000
+        });
+
+        // Redirect to dashboard after a short delay
+        setTimeout(() => {
+          router.push('/dashboard/client/projects');
+        }, 2000);
+      }
+    } catch (error: unknown) {
+      console.error('Verification error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to verify OTP. Please try again.';
+      toast.error(errorMessage);
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const createProjectDraft = async (accessToken: string, draftData: {
+    companyName: string;
+    companyWebsite: string;
+    businessAddress: string;
+    businessType: string;
+  }) => {
+    try {
+      if (!accessToken) {
+        throw new Error('No authentication token available');
+      }
+
+      const response = await fetch(DRAFT_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        credentials: 'include', // Include cookies in the request
+        body: JSON.stringify({
+          ...draftData,
+          // Ensure we're sending the required fields in the expected format
+          fullName: localFormData.fullName.trim(),
+          businessEmail: localFormData.businessEmail.trim(),
+          phoneNumber: localFormData.phoneNumber.trim(),
+          referralSource: localFormData.referralSource || 'direct',
+        }),
+      });
+
+      // Handle non-OK responses
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.message || 'Failed to create project draft';
+        
+        // Log the error with more context
+        console.warn('Failed to create project draft:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorMessage,
+          url: DRAFT_API_URL
+        });
+
+        // Don't throw for 401/403 - let the auth system handle it
+        if (response.status === 401 || response.status === 403) {
+          console.warn('Authentication issue - redirecting to login');
+          // Clear any invalid auth data
+          setUserDetails({});
+          // Show a user-friendly message
+          toast.error('Your session has expired. Please log in again.');
+          // Redirect to login
+          router.push('/login');
+          return null;
+        }
+
+        // For other errors, just log and continue
+        return null;
+      }
+
+      const result: ApiResponse<ProjectDraftResponse> = await response.json();
+      
+      if (!result.success) {
+        console.warn('API reported error creating draft:', result.message);
+        return null;
+      }
+
+      return result.data;
+    } catch (error) {
+      console.error('Error in createProjectDraft:', error);
+      // Don't show error to user - this is a background process
+      return null;
+    }
+  };
 
   // Function to reset registration state (for re-registration)
   const handleReRegister = () => {
-    setRegisterClicked(false)
+    setRegisterClicked(false);
+    setShowOtpVerification(false);
+    setOtp("");
+    setAuthData(null);
+    
+    // Reset form data
+    setLocalFormData({
+      fullName: "",
+      businessEmail: "",
+      phoneNumber: "",
+      companyName: "",
+      companyWebsite: "",
+      businessAddress: "",
+      businessType: "",
+      referralSource: "",
+      ...formData,
+    });
+    
+    // Reset validation
+    setValidationErrors({});
+    setValidationStatus({
+      businessEmail: "untouched",
+      phoneNumber: "untouched",
+    });
+    
     toast("You can now register again", {
       icon: "ℹ️",
       duration: 3000
-    })
-  }
-
-  // Add useEffect to ensure parent component gets updated
-  useEffect(() => {
-    if (onUpdate) {
-      console.log("Updating parent with register data:", localFormData)
-      onUpdate(localFormData)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localFormData])
+    });
+  };
 
   // Handle input changes with validation
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -346,10 +553,10 @@ export default function RegisterYourself({
   }
 
   // Business type options
-  const businessTypes = ["Startup", "SME", "Nonprofit", "Enterprise", "Government", "Freelancer", "Other"]
-
+  const businessTypes = ["Startup", "SME", "Nonprofit", "Enterprise", "Government", "Freelancer", "Other"];
+  
   // Referral sources
-  const referralSources = ["Google", "Social Media", "Referral", "Email", "Advertisement", "Conference/Event", "Other"]
+  const referralSources = ["Google", "Social Media", "Referral", "Email", "Advertisement", "Other"];
 
   return (
     <div className="p-8">
@@ -358,7 +565,6 @@ export default function RegisterYourself({
           <h1 className="text-2xl font-bold text-left">Let's Start Shaping Your Idea</h1>
           <p className="text-left text-gray-600">Tell us where you are, and we'll take you further.</p>
         </div>
-        
       </div>
 
       {/* Show success banner if registered */}
