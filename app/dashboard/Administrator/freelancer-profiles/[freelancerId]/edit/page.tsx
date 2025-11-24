@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 import { getUserDetails } from "@/lib/api/storage"
 import { toast } from "sonner"
+import { selectFreelancerForProject } from "@/lib/api/projects"
 
 interface FreelancerProfile {
   id: string
@@ -48,6 +49,17 @@ interface FreelancerProfile {
     role: string
     kpiRankPoints: number
     kpiRank: string
+    // Optional fields from alternate responses
+    kpiPoints?: number
+    kpi_score?: number
+    rank?: string
+    kpiLevel?: string
+    kpiUpdatedAt?: string
+    updatedAt?: string
+  }
+  kpi?: {
+    points: number
+    rank: string
   }
   assignedProjects?: Array<{
     id: string
@@ -64,6 +76,21 @@ interface FreelancerProfile {
     completedAt: string
     client: {
       name: string
+    }
+  }>
+  bids?: Array<{
+    id: string
+    bidAmount: number
+    status: "PENDING" | "ACCEPTED" | "REJECTED"
+    submittedAt?: string
+    project?: { 
+      id?: string; 
+      title?: string; 
+      name?: string; 
+      projectName?: string; 
+      slug?: string;
+      client?: { name?: string }; 
+      clientName?: string 
     }
   }>
 }
@@ -95,6 +122,30 @@ export default function FreelancerEditPage() {
   const [projectIdInput, setProjectIdInput] = useState("")
   const [kpiData, setKpiData] = useState<{points: number, rank: string, lastUpdated: string} | null>(null)
   const [isKpiLoading, setIsKpiLoading] = useState(false)
+  const [viewBid, setViewBid] = useState<any | null>(null)
+
+  // Payout & payment state
+  const [paymentDetails, setPaymentDetails] = useState<any | null>(null)
+  const [stripeAccount, setStripeAccount] = useState<any | null>(null)
+  const [payouts, setPayouts] = useState<any[]>([])
+  const [isPaymentLoading, setIsPaymentLoading] = useState(false)
+  const [isPayoutLoading, setIsPayoutLoading] = useState(false)
+  const [payoutAmount, setPayoutAmount] = useState("")
+  const [payoutCurrency, setPayoutCurrency] = useState("usd")
+  const [payoutType, setPayoutType] = useState<"MILESTONE" | "PROJECT" | "BONUS" | "MANUAL">("MILESTONE")
+  const [payoutDescription, setPayoutDescription] = useState("")
+  const [payoutNotes, setPayoutNotes] = useState("")
+  const [payoutProjectId, setPayoutProjectId] = useState("")
+  const [payoutMilestoneId, setPayoutMilestoneId] = useState("")
+
+  // Helpers
+  const getBidProjectTitle = (p?: { title?: string; name?: string; projectName?: string }) => {
+    return p?.title || p?.name || p?.projectName || "Untitled Project"
+  }
+
+  const getBidClientName = (p?: { client?: { name?: string }; clientName?: string }) => {
+    return p?.client?.name || p?.clientName || "-"
+  }
 
   useEffect(() => {
     fetchFreelancerDetails()
@@ -120,14 +171,27 @@ export default function FreelancerEditPage() {
 
       if (response.ok) {
         const data = await response.json()
-        setFreelancer(data.data)
+        const payload = data.data || {}
+        const assigned = payload.assignedProjects || payload.selectedProjects || payload.projectsAssigned || payload.projects || []
+
+        // Build KPI object same way as AllFreelancers list (from user KPI fields)
+        const user = payload.user
+        console.log("User data:", user);
+        const kpi = user
+          ? {
+              points: user.kpiRankPoints || 0,
+              rank: user.kpiRank || "BRONZE",
+            }
+          : undefined
+
+        setFreelancer({ ...payload, assignedProjects: assigned, kpi })
         
-        // Set KPI data from freelancer data if available
-        if (data.data?.user) {
+        // Initialize KPI data used by KPI card from the same source
+        if (kpi) {
           setKpiData({
-            points: data.data.user.kpiRankPoints || 0,
-            rank: data.data.user.kpiRank || 'BRONZE',
-            lastUpdated: new Date().toISOString()
+            points: kpi.points,
+            rank: kpi.rank,
+            lastUpdated: (user?.kpiUpdatedAt ?? user?.updatedAt ?? new Date().toISOString()) as string,
           })
         }
       } else {
@@ -170,11 +234,11 @@ export default function FreelancerEditPage() {
 
         if (response.ok) {
           const data = await response.json()
-          setKpiData({
-            points: data.data?.kpiRankPoints || data.kpiRankPoints || 0,
-            rank: data.data?.kpiRank || data.kpiRank || 'BRONZE',
-            lastUpdated: data.data?.lastUpdated || data.lastUpdated || new Date().toISOString()
-          })
+          const kd = data.data ?? data
+          const points = (kd?.kpiRankPoints ?? kd?.kpiPoints ?? kd?.kpi_score ?? 0) as number
+          const rank = (kd?.kpiRank ?? kd?.rank ?? kd?.kpiLevel ?? 'BRONZE') as string
+          const lastUpdated = (kd?.lastUpdated ?? kd?.updatedAt ?? new Date().toISOString()) as string
+          setKpiData({ points, rank, lastUpdated })
           return
         }
       } catch (kpiError) {
@@ -192,41 +256,43 @@ export default function FreelancerEditPage() {
       if (freelancerResponse.ok) {
         const freelancerData = await freelancerResponse.json()
         if (freelancerData.data?.user) {
-          setKpiData({
-            points: freelancerData.data.user.kpiRankPoints || 0,
-            rank: freelancerData.data.user.kpiRank || 'BRONZE',
-            lastUpdated: new Date().toISOString()
-          })
+          const u = freelancerData.data.user
+          const points = (u.kpiRankPoints ?? u.kpiPoints ?? u.kpi_score ?? 0) as number
+          const rank = (u.kpiRank ?? u.rank ?? u.kpiLevel ?? 'BRONZE') as string
+          const lastUpdated = (u.kpiUpdatedAt ?? u.updatedAt ?? new Date().toISOString()) as string
+          setKpiData({ points, rank, lastUpdated })
         }
       } else {
         // Last fallback: use existing freelancer data
         if (freelancer?.user) {
-          setKpiData({
-            points: freelancer.user.kpiRankPoints || 0,
-            rank: freelancer.user.kpiRank || 'BRONZE',
-            lastUpdated: new Date().toISOString()
-          })
+          const u = freelancer.user
+          const points = (u.kpiRankPoints ?? u.kpiPoints ?? u.kpi_score ?? 0) as number
+          const rank = (u.kpiRank ?? u.rank ?? u.kpiLevel ?? 'BRONZE') as string
+          const lastUpdated = (u.kpiUpdatedAt ?? u.updatedAt ?? new Date().toISOString()) as string
+          setKpiData({ points, rank, lastUpdated })
         }
       }
     } catch (error) {
       console.error("Error fetching KPI data:", error)
       // Final fallback to existing freelancer data
       if (freelancer?.user) {
-        setKpiData({
-          points: freelancer.user.kpiRankPoints || 0,
-          rank: freelancer.user.kpiRank || 'BRONZE',
-          lastUpdated: new Date().toISOString()
-        })
+        const u = freelancer.user
+        const points = (u.kpiRankPoints ?? u.kpiPoints ?? u.kpi_score ?? 0) as number
+        const rank = (u.kpiRank ?? u.rank ?? u.kpiLevel ?? 'BRONZE') as string
+        const lastUpdated = (u.kpiUpdatedAt ?? u.updatedAt ?? new Date().toISOString()) as string
+        setKpiData({ points, rank, lastUpdated })
       }
     } finally {
       setIsKpiLoading(false)
     }
   }
 
-  // Fetch KPI data after freelancer data is loaded
+  // Fetch KPI & payout data after freelancer data is loaded
   useEffect(() => {
     if (freelancer) {
       fetchKpiData()
+      fetchPaymentDetails()
+      fetchPayoutHistory()
     }
   }, [freelancer])
 
@@ -302,28 +368,22 @@ export default function FreelancerEditPage() {
 
     setIsSaving(true)
     try {
-      const userDetails = getUserDetails()
-      const token = userDetails?.accessToken
+      const projectSlug = projectIdInput.trim()
+      const userName = freelancer?.user?.username || ""
+      if (!userName) {
+        toast.error("Freelancer username not available for assignment")
+        return
+      }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/projects/${projectIdInput.trim()}/assign`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          freelancerId: freelancerId
-        })
-      })
+      const response = await selectFreelancerForProject(projectSlug, userName)
 
-      if (response.ok) {
+      if (response.status === 200) {
         toast.success("Project assigned successfully")
         setIsProjectDialogOpen(false)
         setProjectIdInput("")
         fetchFreelancerDetails()
       } else {
-        const errorData = await response.json()
-        toast.error(errorData.message || "Failed to assign project")
+        toast.error("Failed to assign project")
       }
     } catch (error) {
       console.error("Error assigning project:", error)
@@ -336,7 +396,7 @@ export default function FreelancerEditPage() {
   const getKPIBadge = (rank: string) => {
     const colors = {
       BRONZE: "bg-amber-600",
-      SILVER: "bg-gray-400", 
+      SILVER: "bg-gray-400",
       GOLD: "bg-yellow-500",
       PLATINIUM: "bg-blue-500",
       DIAMOND: "bg-purple-500",
@@ -345,6 +405,114 @@ export default function FreelancerEditPage() {
       CONQUERER: "bg-black"
     }
     return <Badge className={`${colors[rank as keyof typeof colors] || "bg-gray-500"} text-white`}>{rank}</Badge>
+  }
+
+  const fetchPaymentDetails = async () => {
+    try {
+      setIsPaymentLoading(true)
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+
+      if (!token) return
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/freelancers/${freelancerId}/payment-details`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        const d = data.data || {}
+        setPaymentDetails(d.freelancer || d)
+        setStripeAccount(d.stripeAccountDetails || null)
+      }
+    } catch (error) {
+      console.warn("Error fetching payment details", error)
+    } finally {
+      setIsPaymentLoading(false)
+    }
+  }
+
+  const fetchPayoutHistory = async () => {
+    try {
+      setIsPayoutLoading(true)
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+      if (!token) return
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/freelancers/${freelancerId}/payouts?page=1&limit=5`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        const d = data.data || {}
+        setPayouts(Array.isArray(d.payouts) ? d.payouts : [])
+      }
+    } catch (error) {
+      console.warn("Error fetching payout history", error)
+    } finally {
+      setIsPayoutLoading(false)
+    }
+  }
+
+  const initiatePayout = async () => {
+    if (!payoutAmount || Number(payoutAmount) <= 0) {
+      toast.error("Enter a valid payout amount")
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+      if (!token) {
+        toast.error("Authentication required")
+        return
+      }
+
+      const body: any = {
+        amount: Number(payoutAmount),
+        currency: payoutCurrency,
+        payoutType,
+      }
+      if (payoutDescription) body.description = payoutDescription
+      if (payoutNotes) body.notes = payoutNotes
+      if (payoutProjectId) body.projectId = payoutProjectId
+      if (payoutMilestoneId) body.milestoneId = payoutMilestoneId
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/freelancers/${freelancerId}/payout`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      })
+
+      if (!res.ok) {
+        const msg = await res.text()
+        throw new Error(msg || "Failed to initiate payout")
+      }
+
+      toast.success("Payout initiated successfully")
+      setPayoutAmount("")
+      setPayoutDescription("")
+      setPayoutNotes("")
+      setPayoutProjectId("")
+      setPayoutMilestoneId("")
+      fetchPayoutHistory()
+    } catch (error: any) {
+      console.error("Error initiating payout", error)
+      toast.error(error?.message || "Failed to initiate payout")
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   if (isLoading) {
@@ -373,11 +541,11 @@ export default function FreelancerEditPage() {
       </div>
     )
   }
-
+ console.log("Freelancer data:", freelancer);
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-[#003087] to-[#0066cc] text-white">
+      <div className="bg-gradient-to-r from-[#003087] to-[#ff6b35] text-white">
         <div className="max-w-7xl mx-auto px-6 py-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -408,7 +576,14 @@ export default function FreelancerEditPage() {
                   <Badge className="bg-white/20 text-white border-white/30">
                     {freelancer.details.primaryDomain}
                   </Badge>
-                  {freelancer.user && getKPIBadge(freelancer.user.kpiRank)}
+                  {freelancer.kpi && (
+                    <div className="flex items-center gap-2">
+                      {getKPIBadge(freelancer.kpi.rank)}
+                      <span className="text-xs text-blue-100">
+                        {freelancer.kpi.points} pts
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -438,12 +613,20 @@ export default function FreelancerEditPage() {
           {/* Left Column - Main Info */}
           <div className="lg:col-span-2 space-y-8">
             {/* Personal Information */}
-            <Card className="border-l-4 border-l-blue-500">
-              <CardHeader className="bg-blue-50">
-                <CardTitle className="text-xl flex items-center gap-2 text-blue-800">
+            <Card className="border-l-4 border-l-[#003087]">
+              <CardHeader className="bg-[#003087]/5">
+                <CardTitle className="text-xl flex items-center gap-2 text-[#003087]">
                   <User className="w-5 h-5" />
                   Personal Information
                 </CardTitle>
+                <div className="mt-2">
+                  <Label className="text-xs text-gray-500">Primary Domain</Label>
+                  <div className="mt-1">
+                    <Badge className="bg-[#003087] text-white px-3 py-1 text-sm">
+                      {freelancer.details.primaryDomain}
+                    </Badge>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -475,12 +658,7 @@ export default function FreelancerEditPage() {
                         {freelancer.details.timeZone}
                       </p>
                     </div>
-                    <div>
-                      <Label className="text-sm font-medium text-gray-500">Primary Domain</Label>
-                      <Badge className="bg-[#003087] text-white px-3 py-1 text-sm mt-1">
-                        {freelancer.details.primaryDomain}
-                      </Badge>
-                    </div>
+                    
                     <div>
                       <Label className="text-sm font-medium text-gray-500">User ID</Label>
                       <p className="font-mono text-sm text-gray-600 mt-1">{freelancer.userId || "N/A"}</p>
@@ -490,179 +668,392 @@ export default function FreelancerEditPage() {
               </CardContent>
             </Card>
 
-            {/* Projects */}
-            <Card className="border-l-4 border-l-green-500">
-              <CardHeader className="bg-green-50">
-                <CardTitle className="text-xl flex items-center justify-between text-green-800">
-                  <div className="flex items-center gap-2">
-                    <Briefcase className="w-5 h-5" />
-                    Projects
-                  </div>
-                  <Dialog open={isProjectDialogOpen} onOpenChange={setIsProjectDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button size="sm" className="bg-green-600 hover:bg-green-700">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Assign Project
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-md">
-                      <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white p-6 -m-6 mb-6 rounded-t-lg">
-                        <DialogHeader>
-                          <DialogTitle className="text-xl font-bold flex items-center gap-2">
-                            <Briefcase className="w-6 h-6" />
-                            Assign Project
-                          </DialogTitle>
-                          <DialogDescription className="text-green-100 mt-2">
-                            Assign a project to this freelancer by entering the project ID
-                          </DialogDescription>
-                        </DialogHeader>
-                      </div>
-                      
-                      <div className="space-y-6">
-                        {/* Freelancer Info */}
-                        <div className="bg-gray-50 rounded-lg p-4 border-l-4 border-l-green-500">
-                          <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                            <User className="w-4 h-4" />
-                            Freelancer Details
-                          </h3>
-                          <div className="space-y-1">
-                            <p className="text-sm">
-                              <span className="font-medium text-gray-600">Name:</span> {freelancer?.details.fullName}
-                            </p>
-                            <p className="text-sm">
-                              <span className="font-medium text-gray-600">ID:</span> {freelancerId}
-                            </p>
-                            <p className="text-sm">
-                              <span className="font-medium text-gray-600">Email:</span> {freelancer?.details.email}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Project ID Input */}
-                        <div className="space-y-2">
-                          <Label htmlFor="projectId" className="text-sm font-medium text-gray-700">
-                            Project ID <span className="text-red-500">*</span>
-                          </Label>
-                          <Input
-                            id="projectId"
-                            type="text"
-                            value={projectIdInput}
-                            onChange={(e) => setProjectIdInput(e.target.value)}
-                            placeholder="Enter or paste project ID here..."
-                            className="w-full"
-                          />
-                          <p className="text-xs text-gray-500">
-                            Enter the unique project ID that you want to assign to this freelancer
-                          </p>
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex justify-end gap-3 pt-4 border-t">
-                          <Button 
-                            variant="outline" 
-                            onClick={() => {
-                              setIsProjectDialogOpen(false)
-                              setProjectIdInput("")
-                            }}
-                            disabled={isSaving}
-                          >
-                            Cancel
-                          </Button>
-                          <Button 
-                            onClick={assignProject} 
-                            disabled={isSaving || !projectIdInput.trim()}
-                            className="bg-green-600 hover:bg-green-700"
-                          >
-                            {isSaving ? (
-                              <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-                            ) : (
-                              <Plus className="w-4 h-4 mr-2" />
-                            )}
-                            Assign Project
-                          </Button>
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+            {/* Bids */}
+            <Card className="border-l-4 border-l-[#003087]">
+              <CardHeader className="bg-[#003087]/5">
+                <CardTitle className="text-xl flex items-center gap-2 text-[#003087]">
+                  <TrendingUp className="w-5 h-5" />
+                  Bids
+                  {freelancer.bids?.length ? (
+                    <Badge variant="secondary" className="ml-2">{freelancer.bids.length}</Badge>
+                  ) : null}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
-                <div className="space-y-6">
-                  {/* Assigned Projects */}
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-3">Active Projects</h3>
-                    {freelancer.assignedProjects?.length ? (
-                      <div className="space-y-3">
-                        {freelancer.assignedProjects.map((project) => (
-                          <div key={project.id} className="p-4 bg-blue-50 rounded-lg border">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h4 className="font-medium text-gray-900">{project.title}</h4>
-                                <p className="text-sm text-gray-600">Client: {project.client.name}</p>
-                                <Badge variant="outline" className="mt-1">
-                                  {project.status}
-                                </Badge>
+                {freelancer.bids?.length ? (
+                  <div className="space-y-3">
+                    {freelancer.bids.map((bid) => (
+                      <div key={bid.id} className="p-4 rounded-lg border bg-white">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-semibold text-gray-900 truncate max-w-[36ch]">{getBidProjectTitle(bid.project)}</h4>
+                              <span className="text-xs text-gray-500">ID: {bid.project?.id || '-'}</span>
+                            </div>
+                            <p className="text-sm text-gray-600 mt-1">Client: {getBidClientName(bid.project)}</p>
+                            <div className="mt-2 flex items-center gap-2">
+                              <Badge variant="outline">{bid.status}</Badge>
+                              <Badge variant={bid.status === 'PENDING' ? 'default' : 'secondary'}>
+                                {bid.status === 'PENDING' ? 'ACTIVE' : 'CLOSED'}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="font-semibold text-gray-900">{'$'}{bid.bidAmount}</span>
+                            <Button size="sm" variant="outline" onClick={() => setViewBid(bid)}>
+                              <Eye className="w-4 h-4 mr-1" />
+                              View
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <TrendingUp className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                    <p>No bids submitted</p>
+                  </div>
+                )}
+
+                <Dialog open={!!viewBid} onOpenChange={(o) => !o && setViewBid(null)}>
+                  <DialogContent className="max-w-2xl p-0 overflow-hidden">
+                    <div className="bg-gradient-to-r from-[#003087] to-[#ff6b35] text-white p-6">
+                      <DialogHeader>
+                        <DialogTitle className="text-2xl">Bid Details</DialogTitle>
+                        <DialogDescription className="text-fuchsia-100">Review the bid information for this project</DialogDescription>
+                      </DialogHeader>
+                    </div>
+                    {viewBid && (
+                      <div className="p-6 space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="p-4 bg-gray-50 rounded border">
+                            <p className="text-xs text-muted-foreground">Project</p>
+                            <p className="font-medium">{getBidProjectTitle(viewBid.project)}</p>
+                            <p className="text-xs text-muted-foreground mt-1">Project ID: {viewBid.project?.id || '-'}</p>
+                            <p className="text-xs text-muted-foreground mt-1">Client: {getBidClientName(viewBid.project)}</p>
+                          </div>
+                          <div className="p-4 bg-gray-50 rounded border">
+                            <p className="text-xs text-muted-foreground">Bid</p>
+                            <p className="font-medium">{'$'}{viewBid.bidAmount}</p>
+                            <div className="mt-2 flex gap-2">
+                              <Badge variant="outline">{viewBid.status}</Badge>
+                              <Badge variant={viewBid.status === 'PENDING' ? 'default' : 'secondary'}>
+                                {viewBid.status === 'PENDING' ? 'ACTIVE' : 'CLOSED'}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="p-4 bg-gray-50 rounded border">
+                            <p className="text-xs text-muted-foreground">Bid Date</p>
+                            <p className="font-medium">{viewBid.submittedAt ? new Date(viewBid.submittedAt).toLocaleDateString() : '-'}</p>
+                          </div>
+                          <div className="p-4 bg-gray-50 rounded border">
+                            <p className="text-xs text-muted-foreground">Bid Time</p>
+                            <p className="font-medium">{viewBid.submittedAt ? new Date(viewBid.submittedAt).toLocaleTimeString() : '-'}</p>
+                          </div>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded border">
+                          <p className="text-xs text-muted-foreground">Freelancer</p>
+                          <p className="font-medium">{freelancer.details.fullName}</p>
+                          <p className="text-xs text-muted-foreground mt-1">Freelancer ID: {freelancerId}</p>
+                        </div>
+                      </div>
+                    )}
+                  </DialogContent>
+                </Dialog>
+              </CardContent>
+            </Card>
+
+            {/* Assigned Projects */}
+            <Card className="border-l-4 border-l-[#003087]">
+              <CardHeader className="bg-[#003087]/5">
+                <CardTitle className="text-xl flex items-center gap-2 text-[#003087]">
+                  <Briefcase className="w-5 h-5" />
+                  Assigned Projects
+                  {freelancer.assignedProjects?.length ? (
+                    <Badge variant="secondary" className="ml-2">
+                      {freelancer.assignedProjects.length}
+                    </Badge>
+                  ) : null}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                {freelancer.assignedProjects?.length ? (
+                  <div className="space-y-3">
+                    {freelancer.assignedProjects.map((project) => {
+                      const anyProj: any = project as any
+                      const title = anyProj.details?.companyName || project.title || anyProj.name || "Untitled Project"
+                      const clientName = project.client?.name || anyProj.clientName || anyProj.details?.clientName || "-"
+                      const status = project.status || anyProj.projectStatus || anyProj.status || "-"
+                      return (
+                        <div key={project.id} className="p-4 bg-[#003087]/5 rounded-lg border border-[#003087]/20">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="font-medium text-gray-900 truncate max-w-[30ch]">{title}</h4>
+                              <p className="text-xs text-gray-500 break-all mt-1">ID: {project.id}</p>
+                              <p className="text-sm text-gray-600 mt-1">Client: {clientName}</p>
+                              <Badge variant="outline" className="mt-1 text-xs border-[#003087] text-[#003087] bg-white">{status}</Badge>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button size="sm" variant="outline">
+                                <Eye className="w-4 h-4 mr-1" />
+                                View
+                              </Button>
+                            </div>
+                          </div>
+                          {project.progress !== undefined && (
+                            <div className="mt-3">
+                              <div className="flex justify-between text-sm mb-1">
+                                <span>Progress</span>
+                                <span>{project.progress}%</span>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <Button size="sm" variant="outline">
-                                  <Eye className="w-4 h-4 mr-1" />
-                                  View
-                                </Button>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div className="bg-[#003087] h-2 rounded-full" style={{ width: `${project.progress}%` }} />
                               </div>
                             </div>
-                            {project.progress !== undefined && (
-                              <div className="mt-3">
-                                <div className="flex justify-between text-sm mb-1">
-                                  <span>Progress</span>
-                                  <span>{project.progress}%</span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Briefcase className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                    <p>No projects assigned</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Payments & Payouts */}
+            <Card className="border-l-4 border-l-[#ff6b35] shadow-md">
+              <CardHeader className="bg-gradient-to-r from-[#003087] to-[#ff6b35] text-white">
+                <CardTitle className="text-lg flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-5 h-5" />
+                    Freelancer Payments
+                  </div>
+                  {paymentDetails?.stripeAccountStatus && (
+                    <Badge className="bg-white/20 text-white border-white/30 text-xs">
+                      {paymentDetails.stripeAccountStatus}
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 space-y-6">
+                {/* Stripe Account Details - Top Section */}
+                <div className="space-y-2">
+                  <h3 className="font-medium text-gray-900 flex items-center gap-2">
+                    <Settings className="w-4 h-4" />
+                    Stripe Account Details
+                  </h3>
+                  <div className="p-4 rounded-lg bg-gray-50 border border-gray-200">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-500">Stripe Account ID</p>
+                        <p className="text-sm font-medium text-gray-900 break-all">
+                          {paymentDetails?.stripeAccountId || "Not connected"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Status</p>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${
+                            paymentDetails?.stripeAccountStatus === 'active' ? 'bg-green-500' : 'bg-yellow-500'
+                          }`} />
+                          <span className="text-sm font-medium">
+                            {paymentDetails?.stripeAccountStatus?.toUpperCase() || 'INACTIVE'}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Charges</p>
+                        <Badge variant={stripeAccount?.chargesEnabled ? 'default' : 'secondary'} className="text-xs">
+                          {stripeAccount?.chargesEnabled ? 'Enabled' : 'Disabled'}
+                        </Badge>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Payouts</p>
+                        <Badge variant={stripeAccount?.payoutsEnabled ? 'default' : 'secondary'} className="text-xs">
+                          {stripeAccount?.payoutsEnabled ? 'Enabled' : 'Disabled'}
+                        </Badge>
+                      </div>
+                    </div>
+                    {stripeAccount?.detailsSubmitted !== undefined && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <p className="text-xs text-gray-500 mb-1">Verification</p>
+                        <div className="flex items-center gap-2">
+                          {stripeAccount.detailsSubmitted ? (
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                          ) : (
+                            <XCircle className="w-4 h-4 text-yellow-500" />
+                          )}
+                          <span className="text-xs">
+                            {stripeAccount.detailsSubmitted 
+                              ? 'KYC details submitted and verified' 
+                              : 'KYC details pending submission'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Initiate Payout - Middle Section */}
+                <div className="space-y-2">
+                  <h3 className="font-medium text-gray-900 flex items-center gap-2">
+                    <DollarSign className="w-4 h-4" />
+                    Initiate Payout
+                  </h3>
+                  <div className="p-4 rounded-lg bg-white border border-gray-200">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-xs text-gray-600">Amount (USD)</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={payoutAmount}
+                          onChange={(e) => setPayoutAmount(e.target.value)}
+                          className="mt-1 h-9"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-600">Payout Type</Label>
+                        <Select
+                          value={payoutType}
+                          onValueChange={(v) => setPayoutType(v as any)}
+                        >
+                          <SelectTrigger className="mt-1 h-9 text-xs">
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="MILESTONE">Milestone</SelectItem>
+                            <SelectItem value="PROJECT">Project</SelectItem>
+                            <SelectItem value="BONUS">Bonus</SelectItem>
+                            <SelectItem value="MANUAL">Manual</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-600">Project ID (optional)</Label>
+                        <Input
+                          value={payoutProjectId}
+                          onChange={(e) => setPayoutProjectId(e.target.value)}
+                          className="mt-1 h-9 text-xs"
+                          placeholder="Project UUID"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-600">Milestone ID (optional)</Label>
+                        <Input
+                          value={payoutMilestoneId}
+                          onChange={(e) => setPayoutMilestoneId(e.target.value)}
+                          className="mt-1 h-9 text-xs"
+                          placeholder="Milestone UUID"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      <div>
+                        <Label className="text-xs text-gray-600">Description</Label>
+                        <Input
+                          value={payoutDescription}
+                          onChange={(e) => setPayoutDescription(e.target.value)}
+                          className="mt-1 h-9 text-sm"
+                          placeholder="Payment for milestone completion"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-600">Admin Notes</Label>
+                        <Textarea
+                          rows={2}
+                          className="mt-1 text-sm"
+                          value={payoutNotes}
+                          onChange={(e) => setPayoutNotes(e.target.value)}
+                          placeholder="Internal notes (optional)"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end pt-3">
+                      <Button
+                        size="sm"
+                        className="bg-[#ff6b35] hover:bg-[#ff6b35]/90 text-white"
+                        onClick={initiatePayout}
+                        disabled={isSaving || !stripeAccount?.payoutsEnabled}
+                      >
+                        {isSaving ? (
+                          <RefreshCw className="w-3 h-3 animate-spin mr-2" />
+                        ) : (
+                          <DollarSign className="w-3 h-3 mr-2" />
+                        )}
+                        {stripeAccount?.payoutsEnabled ? 'Send Payout' : 'Payouts Disabled'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payout History - Bottom Section */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-medium text-gray-900 flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      Recent Payouts
+                    </h3>
+                    {isPayoutLoading && (
+                      <RefreshCw className="w-3 h-3 animate-spin text-gray-400" />
+                    )}
+                  </div>
+                  <div className="border rounded-lg overflow-hidden">
+                    {payouts.length > 0 ? (
+                      <div className="divide-y">
+                        {payouts.map((payout) => (
+                          <div
+                            key={payout.id}
+                            className="p-4 hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">
+                                    ${parseFloat(payout.amount).toFixed(2)} {payout.currency?.toUpperCase?.() || "USD"}
+                                  </span>
+                                  <Badge
+                                    variant={payout.status === "PAID" ? "default" : "secondary"}
+                                    className="text-[10px] px-2 py-0.5"
+                                  >
+                                    {payout.status}
+                                  </Badge>
                                 </div>
-                                <div className="w-full bg-gray-200 rounded-full h-2">
-                                  <div
-                                    className="bg-blue-600 h-2 rounded-full"
-                                    style={{ width: `${project.progress}%` }}
-                                  ></div>
-                                </div>
+                                <p className="text-sm text-gray-600">
+                                  {payout.payoutType} • {payout.description || "No description"}
+                                </p>
+                                <p className="text-xs text-gray-400">
+                                  {payout.createdAt ? new Date(payout.createdAt).toLocaleString() : ""}
+                                </p>
+                              </div>
+                              <Button variant="ghost" size="sm" className="h-8">
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                            {payout.notes && (
+                              <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-600">
+                                {payout.notes}
                               </div>
                             )}
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-8 text-gray-500">
-                        <Briefcase className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                        <p>No active projects assigned</p>
+                      <div className="p-6 text-center text-gray-500">
+                        <p>No payouts recorded yet.</p>
+                        <p className="text-xs mt-1">Initiate a payout to see it here.</p>
                       </div>
                     )}
                   </div>
-
-                  {/* Completed Projects */}
-                  {freelancer.completedProjects?.length && (
-                    <div>
-                      <h3 className="font-semibold text-gray-900 mb-3">Completed Projects</h3>
-                      <div className="space-y-3">
-                        {freelancer.completedProjects.map((project) => (
-                          <div key={project.id} className="p-4 bg-green-50 rounded-lg border">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h4 className="font-medium text-gray-900">{project.title}</h4>
-                                <p className="text-sm text-gray-600">Client: {project.client.name}</p>
-                                <p className="text-sm text-gray-500">
-                                  Completed: {new Date(project.completedAt).toLocaleDateString()}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge className="bg-green-500">Completed</Badge>
-                                <Button size="sm" variant="outline">
-                                  <Eye className="w-4 h-4 mr-1" />
-                                  View
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </CardContent>
             </Card>
@@ -671,16 +1062,16 @@ export default function FreelancerEditPage() {
           {/* Right Column - KPI & Actions */}
           <div className="space-y-8">
             {/* KPI Management */}
-            <Card className="border-l-4 border-l-purple-500">
-              <CardHeader className="bg-purple-50">
-                <CardTitle className="text-xl flex items-center justify-between text-purple-800">
+            <Card className="border-l-4 border-l-[#003087]">
+              <CardHeader className="bg-[#003087]/5">
+                <CardTitle className="text-xl flex items-center justify-between text-[#003087]">
                   <div className="flex items-center gap-2">
                     <Award className="w-5 h-5" />
                     KPI Rank
                   </div>
                   <Dialog open={isKpiDialogOpen} onOpenChange={setIsKpiDialogOpen}>
                     <DialogTrigger asChild>
-                      <Button size="sm" className="bg-purple-600 hover:bg-purple-700">
+                      <Button size="sm" className="bg-[#003087] hover:bg-[#003087]/90 text-white">
                         <TrendingUp className="w-4 h-4 mr-2" />
                         Update KPI
                       </Button>
@@ -732,39 +1123,43 @@ export default function FreelancerEditPage() {
               <CardContent className="p-6 text-center">
                 {isKpiLoading ? (
                   <div className="space-y-4">
-                    <RefreshCw className="w-8 h-8 text-purple-400 mx-auto animate-spin" />
+                    <RefreshCw className="w-8 h-8 text-[#003087] mx-auto animate-spin" />
                     <p className="text-gray-500">Loading KPI data...</p>
                   </div>
-                ) : kpiData ? (
+                ) : kpiData || freelancer.user ? (
                   <div className="space-y-4">
-                    <div className="text-4xl font-bold text-purple-600">
-                      {kpiData.points}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-500">KPI Points</p>
+                        <p className="text-3xl font-bold text-gray-900">
+                          {kpiData?.points || freelancer.user?.kpiRankPoints || 0}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-gray-500">Rank</p>
+                        <div className="mt-1">
+                          {getKPIBadge((kpiData?.rank || freelancer.user?.kpiRank || "BRONZE").toUpperCase())}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-500">Points</div>
-                    {getKPIBadge(kpiData.rank)}
                     <Separator />
                     <div className="text-xs text-gray-500">
-                      Last updated: {new Date(kpiData.lastUpdated).toLocaleDateString()}
+                      Last updated: {kpiData?.lastUpdated 
+                        ? new Date(kpiData.lastUpdated).toLocaleDateString() 
+                        : freelancer.user?.kpiUpdatedAt 
+                          ? new Date(freelancer.user.kpiUpdatedAt).toLocaleDateString()
+                          : 'N/A'}
                     </div>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      onClick={fetchKpiData}
-                      className="mt-2"
-                    >
-                      <RefreshCw className="w-3 h-3 mr-1" />
-                      Refresh
-                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <Award className="w-12 h-12 text-gray-400 mx-auto" />
+                    <Award className="w-12 h-12 text-[#003087]/40 mx-auto" />
                     <p className="text-gray-500">No KPI data available</p>
                     <Button 
                       size="sm" 
                       variant="outline" 
                       onClick={fetchKpiData}
-                      className="mt-2"
+                      className="mt-2 border-[#003087] text-[#003087]"
                     >
                       <RefreshCw className="w-3 h-3 mr-1" />
                       Load KPI Data
@@ -774,11 +1169,12 @@ export default function FreelancerEditPage() {
               </CardContent>
             </Card>
 
+
             {/* Skills */}
             {freelancer.details.eliteSkillCards?.length && (
-              <Card className="border-l-4 border-l-orange-500">
-                <CardHeader className="bg-orange-50">
-                  <CardTitle className="text-xl flex items-center gap-2 text-orange-800">
+              <Card className="border-l-4 border-l-[#ff6b35]">
+                <CardHeader className="bg-[#ff6b35]/5">
+                  <CardTitle className="text-xl flex items-center gap-2 text-[#ff6b35]">
                     <Star className="w-5 h-5" />
                     Elite Skills
                   </CardTitle>
@@ -786,7 +1182,10 @@ export default function FreelancerEditPage() {
                 <CardContent className="p-6">
                   <div className="flex flex-wrap gap-2">
                     {freelancer.details.eliteSkillCards.map((skill: string, index: number) => (
-                      <Badge key={index} className="bg-orange-100 text-orange-800 border-orange-200">
+                      <Badge
+                        key={index}
+                        className="bg-[#ff6b35]/10 text-[#ff6b35] border border-[#ff6b35]/40"
+                      >
                         {skill}
                       </Badge>
                     ))}
@@ -797,9 +1196,9 @@ export default function FreelancerEditPage() {
 
             {/* Professional Links */}
             {freelancer.details.professionalLinks?.length && (
-              <Card className="border-l-4 border-l-indigo-500">
-                <CardHeader className="bg-indigo-50">
-                  <CardTitle className="text-xl flex items-center gap-2 text-indigo-800">
+              <Card className="border-l-4 border-l-[#003087]">
+                <CardHeader className="bg-[#003087]/5">
+                  <CardTitle className="text-xl flex items-center gap-2 text-[#003087]">
                     <Globe className="w-5 h-5" />
                     Professional Links
                   </CardTitle>
@@ -814,8 +1213,8 @@ export default function FreelancerEditPage() {
                         rel="noopener noreferrer"
                         className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border hover:bg-gray-100 transition-colors"
                       >
-                        <ExternalLink className="w-4 h-4 text-indigo-600" />
-                        <span className="text-blue-600 hover:underline truncate">{link}</span>
+                        <ExternalLink className="w-4 h-4 text-[#003087]" />
+                        <span className="text-[#003087] hover:underline truncate">{link}</span>
                       </a>
                     ))}
                   </div>

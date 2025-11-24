@@ -183,9 +183,9 @@ export default function AdministratorDashboard() {
           },
         })
 
-        // Fetch latest freelancers
-        console.log("🔄 Fetching latest freelancers...")
-        const freelancersRes = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/freelancers?page=1&limit=5`, {
+        // Fetch latest freelancers (pending requests) - load more so all newly registered pending freelancers are visible
+        console.log("🔄 Fetching latest freelancers (pending requests)...")
+        const freelancersRes = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/freelancers?status=PENDING_REVIEW&page=1&limit=100`, {
           headers: { 
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json"
@@ -255,8 +255,16 @@ export default function AdministratorDashboard() {
         if (visitorsRes.ok) {
           const visitorData = await visitorsRes.json()
           console.log("✅ Visitors:", visitorData)
-          console.log("✅ Visitor count:", visitorData.data?.pagination?.total)
-          stats.totalVisitors = visitorData.data?.pagination?.total || 0
+          // Robust extraction across possible API shapes
+          const extractedCount =
+            (visitorData?.data?.pagination?.total ??
+            visitorData?.data?.total ??
+            visitorData?.pagination?.total ??
+            visitorData?.data?.visitorsCount ??
+            (Array.isArray(visitorData?.data?.visitors) ? visitorData.data.visitors.length : undefined) ??
+            (Array.isArray(visitorData?.visitors) ? visitorData.visitors.length : 0))
+          console.log("✅ Visitor count (extracted):", extractedCount)
+          stats.totalVisitors = extractedCount || 0
         } else if (visitorsRes.status === 401) {
           console.error("❌ Authentication failed for visitors API")
           stats.totalVisitors = 0
@@ -280,8 +288,58 @@ export default function AdministratorDashboard() {
         // Process latest freelancers
         if (freelancersRes.ok) {
           const freelancersData = await freelancersRes.json()
-          console.log("✅ Latest freelancers:", freelancersData)
-          setLatestFreelancers(freelancersData.data?.freelancers || [])
+          console.log("✅ Latest freelancer requests:", freelancersData)
+
+          // Robust extraction similar to FreelancerRequests component
+          let freelancersList: any[] = []
+
+          if (Array.isArray(freelancersData)) {
+            freelancersList = freelancersData
+          } else if (freelancersData?.data) {
+            if (Array.isArray(freelancersData.data)) {
+              freelancersList = freelancersData.data
+            } else if (Array.isArray(freelancersData.data.freelancers)) {
+              freelancersList = freelancersData.data.freelancers
+            } else if (Array.isArray(freelancersData.data.items)) {
+              freelancersList = freelancersData.data.items
+            }
+          } else if (Array.isArray(freelancersData?.freelancers)) {
+            freelancersList = freelancersData.freelancers
+          }
+
+          console.log("📋 Extracted latest freelancers list (dashboard):", freelancersList)
+
+          // Filter to valid pending profiles and map to the lightweight card shape
+          let transformed = freelancersList
+            .filter((freelancer: any) => {
+              const isPendingReview = freelancer.status === "PENDING_REVIEW"
+              const details = freelancer.details
+              const hasValidDetails = details && details.fullName && details.email
+              return isPendingReview && hasValidDetails
+            })
+            .map((freelancer: any) => ({
+              id: freelancer.id,
+              status: freelancer.status,
+              createdAt: freelancer.createdAt,
+              details: {
+                fullName: freelancer.details.fullName,
+                email: freelancer.details.email,
+                primaryDomain: freelancer.details.primaryDomain,
+                country: freelancer.details.country,
+              },
+              user: freelancer.user,
+            }))
+
+          // Ensure newest registrations show first based on createdAt when available
+          if (Array.isArray(transformed)) {
+            transformed = [...transformed].sort((a: any, b: any) => {
+              const aTime = a?.createdAt ? new Date(a.createdAt).getTime() : 0
+              const bTime = b?.createdAt ? new Date(b.createdAt).getTime() : 0
+              return bTime - aTime
+            })
+          }
+
+          setLatestFreelancers(transformed || [])
         }
 
       } catch (err) {
@@ -294,6 +352,53 @@ export default function AdministratorDashboard() {
     }
 
     fetchDashboardData()
+  }, [])
+
+  // Live update: periodically refresh visitors count so the tile updates without reload
+  useEffect(() => {
+    let intervalId: ReturnType<typeof setInterval> | null = null
+
+    const pollVisitors = async () => {
+      try {
+        const userDetails = getUserDetails()
+        const token = userDetails?.accessToken
+        if (!token) return
+
+        const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/visitors?page=1&limit=1`, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        })
+
+        if (res.ok) {
+          const data = await res.json()
+          const count = (
+            data?.data?.pagination?.total ??
+            data?.data?.total ??
+            data?.pagination?.total ??
+            data?.data?.visitorsCount ??
+            (Array.isArray(data?.data?.visitors) ? data.data.visitors.length : undefined) ??
+            (Array.isArray(data?.visitors) ? data.visitors.length : 0)
+          )
+          setAdminStats((prev) => (prev ? { ...prev, totalVisitors: count || 0 } : prev))
+        }
+      } catch (_) {
+        // ignore polling errors
+      }
+    }
+
+    // initial fetch and set 15s interval
+    pollVisitors()
+    intervalId = setInterval(pollVisitors, 15000)
+
+    // also refresh when window regains focus
+    window.addEventListener('focus', pollVisitors)
+
+    return () => {
+      if (intervalId) clearInterval(intervalId)
+      window.removeEventListener('focus', pollVisitors)
+    }
   }, [])
 
   const getStatusIcon = (status: string) => {
@@ -470,10 +575,6 @@ export default function AdministratorDashboard() {
                         <p className="font-semibold text-foreground">{adminProfile.phone || "Not provided"}</p>
                       </div>
                       <div className="bg-gray-50 p-3 rounded-lg">
-                        <p className="text-xs text-muted-foreground">Address</p>
-                        <p className="font-semibold text-foreground">{adminProfile.address || "Not provided"}</p>
-                      </div>
-                      <div className="bg-gray-50 p-3 rounded-lg">
                         <p className="text-xs text-muted-foreground">User ID</p>
                         <p className="font-semibold text-foreground text-sm font-mono">{adminProfile.uid || "N/A"}</p>
                       </div>
@@ -481,12 +582,6 @@ export default function AdministratorDashboard() {
                         <p className="text-xs text-muted-foreground">Account Role</p>
                         <Badge className="bg-[#003087] text-white">
                           {adminProfile.role || "ADMIN"}
-                        </Badge>
-                      </div>
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <p className="text-xs text-muted-foreground">Account Status</p>
-                        <Badge className={adminProfile.isActive ? "bg-green-500" : "bg-red-500"}>
-                          {adminProfile.isActive ? "Active" : "Inactive"}
                         </Badge>
                       </div>
                       {adminProfile.createdAt && (
@@ -553,6 +648,16 @@ export default function AdministratorDashboard() {
                           <div>
                             <p className="font-semibold text-foreground">{project.details?.companyName || "Unknown Company"}</p>
                             <p className="text-sm text-muted-foreground">{project.client?.fullName || "Unknown Client"}</p>
+                            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                              <span className="font-mono">ID: {project.id}</span>
+                              <Button
+                                variant="outline"
+                                size="sm" asChild={false}
+                                onClick={(e) => { e.preventDefault(); navigator.clipboard.writeText(String(project.id)); toast.success("Project ID copied") }}
+                              >
+                                Copy
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -608,52 +713,35 @@ export default function AdministratorDashboard() {
             </CardContent>
           </Card>
 
-          {/* Latest Freelancers */}
+          {/* Latest Freelancer Requests */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-base md:text-lg">Latest Freelancers</CardTitle>
-              <Link href="/dashboard/Administrator/freelancer-profiles">
-                <Button variant="ghost" size="sm">
-                  <span className="text-xs">View All</span>
-                </Button>
+            <CardHeader className="flex items-center justify-between">
+              <CardTitle className="text-base md:text-lg">Latest Freelancer Requests</CardTitle>
+              <Link href={latestFreelancers.length > 0 ? `/dashboard/Administrator/freelancer-profiles?view=${latestFreelancers[0].id}` : "/dashboard/Administrator/freelancer-profiles"}>
+                <Button variant="ghost" size="sm">View All</Button>
               </Link>
             </CardHeader>
             <CardContent className="space-y-3">
-              {latestFreelancers.length > 0 ? (
+              {latestFreelancers && latestFreelancers.length > 0 ? (
                 latestFreelancers.map((freelancer) => (
                   <div key={freelancer.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center gap-3">
                       <Avatar className="w-8 h-8">
-                        <AvatarFallback className="text-xs">
-                          {freelancer.details?.fullName
-                            ?.split(" ")
-                            .map((word: string) => word[0])
-                            .join("")
-                            .toUpperCase() || "FL"}
-                        </AvatarFallback>
+                        <AvatarFallback>{(freelancer.details?.fullName || freelancer.user?.fullName || 'F')[0]}</AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="font-semibold text-sm">{freelancer.details?.fullName || "Unknown"}</p>
-                        <p className="text-xs text-muted-foreground">{freelancer.details?.primaryDomain || "No domain"}</p>
+                        <p className="font-medium">{freelancer.details?.fullName || freelancer.user?.fullName || "Unknown"}</p>
+                        <p className="text-xs text-muted-foreground">{freelancer.details?.primaryDomain || "-"}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {getStatusIcon(freelancer.status)}
-                      <Badge 
-                        className={
-                          freelancer.status === "ACCEPTED" ? "bg-green-500" :
-                          freelancer.status === "PENDING_REVIEW" ? "bg-yellow-500" : "bg-red-500"
-                        }
-                      >
-                        {freelancer.status}
-                      </Badge>
-                    </div>
+                    <Link href={`/dashboard/Administrator/freelancer-profiles?view=${freelancer.id}`}>
+                      <Button variant="outline" size="sm">View</Button>
+                    </Link>
                   </div>
                 ))
               ) : (
-                <div className="text-center py-4">
-                  <Users className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">No freelancers found</p>
+                <div className="text-center py-4 text-sm text-muted-foreground">
+                  No pending requests found
                 </div>
               )}
             </CardContent>

@@ -1,0 +1,603 @@
+paths:
+  /admin/payments:
+    get:
+      tags:
+        - Admin - Payments
+      summary: Get all payments with filters
+      description: |
+        Get a paginated list of all payments in the system with filtering and search capabilities.
+
+        **Admin Only** - Requires ADMIN role.
+
+        **Features:**
+        - Search by client email or name
+        - Filter by payment status
+        - Filter by date range
+        - Filter by project ID
+        - Filter by client ID
+        - Sort by amount or date
+        - Pagination support
+
+        **Use Cases:**
+        - Browse all payments
+        - Search for specific client's payments
+        - Find payments for refund processing
+        - Generate payment reports
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          example: 50
+        - name: status
+          in: query
+          description: Filter by payment status
+          schema:
+            type: string
+            enum: [PENDING, SUCCEEDED, FAILED, CANCELED, REFUNDED]
+          example: SUCCEEDED
+        - name: searchQuery
+          in: query
+          description: Search by client email, name, or payment ID
+          schema:
+            type: string
+          example: "john@company.com"
+        - name: startDate
+          in: query
+          description: Filter payments after this date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+          example: "2025-01-01T00:00:00.000Z"
+        - name: endDate
+          in: query
+          description: Filter payments before this date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+          example: "2025-12-31T23:59:59.999Z"
+        - name: projectId
+          in: query
+          description: Filter payments for specific project
+          schema:
+            type: string
+          example: "be3f146b-08d8-4163-8770-f89fdae62583"
+        - name: clientId
+          in: query
+          description: Filter payments for specific client
+          schema:
+            type: string
+          example: "cmhz87ssc00003bp5cduccv7s"
+        - name: sortBy
+          in: query
+          description: Sort payments by field
+          schema:
+            type: string
+            enum: [amount, createdAt, paidAt]
+            default: createdAt
+          example: "paidAt"
+        - name: sortOrder
+          in: query
+          description: Sort order
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+          example: "desc"
+      responses:
+        "200":
+          description: Payments retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Payments retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      payments:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              example: "28594d03-d90c-4b02-9d0f-c98e9beb3c68"
+                            amount:
+                              type: integer
+                              description: Amount in cents
+                              example: 50000
+                            currency:
+                              type: string
+                              example: "usd"
+                            status:
+                              type: string
+                              enum:
+                                [PENDING, SUCCEEDED, FAILED, CANCELED, REFUNDED]
+                              example: "SUCCEEDED"
+                            paymentMethod:
+                              type: string
+                              example: "CARD"
+                            stripeSessionId:
+                              type: string
+                              nullable: true
+                              example: "cs_test_a1J2UQVDbjB8..."
+                            stripePaymentIntentId:
+                              type: string
+                              nullable: true
+                              example: "pi_3STTwJKtTyE7MpVF2wJ1jh1F"
+                            clientEmail:
+                              type: string
+                              example: "client@company.com"
+                            clientName:
+                              type: string
+                              example: "John Doe"
+                            projectId:
+                              type: string
+                              nullable: true
+                              example: "be3f146b-08d8-4163-8770-f89fdae62583"
+                            createdAt:
+                              type: string
+                              format: date-time
+                              example: "2025-11-14T20:49:53.285Z"
+                            paidAt:
+                              type: string
+                              format: date-time
+                              nullable: true
+                              example: "2025-11-14T20:49:53.285Z"
+                            totalRefundedAmount:
+                              type: integer
+                              description: Total refunded in cents
+                              example: 5000
+                            project:
+                              type: object
+                              nullable: true
+                              properties:
+                                id:
+                                  type: string
+                                details:
+                                  type: object
+                                  properties:
+                                    companyName:
+                                      type: string
+                                      example: "Tech Innovations Inc"
+                      pagination:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                            example: 150
+                          page:
+                            type: integer
+                            example: 1
+                          limit:
+                            type: integer
+                            example: 50
+                          totalPages:
+                            type: integer
+                            example: 3
+                          hasNextPage:
+                            type: boolean
+                            example: true
+                          hasPreviousPage:
+                            type: boolean
+                            example: false
+              examples:
+                allPayments:
+                  summary: All payments
+                  value:
+                    success: true
+                    message: "Payments retrieved successfully"
+                    data:
+                      payments:
+                        - id: "28594d03-d90c-4b02-9d0f-c98e9beb3c68"
+                          amount: 50000
+                          currency: "usd"
+                          status: "SUCCEEDED"
+                          stripePaymentIntentId: "pi_3STTwJ..."
+                          clientEmail: "john@company.com"
+                          paidAt: "2025-11-14T20:49:53.285Z"
+                      pagination:
+                        total: 150
+                        page: 1
+                        limit: 50
+        "400":
+          description: Bad request - invalid parameters
+        "401":
+          description: Unauthorized - admin auth required
+        "500":
+          description: Server error
+
+  /admin/payments/{paymentId}:
+    get:
+      tags:
+        - Admin - Payments
+      summary: Get detailed payment information
+      description: |
+        Get comprehensive details for a specific payment including:
+        - Complete payment information
+        - Stripe payment intent and session details
+        - Client information
+        - Project information (if applicable)
+        - Refund history
+        - Verification logs
+
+        **Admin Only** - Requires ADMIN role.
+
+        **Use Cases:**
+        - View payment details before refund
+        - Investigate payment issues
+        - Customer support inquiries
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          description: Payment ID (UUID)
+          schema:
+            type: string
+          example: "28594d03-d90c-4b02-9d0f-c98e9beb3c68"
+      responses:
+        "200":
+          description: Payment details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Payment details retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        example: "28594d03-d90c-4b02-9d0f-c98e9beb3c68"
+                      amount:
+                        type: integer
+                        description: Amount in cents
+                        example: 50000
+                      currency:
+                        type: string
+                        example: "usd"
+                      status:
+                        type: string
+                        enum: [PENDING, SUCCEEDED, FAILED, CANCELED, REFUNDED]
+                        example: "SUCCEEDED"
+                      paymentMethod:
+                        type: string
+                        example: "CARD"
+                      stripeSessionId:
+                        type: string
+                        nullable: true
+                        example: "cs_test_a1J2UQVDbjB8..."
+                      stripePaymentIntentId:
+                        type: string
+                        nullable: true
+                        example: "pi_3STTwJKtTyE7MpVF2wJ1jh1F"
+                      clientEmail:
+                        type: string
+                        example: "client@company.com"
+                      clientName:
+                        type: string
+                        example: "John Doe"
+                      projectId:
+                        type: string
+                        nullable: true
+                        example: "be3f146b-08d8-4163-8770-f89fdae62583"
+                      depositPercentage:
+                        type: number
+                        nullable: true
+                        example: 25
+                      fullProjectAmount:
+                        type: number
+                        nullable: true
+                        example: 2000.00
+                      totalRefundedAmount:
+                        type: integer
+                        example: 5000
+                      lastRefundedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      createdAt:
+                        type: string
+                        format: date-time
+                        example: "2025-11-14T20:49:00.000Z"
+                      paidAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                        example: "2025-11-14T20:49:53.285Z"
+                      lastCheckedAt:
+                        type: string
+                        format: date-time
+                        nullable: true
+                      project:
+                        type: object
+                        nullable: true
+                        properties:
+                          id:
+                            type: string
+                          details:
+                            type: object
+                            properties:
+                              companyName:
+                                type: string
+                              businessEmail:
+                                type: string
+                          paymentStatus:
+                            type: string
+                          totalAmountPaid:
+                            type: string
+                          totalRefunded:
+                            type: string
+                      refunds:
+                        type: array
+                        description: All refunds for this payment
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            amount:
+                              type: string
+                            status:
+                              type: string
+                            reason:
+                              type: string
+                            createdAt:
+                              type: string
+                              format: date-time
+        "404":
+          description: Payment not found
+        "401":
+          description: Unauthorized - admin auth required
+        "500":
+          description: Server error
+
+  /admin/projects/{projectId}/payments:
+    get:
+      tags:
+        - Admin - Payments
+      summary: Get all payments for a specific project
+      description: |
+        Get all payments associated with a specific project.
+
+        **Admin Only** - Requires ADMIN role.
+
+        **Returns:**
+        - All payments for the project
+        - Payment totals and refund summaries
+        - Project payment status
+
+        **Use Cases:**
+        - View project payment history
+        - Find specific payment for refund
+        - Calculate project financials
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          description: Project ID
+          schema:
+            type: string
+          example: "be3f146b-08d8-4163-8770-f89fdae62583"
+      responses:
+        "200":
+          description: Project payments retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Project payments retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      projectId:
+                        type: string
+                        example: "be3f146b-08d8-4163-8770-f89fdae62583"
+                      companyName:
+                        type: string
+                        example: "Tech Innovations Inc"
+                      summary:
+                        type: object
+                        properties:
+                          totalPayments:
+                            type: integer
+                            description: Count of payments
+                            example: 3
+                          totalAmountPaid:
+                            type: string
+                            description: Total paid in dollars
+                            example: "2271.88"
+                          totalRefunded:
+                            type: string
+                            description: Total refunded in dollars
+                            example: "50.00"
+                          netAmountReceived:
+                            type: string
+                            description: Net after refunds
+                            example: "2221.88"
+                          paymentStatus:
+                            type: string
+                            example: "SUCCEEDED"
+                      payments:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            amount:
+                              type: integer
+                            currency:
+                              type: string
+                            status:
+                              type: string
+                            stripePaymentIntentId:
+                              type: string
+                            totalRefundedAmount:
+                              type: integer
+                            paidAt:
+                              type: string
+                              format: date-time
+                            refunds:
+                              type: array
+                              items:
+                                type: object
+        "404":
+          description: Project not found
+        "401":
+          description: Unauthorized - admin auth required
+        "500":
+          description: Server error
+
+  /admin/clients/{clientId}/payments:
+    get:
+      tags:
+        - Admin - Payments
+      summary: Get all payments for a specific client
+      description: |
+        Get all payments made by a specific client across all their projects.
+
+        **Admin Only** - Requires ADMIN role.
+
+        **Returns:**
+        - All payments by the client
+        - Payments grouped by project
+        - Total payment summary
+
+        **Use Cases:**
+        - View complete client payment history
+        - Find specific payment for refund
+        - Customer support inquiries
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: clientId
+          in: path
+          required: true
+          description: Client user ID
+          schema:
+            type: string
+          example: "cmhz87ssc00003bp5cduccv7s"
+      responses:
+        "200":
+          description: Client payments retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Client payments retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      clientId:
+                        type: string
+                        example: "cmhz87ssc00003bp5cduccv7s"
+                      clientName:
+                        type: string
+                        example: "John Doe"
+                      clientEmail:
+                        type: string
+                        example: "john@company.com"
+                      summary:
+                        type: object
+                        properties:
+                          totalPayments:
+                            type: integer
+                            example: 5
+                          totalAmount:
+                            type: string
+                            example: "3500.00"
+                          totalRefunded:
+                            type: string
+                            example: "100.00"
+                          succeededPayments:
+                            type: integer
+                            example: 4
+                          pendingPayments:
+                            type: integer
+                            example: 1
+                      payments:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            amount:
+                              type: integer
+                            currency:
+                              type: string
+                            status:
+                              type: string
+                            stripePaymentIntentId:
+                              type: string
+                            projectId:
+                              type: string
+                              nullable: true
+                            paidAt:
+                              type: string
+                              format: date-time
+                            project:
+                              type: object
+                              nullable: true
+                              properties:
+                                id:
+                                  type: string
+                                details:
+                                  type: object
+                                  properties:
+                                    companyName:
+                                      type: string
+        "404":
+          description: Client not found
+        "401":
+          description: Unauthorized - admin auth required
+        "500":
+          description: Server error

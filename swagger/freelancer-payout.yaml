@@ -1,0 +1,808 @@
+paths:
+  # ============================================
+  # FREELANCER PAYMENT DETAILS MANAGEMENT
+  # ============================================
+
+  /admin/freelancers/{freelancerId}/payment-details:
+    post:
+      tags:
+        - Admin - Freelancer Payouts
+      summary: Add or update freelancer Stripe account details
+      description: |
+        Update the Stripe Connect account ID for a freelancer. 
+        This endpoint verifies the Stripe account and updates the freelancer's payment details.
+        Only admins can manage freelancer payment details.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: freelancerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The ID of the freelancer
+          example: "f7c9e6679-7425-40de-944b-e07fc1f90ae7"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - stripeAccountId
+              properties:
+                stripeAccountId:
+                  type: string
+                  description: Stripe Connect account ID (must start with 'acct_')
+                  example: "acct_1234567890ABCDEF"
+                  pattern: "^acct_"
+      responses:
+        "200":
+          description: Stripe account updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Stripe account updated successfully"
+                  data:
+                    $ref: "#/components/schemas/FreelancerPaymentDetails"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Freelancer not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    get:
+      tags:
+        - Admin - Freelancer Payouts
+      summary: Get freelancer payment details
+      description: |
+        Retrieve payment details and Stripe account status for a freelancer.
+        Includes verification status and Stripe account capabilities.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: freelancerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The ID of the freelancer
+      responses:
+        "200":
+          description: Payment details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Freelancer payment details retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      freelancer:
+                        $ref: "#/components/schemas/FreelancerPaymentDetails"
+                      stripeAccountDetails:
+                        $ref: "#/components/schemas/StripeAccountDetails"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Freelancer not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /admin/freelancers/{freelancerId}/create-stripe-account:
+    post:
+      tags:
+        - Admin - Freelancer Payouts
+      summary: Create Stripe Connect account for freelancer
+      description: |
+        Create a new Stripe Connect Express account for a freelancer.
+        Returns an account link URL for the freelancer to complete onboarding.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: freelancerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The ID of the freelancer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Freelancer's email address
+                  example: "freelancer@example.com"
+                country:
+                  type: string
+                  description: Two-letter ISO country code
+                  example: "US"
+                  default: "US"
+                  minLength: 2
+                  maxLength: 2
+      responses:
+        "201":
+          description: Stripe Connect account created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Stripe Connect account created successfully"
+                  data:
+                    type: object
+                    properties:
+                      accountId:
+                        type: string
+                        example: "acct_1234567890ABCDEF"
+                      accountLinkUrl:
+                        type: string
+                        format: uri
+                        description: URL for freelancer to complete onboarding
+                        example: "https://connect.stripe.com/setup/s/acct_1234567890ABCDEF/..."
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ============================================
+  # PAYOUT MANAGEMENT
+  # ============================================
+
+  /admin/freelancers/{freelancerId}/payout:
+    post:
+      tags:
+        - Admin - Freelancer Payouts
+      summary: Initiate payout to freelancer
+      description: |
+        Create and initiate a payout to a freelancer via Stripe Connect.
+        The freelancer must have a verified Stripe account (status: ACTIVE).
+        The payout can be linked to a project, milestone, or be a standalone payment.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: freelancerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The ID of the freelancer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amount
+                - payoutType
+              properties:
+                amount:
+                  type: number
+                  format: float
+                  description: Payout amount in dollars
+                  example: 1500.00
+                  minimum: 0.01
+                  maximum: 1000000
+                currency:
+                  type: string
+                  description: Three-letter ISO currency code
+                  example: "usd"
+                  default: "usd"
+                  minLength: 3
+                  maxLength: 3
+                payoutType:
+                  type: string
+                  enum: [MILESTONE, PROJECT, BONUS, MANUAL]
+                  description: Type of payout
+                  example: "MILESTONE"
+                description:
+                  type: string
+                  description: Description of the payout
+                  example: "Payment for milestone completion"
+                  maxLength: 500
+                notes:
+                  type: string
+                  description: Admin notes (internal)
+                  example: "Approved by project manager"
+                  maxLength: 1000
+                projectId:
+                  type: string
+                  format: uuid
+                  description: Associated project ID (optional)
+                  example: "403f90bd-0f1f-4bde-a701-adc37ab35252"
+                milestoneId:
+                  type: string
+                  format: uuid
+                  description: Associated milestone ID (optional)
+                  example: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+      responses:
+        "201":
+          description: Payout initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Payout initiated successfully"
+                  data:
+                    $ref: "#/components/schemas/FreelancerPayout"
+        "400":
+          description: Bad request - Invalid data or freelancer not ready for payouts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Freelancer has not connected their Stripe account for payouts"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Freelancer, project, or milestone not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /admin/freelancers/{freelancerId}/payouts:
+    get:
+      tags:
+        - Admin - Freelancer Payouts
+      summary: Get payout history for a freelancer
+      description: |
+        Retrieve paginated payout history for a specific freelancer.
+        Includes payout details, associated projects/milestones, and status.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: freelancerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The ID of the freelancer
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Payout history retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Payout history retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      payouts:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/FreelancerPayout"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /admin/payouts:
+    get:
+      tags:
+        - Admin - Freelancer Payouts
+      summary: Get all payouts with filters
+      description: |
+        Retrieve all payouts across all freelancers with optional filtering.
+        Supports filtering by status, freelancer, project, and date range.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, PROCESSING, PAID, FAILED, CANCELLED]
+          description: Filter by payout status
+        - name: freelancerId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by freelancer ID
+        - name: projectId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by project ID
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter by creation date (start)
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter by creation date (end)
+      responses:
+        "200":
+          description: Payouts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Payouts retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      payouts:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/FreelancerPayout"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /admin/payouts/{payoutId}:
+    get:
+      tags:
+        - Admin - Freelancer Payouts
+      summary: Get specific payout details
+      description: |
+        Retrieve detailed information about a specific payout.
+        Includes Stripe transfer details and full payout history.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: payoutId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The ID of the payout
+      responses:
+        "200":
+          description: Payout details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Payout details retrieved successfully"
+                  data:
+                    type: object
+                    properties:
+                      payout:
+                        $ref: "#/components/schemas/FreelancerPayout"
+                      stripeTransferDetails:
+                        $ref: "#/components/schemas/StripeTransferDetails"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Payout not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    delete:
+      tags:
+        - Admin - Freelancer Payouts
+      summary: Cancel a pending payout
+      description: |
+        Cancel a payout that is still in PENDING status.
+        Once a payout is PROCESSING or PAID, it cannot be cancelled.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: payoutId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The ID of the payout to cancel
+      responses:
+        "200":
+          description: Payout cancelled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Payout cancelled successfully"
+        "400":
+          description: Cannot cancel payout with current status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Cannot cancel payout with status: PAID"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Payout not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /admin/payouts/{payoutId}/status:
+    patch:
+      tags:
+        - Admin - Freelancer Payouts
+      summary: Update payout status (manual override)
+      description: |
+        Manually update the status of a payout.
+        This is typically used for administrative corrections or webhook failures.
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: payoutId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The ID of the payout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [PENDING, PROCESSING, PAID, FAILED, CANCELLED]
+                  description: New payout status
+                  example: "PAID"
+                paidAt:
+                  type: string
+                  format: date-time
+                  description: Timestamp when payment was completed (optional)
+                  example: "2025-11-15T12:34:56.789Z"
+      responses:
+        "200":
+          description: Payout status updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Payout status updated successfully"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          description: Payout not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+# ============================================
+# SCHEMAS
+# ============================================
+
+components:
+  schemas:
+    FreelancerPaymentDetails:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "f7c9e6679-7425-40de-944b-e07fc1f90ae7"
+        stripeAccountId:
+          type: string
+          nullable: true
+          example: "acct_1234567890ABCDEF"
+        stripeAccountStatus:
+          type: string
+          enum: [NOT_CONNECTED, PENDING, ACTIVE, RESTRICTED, DISABLED]
+          example: "ACTIVE"
+        paymentDetailsVerified:
+          type: boolean
+          example: true
+        details:
+          type: object
+          properties:
+            email:
+              type: string
+              example: "freelancer@example.com"
+            fullName:
+              type: string
+              example: "John Doe"
+            country:
+              type: string
+              example: "US"
+
+    StripeAccountDetails:
+      type: object
+      nullable: true
+      properties:
+        id:
+          type: string
+          example: "acct_1234567890ABCDEF"
+        chargesEnabled:
+          type: boolean
+          example: true
+        payoutsEnabled:
+          type: boolean
+          example: true
+        requirementsCurrentlyDue:
+          type: array
+          items:
+            type: string
+          example: []
+        requirementsEventuallyDue:
+          type: array
+          items:
+            type: string
+          example: []
+        disabledReason:
+          type: string
+          nullable: true
+          example: null
+
+    FreelancerPayout:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+        freelancerId:
+          type: string
+          format: uuid
+          example: "f7c9e6679-7425-40de-944b-e07fc1f90ae7"
+        projectId:
+          type: string
+          format: uuid
+          nullable: true
+          example: "403f90bd-0f1f-4bde-a701-adc37ab35252"
+        milestoneId:
+          type: string
+          format: uuid
+          nullable: true
+        amount:
+          type: number
+          format: float
+          example: 1500.00
+        currency:
+          type: string
+          example: "usd"
+        status:
+          type: string
+          enum: [PENDING, PROCESSING, PAID, FAILED, CANCELLED]
+          example: "PAID"
+        payoutType:
+          type: string
+          enum: [MILESTONE, PROJECT, BONUS, MANUAL]
+          example: "MILESTONE"
+        description:
+          type: string
+          nullable: true
+          example: "Payment for milestone completion"
+        notes:
+          type: string
+          nullable: true
+          example: "Approved by project manager"
+        stripeTransferId:
+          type: string
+          nullable: true
+          example: "tr_1234567890ABCDEF"
+        stripePayoutId:
+          type: string
+          nullable: true
+          example: "po_1234567890ABCDEF"
+        failureReason:
+          type: string
+          nullable: true
+        failureCode:
+          type: string
+          nullable: true
+        retryCount:
+          type: integer
+          example: 0
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-11-15T10:30:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-11-15T10:35:00.000Z"
+        processedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2025-11-15T10:31:00.000Z"
+        paidAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2025-11-15T10:35:00.000Z"
+        freelancer:
+          type: object
+          properties:
+            id:
+              type: string
+            details:
+              type: object
+              properties:
+                fullName:
+                  type: string
+                  example: "John Doe"
+                email:
+                  type: string
+                  example: "freelancer@example.com"
+        project:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+            details:
+              type: object
+              properties:
+                companyName:
+                  type: string
+                  example: "Acme Corp"
+        milestone:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+            milestoneName:
+              type: string
+              example: "Phase 1 - Backend Development"
+        admin:
+          type: object
+          properties:
+            uid:
+              type: string
+            fullName:
+              type: string
+              example: "Admin User"
+            email:
+              type: string
+              example: "admin@example.com"
+
+    StripeTransferDetails:
+      type: object
+      nullable: true
+      properties:
+        id:
+          type: string
+          example: "tr_1234567890ABCDEF"
+        amount:
+          type: integer
+          description: Amount in cents
+          example: 150000
+        currency:
+          type: string
+          example: "usd"
+        created:
+          type: integer
+          description: Unix timestamp
+          example: 1700000000
+        destination:
+          type: string
+          example: "acct_1234567890ABCDEF"
+        reversed:
+          type: boolean
+          example: false
+        sourceTransaction:
+          type: string
+          nullable: true

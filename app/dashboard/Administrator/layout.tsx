@@ -354,6 +354,11 @@ const navItems = [
     icon: FileText,
   },
   {
+    title: "Payments",
+    href: "/dashboard/Administrator/payments",
+    icon: DollarSign,
+  },
+  {
     title: "Client Quotes",
     href: "/dashboard/Administrator/client-quotes",
     icon: Gavel,

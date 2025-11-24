@@ -404,6 +404,17 @@ export default function ProjectsPage() {
                 </div>
               </CardHeader>
               <CardContent className="p-4 md:p-6 space-y-4">
+                {/* Project ID */}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="font-mono">ID: {project.id}</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => { e.preventDefault(); navigator.clipboard.writeText(String(project.id)); }}
+                  >
+                    Copy
+                  </Button>
+                </div>
                 <div className="space-y-3">
                   <div className="flex items-start gap-2 text-sm">
                     <Building className="w-4 h-4 text-[#003087] mt-0.5 flex-shrink-0" />

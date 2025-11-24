@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { Home, Briefcase, TrendingUp, MessageCircle, Settings, ChevronDown, LogOut, Menu } from "lucide-react"
+import { Home, Briefcase, CreditCard, TrendingUp, MessageCircle, Settings, ChevronDown, LogOut, Menu } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -26,6 +26,11 @@ const navItems = [
     title: "My Projects",
     href: "/dashboard/client/projects",
     icon: Briefcase,
+  },
+  {
+    title: "Payments",
+    href: "/dashboard/client/payments",
+    icon: CreditCard,
   },
   {
     title: "Project Status",

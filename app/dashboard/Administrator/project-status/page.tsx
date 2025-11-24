@@ -325,6 +325,16 @@ export default function ProjectStatusPage() {
               <CardContent className="space-y-4">
                 {/* Project Info */}
                 <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="font-mono">ID: {project.id}</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => { e.preventDefault(); navigator.clipboard.writeText(String(project.id)); }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Building className="w-4 h-4 text-muted-foreground" />
                     <span className="text-muted-foreground">Business Type:</span>
@@ -376,6 +386,39 @@ export default function ProjectStatusPage() {
                       <span className="font-medium">${project.estimate.totalCost.toLocaleString()}</span>
                     </div>
                   )}
+
+                  {/* Assigned Freelancer(s) */}
+                  {(() => {
+                    const primaryFromSelected = project.selectedFreelancers && project.selectedFreelancers.length > 0
+                      ? project.selectedFreelancers[0]
+                      : null
+
+                    const primaryFromMilestones = !primaryFromSelected && project.milestones && project.milestones.length > 0
+                      ? project.milestones.find((m: any) => m.assignedFreelancer)?.assignedFreelancer
+                      : null
+
+                    const primary = primaryFromSelected || primaryFromMilestones
+                    const additionalCount = project.selectedFreelancers && project.selectedFreelancers.length > 1
+                      ? project.selectedFreelancers.length - 1
+                      : 0
+
+                    if (!primary) return null
+
+                    const name = primary.fullName || primary.name || primary.user?.fullName || "Assigned Freelancer"
+
+                    return (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Users className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-muted-foreground">Assigned:</span>
+                        <span className="font-medium line-clamp-1">{name}</span>
+                        {additionalCount > 0 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{additionalCount} more
+                          </Badge>
+                        )}
+                      </div>
+                    )
+                  })()}
 
                   <div className="flex items-center gap-2 text-sm">
                     <Calendar className="w-4 h-4 text-muted-foreground" />

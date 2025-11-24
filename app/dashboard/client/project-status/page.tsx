@@ -219,6 +219,17 @@ export default function ProjectStatusPage() {
                 </CardHeader>
 
                 <CardContent className="space-y-4">
+                  {/* Project ID */}
+                  <div className="flex items-center gap-2 text-xs text-gray-600">
+                    <span className="font-mono">ID: {project.id}</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => { e.preventDefault(); navigator.clipboard.writeText(String(project.id)); }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
                   {/* Progress Bar */}
                   <div>
                     <div className="flex justify-between text-sm mb-2">

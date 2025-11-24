@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -87,10 +88,23 @@ export default function FreelancerRequests() {
   const [currentPage, setCurrentPage] = useState(1)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const itemsPerPage = 10
+  const searchParams = useSearchParams()
+  const router = useRouter()
 
   useEffect(() => {
     fetchFreelancerRequests()
   }, [])
+
+  // When data loads, open dialog if ?view=<id> exists
+  useEffect(() => {
+    const viewId = searchParams?.get("view")
+    if (!viewId || freelancers.length === 0) return
+    const found = freelancers.find((f) => String(f.id) === String(viewId))
+    if (found) {
+      setSelectedFreelancer(found)
+      setIsDialogOpen(true)
+    }
+  }, [searchParams, freelancers])
 
   useEffect(() => {
     if (searchTerm) {

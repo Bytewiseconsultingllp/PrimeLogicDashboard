@@ -32,8 +32,10 @@ import {
   Code,
   Briefcase
 } from "lucide-react"
-import { getProjectById, getProjectPaymentStatus, submitProjectFeedback, updateProjectDiscordUrl } from "@/lib/api/client-projects"
+import { getProjectById, submitProjectFeedback, updateProjectDiscordUrl } from "@/lib/api/client-projects"
+import { getProjectPaymentStatus, createProjectCheckoutSession } from "@/lib/api/payment"
 import { toast } from "sonner"
+import { ProjectPaymentModal } from "@/components/payment/project-payment-modal"
 
 interface Project {
   id: string
@@ -178,12 +180,30 @@ export default function ProjectDetailsPage() {
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false)
   const [discordUrl, setDiscordUrl] = useState("")
   const [updatingDiscord, setUpdatingDiscord] = useState(false)
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false)
+  const [paymentStatus, setPaymentStatus] = useState<{
+    status: string
+    amount: number
+    currency: string
+  } | null>(null)
 
   useEffect(() => {
     if (projectId) {
       fetchProjectDetails()
+      fetchPaymentStatus()
     }
   }, [projectId])
+
+  const fetchPaymentStatus = async () => {
+    try {
+      const status = await getProjectPaymentStatus(projectId)
+      setPaymentStatus(status)
+    } catch (error) {
+      console.error("Error fetching payment status:", error)
+      toast.error("Failed to load payment status")
+    }
+  }
 
   const fetchProjectDetails = async () => {
     try {
@@ -290,6 +310,8 @@ export default function ProjectDetailsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="space-y-4">
+        {/* Payment Status Banner */}
+        
         <Link href="/dashboard/client/projects">
           <Button variant="outline" size="sm">
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -596,12 +618,56 @@ export default function ProjectDetailsPage() {
           {/* 3. Payment Information Card */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-[#003087]" />
-                Payment Information
-              </CardTitle>
+              <div className="flex justify-between items-center">
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="w-5 h-5 text-[#003087]" />
+                  Payment Information
+                </CardTitle>
+                <Button 
+                  onClick={() => setIsPaymentModalOpen(true)}
+                  className="bg-[#003087] hover:bg-[#003087]/90"
+                  disabled={isProcessingPayment || !project}
+                >
+                  {isProcessingPayment ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    'Make Payment'
+                  )}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Payment Status */}
+              {paymentStatus && (
+                <div className={`p-4 rounded-lg ${paymentStatus.status === 'SUCCEEDED' ? 'bg-green-50 border border-green-200' : 'bg-yellow-50 border border-yellow-200'}`}>
+                  <div className="flex items-center">
+                    {paymentStatus.status === 'SUCCEEDED' ? (
+                      <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0" />
+                    ) : (
+                      <Clock className="w-5 h-5 text-yellow-500 mr-2 flex-shrink-0" />
+                    )}
+                    <div>
+                      <p className="font-medium">
+                        Payment Status: <span className={paymentStatus.status === 'SUCCEEDED' ? 'text-green-700' : 'text-yellow-700'}>
+                          {paymentStatus.status === 'SUCCEEDED' ? 'Paid' : 'Pending'}
+                        </span>
+                      </p>
+                      {paymentStatus.status === 'SUCCEEDED' ? (
+                        <p className="text-sm text-gray-600">
+                          Amount: ${paymentStatus.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {paymentStatus.currency.toUpperCase()}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-gray-600">
+                          Please complete your payment to proceed with the project
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
               {/* Payment Status and Total */}
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="bg-gray-50 p-4 rounded-lg">
@@ -729,23 +795,10 @@ export default function ProjectDetailsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="rating">Rating</Label>
-                <div className="flex gap-1 mt-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      onClick={() => setFeedbackRating(star)}
-                      className={`p-1 ${star <= feedbackRating ? 'text-yellow-400' : 'text-gray-300'}`}
-                    >
-                      <Star className="w-6 h-6 fill-current" />
-                    </button>
-                  ))}
-                </div>
-              </div>
+              
               
               <div>
-                <Label htmlFor="feedback">Your Feedback</Label>
+                
                 <Textarea
                   id="feedback"
                   placeholder="Share your thoughts about this project..."
@@ -902,6 +955,16 @@ export default function ProjectDetailsPage() {
           </Card>
         </div>
       </div>
+      
+      {/* Payment Modal - Moved inside the main return */}
+      {project && (
+        <ProjectPaymentModal
+          open={isPaymentModalOpen}
+          onOpenChange={setIsPaymentModalOpen}
+          projectId={project.id}
+          projectName={project.details.companyName}
+          totalAmount={estimatedValue} paidAmount={0}        />
+      )}
     </div>
   )
 }

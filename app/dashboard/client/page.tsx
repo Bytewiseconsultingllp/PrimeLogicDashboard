@@ -215,13 +215,42 @@ export default function DashboardHome() {
   const [paymentProcessing, setPaymentProcessing] = useState<string | null>(null)
   const [paymentCompleted, setPaymentCompleted] = useState<string | null>(null)
 
-  // Use KPI data if available, otherwise calculate from projects
-  const totalProjects = clientKPI?.totalProjects ?? projects.length
-  const completedProjects = clientKPI?.completedProjects ?? projects.filter(p => 
-    p.milestones?.every(m => m.isMilestoneCompleted === true) || 
-    p.milestones?.every(m => m.status === "COMPLETED")
-  ).length
-  const pendingProjects = clientKPI?.pendingProjects ?? (totalProjects - completedProjects)
+  // Calculate project statistics
+  const totalProjects = projects.length;
+  
+  // Improved project status calculation
+  const completedProjects = projects.filter(project => {
+    // If project has milestones, check if all are completed
+    if (project.milestones && project.milestones.length > 0) {
+      return project.milestones.every(milestone => 
+        milestone.status === 'COMPLETED' || milestone.isMilestoneCompleted === true
+      );
+    }
+    // If no milestones, check payment status
+    return project.paymentStatus === 'SUCCEEDED';
+  }).length;
+  
+  const inProgressProjects = projects.filter(project => {
+    // Project is in progress if it has at least one completed milestone but not all
+    if (project.milestones && project.milestones.length > 0) {
+      const completedMilestones = project.milestones.filter(milestone => 
+        milestone.status === 'COMPLETED' || milestone.isMilestoneCompleted === true
+      ).length;
+      return completedMilestones > 0 && completedMilestones < project.milestones.length;
+    }
+    // If no milestones and payment is pending, it's in progress
+    return project.paymentStatus === 'PENDING';
+  }).length;
+  
+  const pendingProjects = totalProjects - completedProjects - inProgressProjects;
+  
+  // Calculate total spent from payments or project totals
+  const totalSpent = clientKPI?.totalSpent || projects.reduce((sum, project) => {
+    if (project.paymentDetails?.status === 'SUCCEEDED' && project.paymentDetails.amountPaid) {
+      return sum + (project.paymentDetails.amountPaid || 0);
+    }
+    return sum;
+  }, 0);
 
   // Fetch client profile and authentication
   useEffect(() => {
@@ -352,9 +381,9 @@ export default function DashboardHome() {
         }
 
         // Fetch payment history
-        console.log("🔄 Fetching payment history from:", `${process.env.NEXT_PUBLIC_PLS}/api/v1/payment/history`)
+        console.log("🔄 Fetching payment history from:", `${process.env.NEXT_PUBLIC_PLS}/payment/history`)
         
-        const paymentRes = await fetch(`${process.env.NEXT_PUBLIC_PLS}/api/v1/payment/history`, {
+        const paymentRes = await fetch(`${process.env.NEXT_PUBLIC_PLS}/payment/history`, {
           headers: { 
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json"
@@ -380,9 +409,9 @@ export default function DashboardHome() {
         }
 
         // Fetch client KPI data
-        console.log("🔄 Fetching client KPI data from:", `${process.env.NEXT_PUBLIC_PLS}/api/v1/kpi/client/dashboard`)
+        console.log("🔄 Fetching client KPI data from:", `${process.env.NEXT_PUBLIC_PLS}/kpi/client/dashboard`)
         
-        const kpiRes = await fetch(`${process.env.NEXT_PUBLIC_PLS}/api/v1/kpi/client/dashboard`, {
+        const kpiRes = await fetch(`${process.env.NEXT_PUBLIC_PLS}/kpi/client/dashboard`, {
           headers: { 
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json"
@@ -613,76 +642,133 @@ export default function DashboardHome() {
         </div>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-        <Card className="bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+      {/* Enhanced Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* Total Projects Card */}
+        <Card className="border-0 shadow-sm hover:shadow-md transition-all duration-300 bg-gradient-to-br from-white to-blue-50">
+          <CardContent className="p-5">
+            <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm font-medium text-gray-600 mb-1">Total Projects</p>
+                <p className="text-sm font-medium text-gray-500 mb-1">Total Projects</p>
                 <p className="text-3xl font-bold text-[#003087]">{totalProjects}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {totalProjects === 0 ? 'No projects yet' : `${completedProjects} completed`}
+                </p>
               </div>
-              <div className="w-12 h-12 bg-[#003087]/10 rounded-lg flex items-center justify-center">
-                <Briefcase className="h-6 w-6 text-[#003087]" />
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Briefcase className="h-6 w-6 text-blue-600" />
               </div>
             </div>
+            {totalProjects > 0 && (
+              <div className="mt-4 w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full" 
+                  style={{ width: `${(completedProjects / totalProjects) * 100}%` }}
+                ></div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+        {/* Completed Projects Card */}
+        <Card className="border-0 shadow-sm hover:shadow-md transition-all duration-300 bg-gradient-to-br from-white to-green-50">
+          <CardContent className="p-5">
+            <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm font-medium text-gray-600 mb-1">Completed</p>
+                <p className="text-sm font-medium text-gray-500 mb-1">Completed</p>
                 <p className="text-3xl font-bold text-green-600">{completedProjects}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {completedProjects === 0 ? 'No projects completed yet' : 
+                   `${Math.round((completedProjects / totalProjects) * 100)}% of total`}
+                </p>
               </div>
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+              <div className="p-2 bg-green-100 rounded-lg">
                 <CheckCircle className="h-6 w-6 text-green-600" />
               </div>
             </div>
+            {totalProjects > 0 && (
+              <div className="mt-4 w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-green-500 h-2 rounded-full" 
+                  style={{ width: `${(completedProjects / totalProjects) * 100}%` }}
+                ></div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
+        {/* In Progress Card */}
+        <Card className="border-0 shadow-sm hover:shadow-md transition-all duration-300 bg-gradient-to-br from-white to-orange-50">
+          <CardContent className="p-5">
+            <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm font-medium text-gray-600 mb-1">In Progress</p>
-                <p className="text-3xl font-bold text-[#FF6B35]">{pendingProjects}</p>
-              </div>
-              <div className="w-12 h-12 bg-[#FF6B35]/10 rounded-lg flex items-center justify-center">
-                <Clock className="h-6 w-6 text-[#FF6B35]" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 mb-1">Total Spent</p>
-                <p className="text-3xl font-bold text-purple-600">
-                  ${clientKPI?.totalSpent?.toLocaleString() || "0"}
+                <p className="text-sm font-medium text-gray-500 mb-1">In Progress</p>
+                <p className="text-3xl font-bold text-[#FF6B35]">{inProgressProjects}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {inProgressProjects === 0 ? 'No active projects' : `${pendingProjects} pending start`}
                 </p>
               </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <Clock className="h-6 w-6 text-orange-600" />
+              </div>
+            </div>
+            {totalProjects > 0 && (
+              <div className="mt-4 w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-orange-500 h-2 rounded-full" 
+                  style={{ width: `${(inProgressProjects / totalProjects) * 100}%` }}
+                ></div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Total Spent Card */}
+        <Card className="border-0 shadow-sm hover:shadow-md transition-all duration-300 bg-gradient-to-br from-white to-purple-50">
+          <CardContent className="p-5">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-sm font-medium text-gray-500 mb-1">Total Spent</p>
+                <p className="text-2xl font-bold text-purple-600">
+                  ${totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {projects.length > 0 ? `Avg. $${(totalSpent / projects.length).toLocaleString(undefined, { maximumFractionDigits: 0 })} per project` : 'No spending data'}
+                </p>
+              </div>
+              <div className="p-2 bg-purple-100 rounded-lg">
                 <DollarSign className="h-6 w-6 text-purple-600" />
               </div>
             </div>
+            {projects.length > 0 && (
+              <div className="mt-4 flex items-center">
+                <div className="w-full bg-gray-200 rounded-full h-2 mr-2">
+                  <div 
+                    className="bg-gradient-to-r from-purple-500 to-purple-700 h-2 rounded-full" 
+                    style={{ width: '100%' }}
+                  ></div>
+                </div>
+                <span className="text-xs text-gray-500">100%</span>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-r from-[#003087] to-[#FF6B35] text-white cursor-pointer hover:shadow-lg transition-all transform hover:scale-105">
-          <CardContent className="p-6">
-            <Link href="/dashboard/client/create-project">
-              <div className="flex items-center justify-between">
+        {/* Create New Project Card */}
+        <Card className="border-0 shadow-sm hover:shadow-lg transition-all duration-300 bg-gradient-to-r from-[#003087] to-[#FF6B35] text-white cursor-pointer transform hover:scale-[1.02]">
+          <CardContent className="p-5 h-full flex flex-col justify-center">
+            <Link href="/dashboard/client/get-started" className="h-full">
+              <div className="flex flex-col h-full justify-between">
                 <div>
-                  <p className="text-sm font-medium text-white/80 mb-1">Create New</p>
-                  <p className="text-2xl font-bold text-white">Project</p>
+                  <p className="text-sm font-medium text-white/90 mb-1">Start New</p>
+                  <h3 className="text-xl font-bold text-white mb-3">Create Project</h3>
+                  <p className="text-xs text-white/80 mb-4">
+                    Launch your next project with our expert team
+                  </p>
                 </div>
-                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-                  <Plus className="h-6 w-6 text-white" />
+                <div className="mt-4 flex items-center justify-between">
+                  <Plus className="h-5 w-5 text-white" />
+                  <span className="text-sm font-medium">Get Started</span>
                 </div>
               </div>
             </Link>
@@ -1087,43 +1173,91 @@ export default function DashboardHome() {
                     </div>
                   )}
 
-                  {/* Payment Action Button */}
+                  {/* Payment Details */}
+                <div className="space-y-3 mb-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <p className="text-xs text-gray-500">Payment ID</p>
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {selectedProject.paymentDetails?.id || 'N/A'}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <p className="text-xs text-gray-500">Payment Status</p>
+                      <div className="flex items-center gap-1">
+                        {getStatusIcon(selectedProject.paymentDetails?.status || 'PENDING')}
+                        <span className="text-sm font-medium capitalize">
+                          {selectedProject.paymentDetails?.status?.toLowerCase() || 'Pending'}
+                        </span>
+                      </div>
+                    </div>
+                    {selectedProject.paymentDetails?.paidAt && (
+                      <div className="bg-gray-50 p-3 rounded-lg col-span-2">
+                        <p className="text-xs text-gray-500">Paid On</p>
+                        <p className="text-sm font-medium">
+                          {new Date(selectedProject.paymentDetails.paidAt).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Payment Action Button */}
+                <div className="space-y-3">
                   {selectedProject.paymentDetails?.status !== "SUCCEEDED" && (
-                    <Button
-                      onClick={() => handlePaymentRedirect(selectedProject.id)}
-                      disabled={paymentProcessing === selectedProject.id}
-                      className="w-full bg-gradient-to-r from-[#003087] to-[#FF6B35] hover:from-[#003087]/90 hover:to-[#FF6B35]/90 text-white font-medium py-3 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {paymentProcessing === selectedProject.id ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Processing Payment...
-                        </>
-                      ) : paymentCompleted === selectedProject.id ? (
-                        <>
-                          <CheckCircle className="w-4 h-4 mr-2" />
-                          Payment Completed!
-                        </>
-                      ) : (
-                        <>
-                          <CreditCard className="w-4 h-4 mr-2" />
-                          Complete Payment
-                        </>
+                    <>
+                      <Button
+                        onClick={() => handlePaymentRedirect(selectedProject.id)}
+                        disabled={paymentProcessing === selectedProject.id}
+                        className="w-full bg-gradient-to-r from-[#003087] to-[#FF6B35] hover:from-[#003087]/90 hover:to-[#FF6B35]/90 text-white font-medium py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {paymentProcessing === selectedProject.id ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Processing Payment...
+                          </>
+                        ) : (
+                          <>
+                            <CreditCard className="w-4 h-4 mr-2" />
+                            {selectedProject.paymentDetails?.amountRemaining ? 
+                              `Pay $${selectedProject.paymentDetails.amountRemaining.toLocaleString()}` : 
+                              'Complete Payment'}
+                          </>
+                        )}
+                      </Button>
+                      {selectedProject.paymentDetails?.amountRemaining && (
+                        <p className="text-xs text-center text-gray-500">
+                          ${selectedProject.paymentDetails.amountPaid?.toLocaleString() || '0'} of ${selectedProject.paymentDetails.amount?.toLocaleString()} paid
+                        </p>
                       )}
-                    </Button>
+                    </>
                   )}
                   
                   {selectedProject.paymentDetails?.status === "SUCCEEDED" && (
                     <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
                       <div className="flex items-center gap-2">
-                        <CheckCircle className="h-5 w-5 text-green-500" />
-                        <span className="font-medium text-green-700">Payment Completed Successfully!</span>
+                        <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                        <div>
+                          <p className="font-medium text-green-700">Payment Completed Successfully!</p>
+                          <p className="text-sm text-green-600 mt-1">
+                            Thank you for your payment of ${selectedProject.paymentDetails.amountPaid?.toLocaleString()}. Your project is now fully funded.
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-sm text-green-600 mt-1">
-                        Thank you for your payment. Your project is now fully funded.
-                      </p>
+                      {selectedProject.paymentDetails.paidAt && (
+                        <p className="text-xs text-green-600 mt-2 text-right">
+                          Paid on {new Date(selectedProject.paymentDetails.paidAt).toLocaleDateString()}
+                        </p>
+                      )}
                     </div>
                   )}
+                </div>
                 </div>
               </div>
             ) : (

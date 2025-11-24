@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { 
   ArrowLeft,
   Building,
@@ -30,7 +34,9 @@ import {
   Award,
   Briefcase,
   Target,
-  CreditCard
+  CreditCard,
+  Save,
+  PlusCircle
 } from "lucide-react"
 import { getUserDetails } from "@/lib/api/storage"
 import { toast } from "sonner"
@@ -92,9 +98,49 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<AdminProject | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // Edit milestone state
+  const [isMilestoneDialogOpen, setIsMilestoneDialogOpen] = useState(false)
+  const [editingMilestone, setEditingMilestone] = useState<any | null>(null)
+  const [msTitle, setMsTitle] = useState("")
+  const [msDescription, setMsDescription] = useState("")
+  const [msDueDate, setMsDueDate] = useState("")
+  const [msProgress, setMsProgress] = useState<string | number>("")
+  const [savingMilestone, setSavingMilestone] = useState(false)
+
+  // Create single milestone state
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [createTitle, setCreateTitle] = useState("")
+  const [createDescription, setCreateDescription] = useState("")
+  const [createDueDate, setCreateDueDate] = useState("")
+  const [createPriority, setCreatePriority] = useState<"LOW" | "MEDIUM" | "HIGH" | "CRITICAL">("MEDIUM")
+  const [createPhase, setCreatePhase] = useState<"DISCOVERY" | "DESIGN" | "IMPLEMENTATION" | "TESTING" | "DEPLOYMENT">("IMPLEMENTATION")
+  const [createEstimatedHours, setCreateEstimatedHours] = useState<number | null>(null)
+  const [createFreelancerId, setCreateFreelancerId] = useState<string>("")
+  const [creatingMilestone, setCreatingMilestone] = useState(false)
+
+  const [paymentStatusData, setPaymentStatusData] = useState<{status: string, amount: number, currency: string} | null>(null)
+  const [viewPayment, setViewPayment] = useState<any | null>(null)
+  const [bids, setBids] = useState<any[]>([])
+  const [bidsLoading, setBidsLoading] = useState(false)
+  const [viewBid, setViewBid] = useState<any | null>(null)
+  const [reviewLoading, setReviewLoading] = useState(false)
+  const [reviewReason, setReviewReason] = useState("")
+
   useEffect(() => {
     if (isAuthorized && projectId) {
       fetchProjectDetails()
+    }
+  }, [isAuthorized, projectId])
+
+  useEffect(() => {
+    if (isAuthorized && projectId) {
+      fetchPaymentStatus()
+    }
+  }, [isAuthorized, projectId])
+
+  useEffect(() => {
+    if (isAuthorized && projectId) {
+      fetchBids()
     }
   }, [isAuthorized, projectId])
 
@@ -136,6 +182,265 @@ export default function ProjectDetailPage() {
       router.push('/dashboard/Administrator/project-status')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const resetCreateState = () => {
+    setCreateTitle("")
+    setCreateDescription("")
+    setCreateDueDate("")
+    setCreatePriority("MEDIUM")
+    setCreatePhase("IMPLEMENTATION")
+    setCreateEstimatedHours(null)
+    setCreateFreelancerId("")
+  }
+
+  const openMilestoneDialog = (milestone: any | null) => {
+    setEditingMilestone(milestone)
+    setMsTitle(milestone?.milestoneName || "")
+    setMsDescription(milestone?.description || "")
+    const dateStr = milestone?.deadline ? new Date(milestone.deadline).toISOString().slice(0, 10) : ""
+    setMsDueDate(dateStr)
+    setMsProgress(typeof milestone?.progress === "number" ? milestone.progress : "")
+    setIsMilestoneDialogOpen(true)
+  }
+
+  const saveMilestoneUpdates = async () => {
+    if (!editingMilestone) return
+    setSavingMilestone(true)
+    try {
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+      if (!token) {
+        toast.error("Authentication required")
+        return
+      }
+
+      // Prepare the update payload according to the API spec
+      const updatePayload: any = {}
+      if (msTitle) updatePayload.milestoneName = msTitle
+      if (msDescription) updatePayload.description = msDescription
+      if (msDueDate) updatePayload.deadline = new Date(msDueDate).toISOString()
+      if (msProgress !== "" && !Number.isNaN(Number(msProgress))) {
+        updatePayload.progress = Number(msProgress)
+        // Update status based on progress if needed
+        if (Number(msProgress) >= 100) {
+          updatePayload.status = "COMPLETED"
+          updatePayload.isMilestoneCompleted = true
+        } else if (Number(msProgress) > 0) {
+          updatePayload.status = "IN_PROGRESS"
+        }
+      }
+
+      // Only proceed if we have fields to update
+      if (Object.keys(updatePayload).length > 0) {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_PLS}/projects/${projectId}/milestones/${editingMilestone.id}`,
+          {
+            method: "PATCH",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(updatePayload),
+          }
+        )
+        
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}))
+          throw new Error(errorData.message || "Failed to update milestone")
+        }
+      }
+
+      toast.success("Milestone updated")
+      setIsMilestoneDialogOpen(false)
+      setEditingMilestone(null)
+      await fetchProjectDetails()
+    } catch (e: any) {
+      console.error(e)
+      toast.error(e?.message || "Failed to update milestone")
+    } finally {
+      setSavingMilestone(false)
+    }
+  }
+
+  const createMilestone = async () => {
+    if (!createTitle || !createDueDate) {
+      toast.error("Please fill in required fields: title and due date")
+      return
+    }
+    
+    if (!createFreelancerId) {
+      toast.error("Please select a freelancer for this milestone")
+      return
+    }
+    
+    setCreatingMilestone(true)
+    try {
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+      if (!token) {
+        toast.error("Authentication required")
+        return
+      }
+
+      // Prepare the payload according to the API spec
+      const payload = {
+        milestoneName: createTitle,
+        description: createDescription || "",
+        deadline: new Date(createDueDate).toISOString(),
+        status: "PLANNED",
+        priority: createPriority,
+        phase: createPhase,
+        assignedFreelancerId: createFreelancerId,
+        progress: 0,
+        isMilestoneCompleted: false,
+        riskLevel: "MEDIUM", // Default risk level
+        blocked: false,
+        ...(createEstimatedHours && { estimatedHours: Number(createEstimatedHours) })
+      }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/projects/${projectId}/milestones`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.message || "Failed to create milestone")
+      }
+
+      toast.success("Milestone created successfully")
+      setIsCreateDialogOpen(false)
+      resetCreateState()
+      await fetchProjectDetails()
+    } catch (e: any) {
+      console.error("Error creating milestone:", e)
+      toast.error(e?.message || "Failed to create milestone. Please try again.")
+    } finally {
+      setCreatingMilestone(false)
+    }
+  }
+
+  const deleteMilestone = async (milestoneId: string) => {
+    if (!window.confirm("Delete this milestone? This action cannot be undone.")) return
+    try {
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+      if (!token) {
+        toast.error("Authentication required")
+        return
+      }
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_PLS}/projects/${projectId}/milestones/${milestoneId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      )
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.message || "Failed to delete milestone")
+      }
+
+      toast.success("Milestone deleted")
+      await fetchProjectDetails()
+    } catch (e: any) {
+      console.error(e)
+      toast.error(e?.message || "Failed to delete milestone")
+    }
+  }
+
+  
+
+  const fetchPaymentStatus = async () => {
+    try {
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+      if (!token) return
+      const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/payment/project/${projectId}/status`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setPaymentStatusData(data?.data || null)
+      }
+    } catch (e) {
+      console.warn("Failed to fetch payment status", e)
+    }
+  }
+
+  const fetchBids = async () => {
+    setBidsLoading(true)
+    try {
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+      if (!token) return
+      const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/projects/${projectId}/bids`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setBids(Array.isArray(data?.data) ? data.data : [])
+      }
+    } catch (e) {
+      console.warn("Failed to fetch bids", e)
+    } finally {
+      setBidsLoading(false)
+    }
+  }
+
+  const reviewBid = async (action: "ACCEPT" | "REJECT") => {
+    if (!viewBid?.id) return
+    if (action === "REJECT" && !reviewReason.trim()) {
+      toast.error("Please provide a reason to reject the bid")
+      return
+    }
+    setReviewLoading(true)
+    try {
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+      if (!token) {
+        toast.error("Authentication required")
+        return
+      }
+      const res = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/bids/${viewBid.id}/review`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action, ...(action === "REJECT" ? { reason: reviewReason.trim() } : {}) })
+      })
+      if (!res.ok) {
+        const msg = await res.text()
+        throw new Error(msg || "Failed to review bid")
+      }
+      toast.success(action === "ACCEPT" ? "Bid accepted" : "Bid rejected")
+      setViewBid(null)
+      setReviewReason("")
+      fetchBids()
+      fetchProjectDetails()
+    } catch (e: any) {
+      console.error(e)
+      toast.error(e?.message || "Failed to review bid")
+    } finally {
+      setReviewLoading(false)
     }
   }
 
@@ -365,6 +670,11 @@ export default function ProjectDetailPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Project ID */}
+              <div className="p-3 bg-gray-50 rounded-lg border">
+                <p className="text-xs text-muted-foreground">Project ID</p>
+                <p className="font-mono text-sm">{project.id}</p>
+              </div>
               {/* Services */}
               {project.services && project.services.length > 0 && (
                 <div>
@@ -508,7 +818,7 @@ export default function ProjectDetailPage() {
 
           {/* Milestones */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <CardTitle className="flex items-center gap-2">
                 <Target className="w-5 h-5" />
                 Project Milestones
@@ -516,27 +826,70 @@ export default function ProjectDetailPage() {
                   <Badge variant="secondary">{project.milestones.length}</Badge>
                 )}
               </CardTitle>
-              <Button variant="outline" size="sm">
-                <Edit className="w-4 h-4 mr-2" />
-                Update
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    resetCreateState()
+                    setIsCreateDialogOpen(true)
+                  }}
+                  className="bg-[#003087] hover:bg-[#002366] text-white border-0"
+                >
+                  <PlusCircle className="w-4 h-4 mr-2" />
+                  Create Milestone
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {project.milestones && project.milestones.length > 0 ? (
                 <div className="space-y-4">
                   {project.milestones.map((milestone: any, index: number) => (
-                    <div key={index} className="p-4 border rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-semibold">{milestone.title}</h4>
-                        <Badge variant={milestone.status === 'COMPLETED' ? 'default' : 'secondary'}>
-                          {milestone.status}
-                        </Badge>
+                    <div key={index} className="p-4 border rounded-lg bg-white shadow-sm flex flex-col gap-2">
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold">{milestone.milestoneName}</h4>
+                          <Badge variant={milestone.isMilestoneCompleted ? "default" : "secondary"}>
+                            {milestone.isMilestoneCompleted ? "COMPLETED" : milestone.status || "PENDING"}
+                          </Badge>
+                        </div>
+                        <div className="flex flex-wrap gap-2 justify-start md:justify-end">
+                          
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openMilestoneDialog(milestone)}
+                          >
+                            <Edit className="w-4 h-4 mr-1" /> Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-red-600 border-red-300 hover:bg-red-50"
+                            onClick={() => deleteMilestone(milestone.id)}
+                          >
+                            <XCircle className="w-4 h-4 mr-1" /> Delete
+                          </Button>
+                        </div>
                       </div>
-                      <p className="text-sm text-muted-foreground mb-2">{milestone.description}</p>
-                      <div className="flex items-center gap-4 text-sm">
-                        <span>Due: {new Date(milestone.dueDate).toLocaleDateString()}</span>
-                        <span>Budget: ${milestone.budget}</span>
-                        {milestone.progress && <span>Progress: {milestone.progress}%</span>}
+                      <p className="text-sm text-muted-foreground mb-1">{milestone.description}</p>
+                      <div className="flex flex-wrap items-center gap-4 text-sm">
+                        {milestone.deadline && (
+                          <span>
+                            Due: {new Date(milestone.deadline).toLocaleDateString()}
+                          </span>
+                        )}
+                        {typeof milestone.progress === "number" && (
+                          <span>Progress: {milestone.progress}%</span>
+                        )}
+                        {milestone.assignedFreelancer && (
+                          <span className="flex items-center gap-1">
+                            <Users className="w-3 h-3 text-muted-foreground" />
+                            <span>
+                              {milestone.assignedFreelancer.fullName || milestone.assignedFreelancer.name}
+                            </span>
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -547,6 +900,237 @@ export default function ProjectDetailPage() {
                   <p className="text-muted-foreground">No milestones created yet</p>
                 </div>
               )}
+
+              {/* Edit milestone dialog */}
+              <Dialog open={isMilestoneDialogOpen} onOpenChange={setIsMilestoneDialogOpen}>
+                <DialogContent className="max-w-lg">
+                  <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white -m-6 mb-6 p-6 rounded-t-lg">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl">Update Milestone</DialogTitle>
+                      <DialogDescription className="text-blue-100">
+                        Edit details and progress, then save changes
+                      </DialogDescription>
+                    </DialogHeader>
+                  </div>
+                  {editingMilestone ? (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Title</Label>
+                        <Input
+                          value={msTitle}
+                          onChange={(e) => setMsTitle(e.target.value)}
+                          placeholder="Milestone title"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Description</Label>
+                        <Textarea
+                          rows={3}
+                          value={msDescription}
+                          onChange={(e) => setMsDescription(e.target.value)}
+                          placeholder="Describe the milestone"
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Due Date</Label>
+                          <Input
+                            type="date"
+                            value={msDueDate}
+                            onChange={(e) => setMsDueDate(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Progress (%)</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={msProgress}
+                            onChange={(e) => setMsProgress(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-3 pt-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsMilestoneDialogOpen(false)}
+                        >
+                          Cancel
+                        </Button>
+                        <Button onClick={saveMilestoneUpdates} disabled={savingMilestone}>
+                          {savingMilestone ? (
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          ) : (
+                            <Save className="w-4 h-4 mr-2" />
+                          )}
+                          Save Changes
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground">
+                      Select a milestone to edit
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
+
+              {/* Create milestone dialog */}
+              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                <DialogContent className="max-w-2xl">
+                  <div className="bg-gradient-to-r from-[#003087] to-[#1a4b9c] text-white -m-6 mb-6 p-6 rounded-t-lg">
+                    <DialogHeader>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <DialogTitle className="text-xl">Create New Milestone</DialogTitle>
+                          <DialogDescription className="text-blue-100">
+                            Project ID: {projectId}
+                          </DialogDescription>
+                        </div>
+                        <Badge variant="secondary" className="bg-white/20 text-white border-0">
+                          {project?.details?.companyName || 'Project'}
+                        </Badge>
+                      </div>
+                    </DialogHeader>
+                  </div>
+                  
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label className="flex items-center">
+                            Milestone Name <span className="text-red-500 ml-1">*</span>
+                          </Label>
+                          <Input
+                            value={createTitle}
+                            onChange={(e) => setCreateTitle(e.target.value)}
+                            placeholder="e.g., Design Phase, Development, Testing"
+                            className="border-gray-300 focus-visible:ring-[#003087]"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Description</Label>
+                          <Textarea
+                            rows={3}
+                            value={createDescription}
+                            onChange={(e) => setCreateDescription(e.target.value)}
+                            placeholder="Detailed description of the milestone..."
+                            className="border-gray-300 focus-visible:ring-[#003087]"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="flex items-center">
+                            Deadline <span className="text-red-500 ml-1">*</span>
+                          </Label>
+                          <Input
+                            type="datetime-local"
+                            value={createDueDate}
+                            onChange={(e) => setCreateDueDate(e.target.value)}
+                            className="border-gray-300 focus-visible:ring-[#003087]"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label className="flex items-center">
+                            Assigned Freelancer <span className="text-red-500 ml-1">*</span>
+                          </Label>
+                          <select
+                            value={createFreelancerId}
+                            onChange={(e) => setCreateFreelancerId(e.target.value)}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003087] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <option value="">Select freelancer</option>
+                            {project?.selectedFreelancers?.map((freelancer: any) => (
+                              <option key={freelancer.id} value={freelancer.id}>
+                                {freelancer.details?.fullName || `Freelancer ${freelancer.id.substring(0, 6)}`}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Priority</Label>
+                            <select
+                              value={createPriority}
+                              onChange={(e) => setCreatePriority(e.target.value as any)}
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003087] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <option value="LOW">Low</option>
+                              <option value="MEDIUM">Medium</option>
+                              <option value="HIGH">High</option>
+                              <option value="CRITICAL">Critical</option>
+                            </select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Phase</Label>
+                            <select
+                              value={createPhase}
+                              onChange={(e) => setCreatePhase(e.target.value as any)}
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003087] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <option value="DISCOVERY">Discovery</option>
+                              <option value="DESIGN">Design</option>
+                              <option value="IMPLEMENTATION">Implementation</option>
+                              <option value="TESTING">Testing</option>
+                              <option value="DEPLOYMENT">Deployment</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Estimated Hours (optional)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={createEstimatedHours || ''}
+                            onChange={(e) => setCreateEstimatedHours(e.target.value ? Number(e.target.value) : null)}
+                            placeholder="Estimated hours to complete"
+                            className="border-gray-300 focus-visible:ring-[#003087]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-2 border-t border-gray-200">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setIsCreateDialogOpen(false)
+                          resetCreateState()
+                        }}
+                        disabled={creatingMilestone}
+                        className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={createMilestone} 
+                        disabled={creatingMilestone}
+                        className="bg-[#FF6B35] hover:bg-[#e65a2b] text-white"
+                      >
+                        {creatingMilestone ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                            Creating...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4 mr-2" />
+                            Create Milestone
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </CardContent>
           </Card>
 
@@ -559,19 +1143,40 @@ export default function ProjectDetailPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              <div className="mb-4 p-4 rounded-lg bg-gradient-to-r from-emerald-50 to-green-50 border">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Current Payment Status</p>
+                    <div className="flex items-end gap-2">
+                      <span className="text-2xl font-bold">{paymentStatusData?.amount ? `$${paymentStatusData.amount.toLocaleString()}` : '--'}</span>
+                      <span className="text-sm text-muted-foreground">{paymentStatusData?.currency?.toUpperCase() || ''}</span>
+                    </div>
+                  </div>
+                  <div>
+                    {paymentStatusData?.status && (
+                      <Badge className="px-3 py-1">{paymentStatusData.status}</Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {project.payments && project.payments.length > 0 ? (
                 <div className="space-y-3">
                   {project.payments.map((payment: any, index: number) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
                       <div>
-                        <p className="font-medium">${payment.amount}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(payment.createdAt).toLocaleDateString()}
-                        </p>
+                        <p className="font-medium">{'$'}{payment.amount}</p>
+                        <p className="text-xs text-muted-foreground">ID: {payment.id}</p>
+                        <p className="text-sm text-muted-foreground">{new Date(payment.createdAt).toLocaleString()}</p>
                       </div>
-                      <Badge variant={payment.status === 'SUCCEEDED' ? 'default' : 'secondary'}>
-                        {payment.status}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={payment.status === 'SUCCEEDED' ? 'default' : 'secondary'}>
+                          {payment.status}
+                        </Badge>
+                        <Button size="sm" variant="outline" onClick={() => setViewPayment(payment)}>
+                          <Eye className="w-4 h-4 mr-1" /> View
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -581,6 +1186,142 @@ export default function ProjectDetailPage() {
                   <p className="text-muted-foreground">No payment records found</p>
                 </div>
               )}
+
+              <Dialog open={!!viewPayment} onOpenChange={(o) => !o && setViewPayment(null)}>
+                <DialogContent className="max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle>Payment Details</DialogTitle>
+                    <DialogDescription>All recorded fields for this payment</DialogDescription>
+                  </DialogHeader>
+                  {viewPayment && (
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center justify-between"><span className="text-muted-foreground">Payment ID</span><span className="font-medium">{viewPayment.id}</span></div>
+                      {'currency' in viewPayment && <div className="flex items-center justify-between"><span className="text-muted-foreground">Currency</span><span className="font-medium">{String(viewPayment.currency).toUpperCase()}</span></div>}
+                      {'amount' in viewPayment && <div className="flex items-center justify-between"><span className="text-muted-foreground">Amount</span><span className="font-medium">{'$'}{viewPayment.amount}</span></div>}
+                      {'status' in viewPayment && <div className="flex items-center justify-between"><span className="text-muted-foreground">Status</span><span className="font-medium">{viewPayment.status}</span></div>}
+                      {'createdAt' in viewPayment && <div className="flex items-center justify-between"><span className="text-muted-foreground">Created</span><span className="font-medium">{new Date(viewPayment.createdAt).toLocaleString()}</span></div>}
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
+            </CardContent>
+          </Card>
+
+          {/* Bids */}
+          <Card>
+            <CardHeader className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Briefcase className="w-5 h-5" />
+                Project Bids {bids && bids.length > 0 && <Badge variant="secondary">{bids.length}</Badge>}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {bidsLoading ? (
+                <div className="flex items-center justify-center py-8 text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading bids...
+                </div>
+              ) : bids && bids.length > 0 ? (
+                <div className="space-y-3">
+                  {bids.map((bid: any) => (
+                    <div key={bid.id} className="flex items-center justify-between p-3 rounded-lg border bg-white shadow-sm">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base font-semibold">{'$'}{bid.bidAmount}</span>
+                          {bid.status && <Badge variant={bid.status === 'ACCEPTED' ? 'default' : 'secondary'}>{bid.status}</Badge>}
+                        </div>
+                        <p className="text-sm text-muted-foreground">by {bid.freelancer?.fullName || 'Unknown'} {bid.submittedAt && `• ${new Date(bid.submittedAt).toLocaleString()}`}</p>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => setViewBid(bid)}>
+                        <Eye className="w-4 h-4 mr-1" /> View
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Briefcase className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-muted-foreground">No bids for this project</p>
+                </div>
+              )}
+
+              <Dialog open={!!viewBid} onOpenChange={(o) => !o && setViewBid(null)}>
+                <DialogContent className="max-w-xl overflow-hidden p-0">
+                  <div className="bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-white p-6">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl">Bid Details</DialogTitle>
+                      <DialogDescription className="text-fuchsia-100">Review bid information and freelancer profile</DialogDescription>
+                    </DialogHeader>
+                  </div>
+                  {viewBid && (
+                    <div className="p-6 space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="p-3 rounded-lg border bg-gray-50">
+                          <p className="text-xs text-muted-foreground">Bid Amount</p>
+                          <p className="text-lg font-semibold">{'$'}{viewBid.bidAmount}</p>
+                        </div>
+                        <div className="p-3 rounded-lg border bg-gray-50">
+                          <p className="text-xs text-muted-foreground">Status</p>
+                          <p className="text-lg font-semibold">{viewBid.status}</p>
+                        </div>
+                        <div className="p-3 rounded-lg border bg-gray-50">
+                          <p className="text-xs text-muted-foreground">Bid Time</p>
+                          <p className="text-lg font-semibold">{viewBid.submittedAt ? new Date(viewBid.submittedAt).toLocaleTimeString() : '-'}</p>
+                        </div>
+                        <div className="p-3 rounded-lg border bg-gray-50">
+                          <p className="text-xs text-muted-foreground">Bid Date</p>
+                          <p className="text-lg font-semibold">{viewBid.submittedAt ? new Date(viewBid.submittedAt).toLocaleDateString() : '-'}</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="p-3 rounded-lg border">
+                          <p className="text-xs text-muted-foreground">Project Name</p>
+                          <p className="font-medium">{project.details.companyName}</p>
+                          <p className="text-xs text-muted-foreground mt-1">Project ID: {project.id}</p>
+                        </div>
+                        <div className="p-3 rounded-lg border">
+                          <p className="text-xs text-muted-foreground">Freelancer</p>
+                          <p className="font-medium">{viewBid.freelancer?.fullName || 'Unknown'}</p>
+                          <p className="text-xs text-muted-foreground mt-1">Freelancer ID: {viewBid.freelancer?.id || '-'}</p>
+                          {viewBid.freelancer?.id && (
+                            <Button size="sm" className="mt-2" onClick={() => router.push(`/dashboard/Administrator/freelancer-profiles/${viewBid.freelancer.id}`)}>
+                              View Freelancer
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      {viewBid.proposalText && (
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium">Proposal</p>
+                          <div className="p-3 rounded-lg border bg-white text-sm whitespace-pre-wrap">
+                            {viewBid.proposalText}
+                          </div>
+                        </div>
+                      )}
+
+                      <Separator />
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <Label>Reason (required for reject)</Label>
+                          <Input value={reviewReason} onChange={(e) => setReviewReason(e.target.value)} placeholder="Add an optional note or a required reason when rejecting" />
+                        </div>
+                        <div className="flex justify-end gap-3">
+                          <Button variant="outline" onClick={() => setViewBid(null)}>Close</Button>
+                          <Button variant="destructive" disabled={reviewLoading} onClick={() => reviewBid("REJECT")}>
+                            {reviewLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                            Reject
+                          </Button>
+                          <Button disabled={reviewLoading} onClick={() => reviewBid("ACCEPT")}>
+                            {reviewLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                            Accept
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
             </CardContent>
           </Card>
         </div>

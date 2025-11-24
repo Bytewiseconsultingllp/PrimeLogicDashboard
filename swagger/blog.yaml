@@ -242,3 +242,153 @@ paths:
           $ref: "#/components/responses/NotFoundError"
         "500":
           $ref: "#/components/responses/InternalServerError"
+
+  /blog/bulkUploadBlogs:
+    post:
+      tags:
+        - Blog
+      summary: Bulk upload blogs
+      description: Upload multiple blog posts at once using either JSON array or CSV file (Admin only)
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                blogs:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - blogTitle
+                      - blogThumbnail
+                      - blogOverview
+                      - blogBody
+                    properties:
+                      blogTitle:
+                        type: string
+                        minLength: 3
+                        maxLength: 450
+                        example: "Understanding React Hooks"
+                      blogThumbnail:
+                        type: string
+                        minLength: 3
+                        maxLength: 450
+                        example: "https://example.com/images/react-hooks.jpg"
+                      blogOverview:
+                        type: string
+                        minLength: 3
+                        maxLength: 650
+                        example: "A comprehensive guide to React Hooks and their usage"
+                      blogBody:
+                        type: string
+                        minLength: 3
+                        example: "React Hooks are a powerful feature..."
+                      isPublished:
+                        type: boolean
+                        default: false
+                        example: false
+            example:
+              blogs:
+                - blogTitle: "Understanding React Hooks"
+                  blogThumbnail: "https://example.com/images/react-hooks.jpg"
+                  blogOverview: "A comprehensive guide to React Hooks"
+                  blogBody: "React Hooks are a powerful feature that lets you use state and other React features without writing a class..."
+                  isPublished: false
+                - blogTitle: "Getting Started with TypeScript"
+                  blogThumbnail: "https://example.com/images/typescript.jpg"
+                  blogOverview: "Learn TypeScript basics and advanced features"
+                  blogBody: "TypeScript is a typed superset of JavaScript that compiles to plain JavaScript..."
+                  isPublished: true
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: CSV file containing blog posts with columns - blogTitle, blogThumbnail, blogOverview, blogBody, isPublished (optional, defaults to false)
+            example: |
+              CSV format example:
+              blogTitle,blogThumbnail,blogOverview,blogBody,isPublished
+              "Understanding React Hooks","https://example.com/react.jpg","A guide to React Hooks","React Hooks are a powerful feature...",false
+              "TypeScript Basics","https://example.com/ts.jpg","Learn TypeScript","TypeScript is a typed superset...",true
+      responses:
+        "200":
+          description: Bulk upload completed with detailed results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Request completed successfully"
+                  data:
+                    type: object
+                    properties:
+                      optMessage:
+                        type: string
+                        example: "Bulk upload completed. 5 blogs uploaded successfully, 2 skipped, 1 failed"
+                      summary:
+                        type: object
+                        properties:
+                          totalProcessed:
+                            type: integer
+                            example: 8
+                          successCount:
+                            type: integer
+                            example: 5
+                          failedCount:
+                            type: integer
+                            example: 1
+                          skippedCount:
+                            type: integer
+                            example: 2
+                      details:
+                        type: object
+                        properties:
+                          successful:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                blogTitle:
+                                  type: string
+                                blogSlug:
+                                  type: string
+                                isPublished:
+                                  type: boolean
+                          skipped:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                blogTitle:
+                                  type: string
+                                reason:
+                                  type: string
+                          failed:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                blogTitle:
+                                  type: string
+                                reason:
+                                  type: string
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
