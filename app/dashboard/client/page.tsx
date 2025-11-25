@@ -13,6 +13,7 @@ import { AlertCircle, CheckCircle, Clock, Briefcase, Plus, User, CreditCard, Mes
 import { getCurrentUserDetails } from "@/lib/api/auth"
 import { getUserDetails } from "@/lib/api/storage"
 import { toast } from "sonner"
+import { getToken } from "@/lib/auth"
 
 interface PaymentRecord {
   id: string
@@ -519,47 +520,61 @@ export default function DashboardHome() {
 
   // Handle payment redirect with processing states
   const handlePaymentRedirect = async (projectId: string) => {
-    try {
-      setPaymentProcessing(projectId)
-      toast.info("Processing payment...")
-      
-      const userDetails = getUserDetails()
-      if (!userDetails) {
-        setPaymentProcessing(null)
-        toast.error("Authentication required")
-        return
-      }
-      
-      const token = userDetails.accessToken
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_PLS}/api/v1/payment/project/create-checkout-session`, {
-        method: "POST",
-        headers: { 
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          projectId,
-          successUrl: `${window.location.origin}/dashboard/client?payment=success&projectId=${projectId}`,
-          cancelUrl: `${window.location.origin}/dashboard/client?payment=cancelled&projectId=${projectId}`
-        })
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        toast.success("Redirecting to payment page...")
-        window.location.href = data.data.url
-      } else {
-        const errorData = await response.json()
-        toast.error(errorData.message || "Failed to create payment session")
-        setPaymentProcessing(null)
-      }
-    } catch (error) {
-      console.error("Payment redirect error:", error)
-      toast.error("Failed to redirect to payment")
+  try {
+    setPaymentProcessing(projectId)
+    toast.info("Processing payment...")
+    
+    const token = getToken()
+    if (!token) {
       setPaymentProcessing(null)
+      toast.error("Authentication required. Please log in again.")
+      window.location.href = '/login'
+      return
     }
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/payment/project/create-checkout-session`, {
+      method: "POST",
+      headers: { 
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        projectId,
+        successUrl: `${window.location.origin}/dashboard/client?payment=success&projectId=${projectId}`,
+        cancelUrl: `${window.location.origin}/dashboard/client?payment=cancelled&projectId=${projectId}`
+      })
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.message || "Failed to create payment session")
+    }
+
+    const data = await response.json()
+    
+    if (data.data?.url) {
+      // Store payment session info
+      localStorage.setItem(
+        "paymentSession",
+        JSON.stringify({
+          sessionId: data.data.sessionId,
+          paymentId: data.data.paymentId,
+          projectId: projectId,
+          timestamp: new Date().toISOString(),
+        })
+      )
+      
+      // Redirect to payment page
+      window.location.href = data.data.url
+    } else {
+      throw new Error("No payment URL received from server")
+    }
+  } catch (error) {
+    console.error("Payment redirect error:", error)
+    toast.error(error instanceof Error ? error.message : "Failed to process payment")
+    setPaymentProcessing(null)
   }
+}
 
   // Handle feedback submission
   const handleFeedbackSubmit = async () => {
@@ -1035,101 +1050,118 @@ export default function DashboardHome() {
               </div>
             ) : selectedProject ? (
               <div className="space-y-6">
-                {/* Animated Payment Progress Circle */}
-                <div className="text-center">
-                  <div className="relative w-40 h-40 mx-auto mb-4">
-                    <svg className="w-40 h-40 transform -rotate-90" viewBox="0 0 160 160">
-                      {/* Background Circle */}
-                      <circle
-                        cx="80"
-                        cy="80"
-                        r="70"
-                        fill="none"
-                        stroke="#f3f4f6"
-                        strokeWidth="12"
-                      />
-                      {/* Progress Circle */}
-                      <circle
-                        cx="80"
-                        cy="80"
-                        r="70"
-                        fill="none"
-                        stroke={selectedProject?.paymentDetails?.status === "SUCCEEDED" ? "#10b981" : "#FF6B35"}
-                        strokeWidth="12"
-                        strokeDasharray={`${
-                          selectedProject?.paymentDetails?.status === "SUCCEEDED" 
-                            ? 440 
-                            : selectedProject?.paymentDetails?.amountPaid && (selectedProject?.calculatedTotal || selectedProject?.paymentDetails?.amount)
-                              ? (selectedProject.paymentDetails.amountPaid / parseFloat(selectedProject.calculatedTotal?.toString() || selectedProject.paymentDetails?.amount?.toString() || "1")) * 440
-                              : 0
-                        } 440`}
-                        strokeLinecap="round"
-                        className="transition-all duration-1000 ease-out"
+                {/* Dynamic Payment Progress Bar */}
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-[#003087] mb-1">
+                      {selectedProject?.paymentDetails?.status === "SUCCEEDED" 
+                        ? "100%" 
+                        : selectedProject?.paymentDetails?.amountPaid && (selectedProject?.calculatedTotal || selectedProject?.paymentDetails?.amount)
+                          ? Math.round((selectedProject.paymentDetails.amountPaid / parseFloat(selectedProject.calculatedTotal?.toString() || selectedProject.paymentDetails?.amount?.toString() || "1")) * 100)
+                          : "25"
+                      }%
+                    </div>
+                    <div className="text-sm text-gray-500 font-medium mb-4">
+                      {selectedProject?.paymentDetails?.status === "SUCCEEDED" 
+                        ? "Payment Complete" 
+                        : selectedProject?.paymentDetails?.amountPaid 
+                          ? "Payment Progress" 
+                          : "Initial Deposit (25%)"}
+                    </div>
+                    
+                    {/* Progress Bar Container */}
+                    <div className="h-4 bg-gray-200 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full ${selectedProject?.paymentDetails?.status === "SUCCEEDED" 
+                          ? 'bg-green-500' 
+                          : 'bg-gradient-to-r from-blue-500 to-[#003087]'}`}
                         style={{
-                          animation: "drawCircle 2s ease-out forwards"
+                          width: selectedProject?.paymentDetails?.status === "SUCCEEDED" 
+                            ? '100%' 
+                            : selectedProject?.paymentDetails?.amountPaid 
+                              ? `${Math.min(100, Math.round((selectedProject.paymentDetails.amountPaid / parseFloat(selectedProject.calculatedTotal?.toString() || selectedProject.paymentDetails?.amount?.toString() || "1")) * 100))}%`
+                              : '25%',
+                          transition: 'width 1s ease-in-out'
                         }}
-                      />
-                      {/* Pending/Remaining Circle */}
-                      {selectedProject?.paymentDetails?.status !== "SUCCEEDED" && (
-                        <circle
-                          cx="80"
-                          cy="80"
-                          r="70"
-                          fill="none"
-                          stroke="#e5e7eb"
-                          strokeWidth="8"
-                          strokeDasharray="15 10"
-                          className="opacity-50"
-                        />
-                      )}
-                    </svg>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-[#003087] mb-1">
-                          {selectedProject?.paymentDetails?.status === "SUCCEEDED" 
-                            ? "100%" 
-                            : selectedProject?.paymentDetails?.amountPaid && (selectedProject?.calculatedTotal || selectedProject?.paymentDetails?.amount)
-                              ? Math.round((selectedProject.paymentDetails.amountPaid / parseFloat(selectedProject.calculatedTotal?.toString() || selectedProject.paymentDetails?.amount?.toString() || "1")) * 100)
-                              : "0"
-                          }%
-                        </div>
-                        <div className="text-sm text-gray-500 font-medium">
-                          {selectedProject?.paymentDetails?.status === "SUCCEEDED" ? "Payment Complete" : "Payment Progress"}
-                        </div>
+                      >
+                        {/* Default 25% indicator */}
+                        {!selectedProject?.paymentDetails?.amountPaid && (
+                          <div className="absolute h-4 w-0.5 bg-white ml-[25%] opacity-70"></div>
+                        )}
                       </div>
+                    </div>
+                    
+                    {/* Progress Labels */}
+                    <div className="flex justify-between text-xs text-gray-500 mt-2 px-1">
+                      <span>0%</span>
+                      {!selectedProject?.paymentDetails?.amountPaid && (
+                        <span className="text-blue-600 font-medium">25%</span>
+                      )}
+                      {selectedProject?.paymentDetails?.amountPaid && (
+                        <span className="text-blue-600 font-medium">
+                          {Math.round((selectedProject.paymentDetails.amountPaid / parseFloat(selectedProject.calculatedTotal?.toString() || selectedProject.paymentDetails?.amount?.toString() || "1")) * 100)}%
+                        </span>
+                      )}
+                      <span>100%</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Payment Legend */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-4 h-4 bg-green-500 rounded-full"></div>
-                      <span className="text-sm text-gray-600">Completed</span>
+                <div className="space-y-4">
+                  {/* Deposited Percentage */}
+                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                        <span className="text-sm font-medium text-gray-700">Deposited</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-blue-700">
+                          {selectedProject?.paymentDetails?.status === "SUCCEEDED" 
+                            ? "100%" 
+                            : selectedProject?.paymentDetails?.amountPaid && (selectedProject?.calculatedTotal || selectedProject?.paymentDetails?.amount)
+                              ? Math.round((selectedProject.paymentDetails.amountPaid / parseFloat(selectedProject.calculatedTotal?.toString() || selectedProject.paymentDetails?.amount?.toString() || "1")) * 100) + "%"
+                              : "0%"}
+                        </div>
+                        <div className="text-sm text-blue-600">
+                          ${selectedProject?.paymentDetails?.amountPaid?.toLocaleString() || "0.00"}
+                        </div>
+                      </div>
                     </div>
-                    <span className="text-sm font-medium text-green-600">
-                      ${selectedProject?.paymentDetails?.amountPaid?.toLocaleString() || "0"}
-                    </span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-4 h-4 bg-[#FF6B35] rounded-full"></div>
-                      <span className="text-sm text-gray-600">Remaining</span>
+
+                  {/* Remaining Amount */}
+                  <div className="bg-amber-50 p-3 rounded-lg border border-amber-100">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                        <span className="text-sm font-medium text-gray-700">Remaining</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-amber-700">
+                          ${selectedProject?.paymentDetails?.status === "SUCCEEDED" 
+                            ? "0.00" 
+                            : (parseFloat(selectedProject?.calculatedTotal?.toString() || selectedProject?.paymentDetails?.amount?.toString() || "0") - 
+                               (selectedProject?.paymentDetails?.amountPaid || 0)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                        </div>
+                      </div>
                     </div>
-                    <span className="text-sm font-medium text-[#FF6B35]">
-                      ${selectedProject?.paymentDetails?.status === "SUCCEEDED" ? "0" : 
-                        parseFloat(selectedProject?.calculatedTotal?.toString() || selectedProject?.paymentDetails?.amount?.toString() || "0").toLocaleString()}
-                    </span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-4 h-4 bg-gray-300 rounded-full"></div>
-                      <span className="text-sm text-gray-600">Total Project Value</span>
+
+                  {/* Total Project Value */}
+                  <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                        <span className="text-sm font-medium text-gray-700">Total Project Value</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-gray-900">
+                          ${parseFloat(selectedProject?.calculatedTotal?.toString() || selectedProject?.paymentDetails?.amount?.toString() || "0").toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                        </div>
+                      </div>
                     </div>
-                    <span className="text-sm font-medium text-gray-700 font-semibold">
-                      ${parseFloat(selectedProject?.calculatedTotal?.toString() || selectedProject?.paymentDetails?.amount?.toString() || "0").toLocaleString()}
-                    </span>
                   </div>
                 </div>
 
