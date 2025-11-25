@@ -1,0 +1,17 @@
+fetch("http://localhost:8000/api/v1/projects/draft/create", {
+  "headers": {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9",
+    "content-type": "application/json",
+    "sec-ch-ua": "\"Chromium\";v=\"142\", \"Google Chrome\";v=\"142\", \"Not_A Brand\";v=\"99\"",
+    "sec-ch-ua-mobile": "?1",
+    "sec-ch-ua-platform": "\"Android\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-site",
+    "cookie": "__next_hmr_refresh_hash__=e40414496713cd81af696b1bb6d374abb1be120bfa1760e7; userDetails=U2FsdGVkX1//LkZV3H6g5I30TgVNjUivpr1C1UwGxYSRh0AMkegJMryVdYh6eXrpc4vEqKUqp9hgL8EXb3/I0JnGfBlw4uVHJlN6WQrAzZNZbd15I0VZPim3EUKNe5OxV6j1hkYQoxzGlybzAhXnAgFgbQBV+qdGBMVw2GnYu1TXCeKvtICzsRCRyMLUIZSwY08/s6HPwJ+YiodAYDd6hL0jI3RhYLNmgJX2x74NfvQKcp/qnPQ7KJrjEhTH/u1DDarRKsF3US0QE4jNX/vB+af6TWc+RSChOcwJ6W0+Ite1Nyk3RDhpXj4oJV8TCvXRQ29oaGtlC4eJl05eMe/VvMT+75Nk6xNPwvZeeZ0Geb+f8DjoAbqjTvLsM0himV/gppS6Nv4AWxW1fXsnxA43wFzNddUJDlUi94HGZcswwYuPltM18/J+dfMIJE45StqIg3Ib7BS46FN5K7vMiuXjiSpojq2/RELc+7Z6xMrDOUiLezbTA7SqzmFRoASyOOCedDpHWWkzX0UTBsYtiTv1ZEe9yaBUVwYqT2q9k750RLf8VhTZj+RWysxnYLq6aT755fgEaf5/zDfR0nayqeO+23wYH0lHK1sE2MeRYylJkxpADvx48kbT9bY8Lvz9M4MUeA7ZtsG+Fj6PuOG8mTqS//YJCIApnbYv0xlrDFV/6gO+jq018GW0R9r4RbvthRVJ69zEo75lBJqNxifXGYw72T/HPZs12DdUHMhydDVL5A0k+l6Nt66PiGKgLDGvF2FM6Rzg+XcAAVufDdrCNijvRq7cjABxnDyM0Mb8A1xbNW0=",
+    "Referer": "http://localhost:3001/"
+  },
+  "body": "{\"companyName\":\"Baba pvt ltd\",\"companyWebsite\":\"http:get-started\",\"businessAddress\":\"india\",\"businessType\":\"Nonprofit\",\"fullName\":\"Baba pvt ltd\",\"businessEmail\":\"\"}",
+  "method": "POST"
+});
