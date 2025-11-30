@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -188,14 +188,7 @@ export default function ProjectDetailsPage() {
     currency: string
   } | null>(null)
 
-  useEffect(() => {
-    if (projectId) {
-      fetchProjectDetails()
-      fetchPaymentStatus()
-    }
-  }, [projectId])
-
-  const fetchPaymentStatus = async () => {
+  const fetchPaymentStatus = useCallback(async () => {
     try {
       const status = await getProjectPaymentStatus(projectId)
       setPaymentStatus(status)
@@ -203,9 +196,9 @@ export default function ProjectDetailsPage() {
       console.error("Error fetching payment status:", error)
       toast.error("Failed to load payment status")
     }
-  }
+  }, [projectId])
 
-  const fetchProjectDetails = async () => {
+  const fetchProjectDetails = useCallback(async () => {
     try {
       setLoading(true)
       const response = await getProjectById(projectId)
@@ -223,7 +216,14 @@ export default function ProjectDetailsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [projectId])
+
+  useEffect(() => {
+    if (projectId) {
+      fetchProjectDetails()
+      fetchPaymentStatus()
+    }
+  }, [projectId, fetchProjectDetails, fetchPaymentStatus])
 
   const handleFeedbackSubmit = async () => {
     if (!feedbackText.trim()) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,19 +11,21 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { format } from 'date-fns';
-import { CreditCard, Search, ArrowUpDown, ChevronLeft, ChevronRight, Loader2, ExternalLink } from 'lucide-react';
+import { CreditCard, Search, ArrowUpDown, ChevronLeft, ChevronRight, Loader2, ExternalLink, DollarSign, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { getUserDetails } from '@/lib/api/storage';
+import { getMyProjects } from '@/lib/api/client-projects';
 
 interface Payment {
   id: string;
   projectId: string;
-  projectName: string;
+  projectName?: string;
   amount: number;
   currency: string;
-  status: 'succeeded' | 'pending' | 'failed' | 'refunded' | 'requires_payment_method' | 'requires_action' | 'processing' | 'requires_capture' | 'canceled';
+  status: 'SUCCEEDED' | 'PENDING' | 'FAILED' | 'CANCELED' | 'REFUNDED';
   createdAt: string;
-  paymentMethod: string;
-  paymentMethodDetails: {
+  paymentMethod?: string;
+  paymentMethodDetails?: {
     card?: {
       brand: string;
       last4: string;
@@ -35,17 +37,39 @@ interface Payment {
   receiptUrl?: string;
   invoiceNumber?: string;
   description?: string;
+  clientEmail?: string;
+}
+
+interface Project {
+  id: string;
+  details: {
+    companyName: string;
+    businessEmail: string;
+  };
+  estimate?: {
+    estimateFinalPriceMin: number;
+    estimateFinalPriceMax: number;
+  };
+  paymentStatus: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED' | 'REFUNDED';
+  totalAmountPaid?: number;
+  paymentCompletionPercentage?: number;
+  calculatedTotal?: number;
 }
 
 export default function ClientPaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
+  const [customAmount, setCustomAmount] = useState('');
   const [clientDetails, setClientDetails] = useState({
     name: '',
     email: '',
@@ -54,50 +78,63 @@ export default function ClientPaymentsPage() {
   const itemsPerPage = 10;
   const router = useRouter();
 
-  useEffect(() => {
-    fetchClientDetails();
-    fetchPayments();
-  }, [page, statusFilter, searchTerm]);
-
-  const fetchClientDetails = async () => {
+  const fetchClientDetails = useCallback(async () => {
     try {
-      // Replace with actual API call to get client details
-      const response = await fetch(`${process.env.NEXT_PUBLIC_PLS}/api/v1/users/me`, {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch client details');
+      const userDetails = getUserDetails();
+      if (userDetails) {
+        setClientDetails({
+          name: userDetails.fullName || '',
+          email: userDetails.email || '',
+          stripeCustomerId: userDetails.stripeCustomerId || 'Not connected'
+        });
       }
-      
-      const data = await response.json();
-      setClientDetails({
-        name: data.data.fullName,
-        email: data.data.email,
-        stripeCustomerId: data.data.stripeCustomerId || 'Not connected'
-      });
     } catch (error) {
       console.error('Error fetching client details:', error);
       toast.error('Failed to load client details');
     }
-  };
+  }, []);
 
-  const fetchPayments = async () => {
+  const fetchProjects = useCallback(async () => {
+    try {
+      const result = await getMyProjects(1, 100); // Get all projects
+      if (result && result.data && result.data.projects) {
+        setProjects(result.data.projects);
+      }
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+    }
+  }, []);
+
+  const fetchPayments = useCallback(async () => {
     try {
       setLoading(true);
-      // Replace with actual API endpoint for fetching payments
+      const userDetails = getUserDetails();
+      const accessToken = userDetails?.accessToken;
+
+      if (!accessToken) {
+        throw new Error('Not authenticated');
+      }
+
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      
+      // Build query parameters
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: itemsPerPage.toString(),
+      });
+
+      if (statusFilter && statusFilter !== 'all') {
+        params.append('status', statusFilter);
+      }
+
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_PLS}/api/v1/payments?page=${page}&limit=${itemsPerPage}` +
-        `&status=${statusFilter !== 'all' ? statusFilter : ''}` +
-        `&search=${encodeURIComponent(searchTerm)}`, 
+        `${API_BASE_URL}/api/v1/payment/history?${params.toString()}`, 
         {
-          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
           },
+          credentials: 'include',
         }
       );
       
@@ -106,15 +143,72 @@ export default function ClientPaymentsPage() {
       }
       
       const data = await response.json();
-      setPayments(data.data.payments);
-      setTotalPages(Math.ceil(data.data.total / itemsPerPage));
+      
+      if (data.data) {
+        const paymentsData = data.data.payments || [];
+        
+        // Enrich payments with project names
+        const enrichedPayments = paymentsData.map((payment: Payment) => {
+          const project = projects.find(p => p.id === payment.projectId);
+          return {
+            ...payment,
+            projectName: project?.details?.companyName || 'Unknown Project',
+          };
+        });
+        
+        setPayments(enrichedPayments);
+        
+        // Handle pagination
+        if (data.data.pagination) {
+          setTotalPages(data.data.pagination.pages || 1);
+        }
+      }
     } catch (error) {
       console.error('Error fetching payments:', error);
       toast.error('Failed to load payments');
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, statusFilter, projects, itemsPerPage]);
+
+  // Fetch client details and projects once on mount
+  useEffect(() => {
+    fetchClientDetails();
+    fetchProjects();
+  }, [fetchClientDetails, fetchProjects]);
+
+  // Fetch payments when dependencies change
+  useEffect(() => {
+    if (projects.length > 0) {
+      fetchPayments();
+    }
+  }, [fetchPayments, projects.length]);
+
+  // Handle payment redirect results
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentStatus = urlParams.get('payment');
+    const sessionId = urlParams.get('session_id');
+    const projectId = urlParams.get('projectId');
+    
+    if (paymentStatus) {
+      if (paymentStatus === 'success') {
+        toast.success('Payment completed successfully!');
+        
+        // Refresh data to show updated payment status
+        fetchProjects();
+        fetchPayments();
+        
+        // Clear URL parameters
+        window.history.replaceState({}, '', '/dashboard/client/payments');
+      } else if (paymentStatus === 'cancelled') {
+        toast.error('Payment was cancelled');
+        
+        // Clear URL parameters
+        window.history.replaceState({}, '', '/dashboard/client/payments');
+      }
+    }
+  }, []); // Run once on mount
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,22 +216,89 @@ export default function ClientPaymentsPage() {
     fetchPayments();
   };
 
+  const handleMakePayment = async (project: Project, percentage?: number, customAmountValue?: number) => {
+    setProcessingPayment(true);
+    try {
+      const userDetails = getUserDetails();
+      const accessToken = userDetails?.accessToken;
+
+      if (!accessToken) {
+        throw new Error('Not authenticated. Please log in again.');
+      }
+
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const currentUrl = window.location.origin;
+
+      // Build payload based on whether custom amount or percentage is provided
+      const checkoutPayload: any = {
+        projectId: project.id,
+        // Include {CHECKOUT_SESSION_ID} placeholder that Stripe will replace
+        successUrl: `${currentUrl}/dashboard/client/payments?payment=success&session_id={CHECKOUT_SESSION_ID}&projectId=${project.id}`,
+        cancelUrl: `${currentUrl}/dashboard/client/payments?payment=cancelled&projectId=${project.id}`,
+        currency: 'usd'
+      };
+
+      // If custom amount is provided, use it; otherwise use percentage
+      if (customAmountValue && customAmountValue > 0) {
+        checkoutPayload.customAmount = customAmountValue;
+      } else if (percentage) {
+        checkoutPayload.depositPercentage = percentage;
+      } else {
+        throw new Error('Please specify either a percentage or custom amount');
+      }
+
+      console.log('📤 Creating checkout session:', checkoutPayload);
+
+      const response = await fetch(`${API_BASE_URL}/api/v1/payment/project/create-checkout-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        credentials: 'include',
+        body: JSON.stringify(checkoutPayload)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Failed to create checkout session: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ Checkout session created:', result);
+
+      // Backend returns 'checkoutUrl' not 'url'
+      const checkoutUrl = result.data?.checkoutUrl || result.data?.url;
+      
+      if (!checkoutUrl) {
+        throw new Error('Stripe checkout URL not returned.');
+      }
+
+      // Redirect to Stripe checkout
+      window.location.href = checkoutUrl;
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to initiate payment';
+      toast.error(errorMessage);
+      console.error('❌ Error creating checkout session:', error);
+    } finally {
+      setProcessingPayment(false);
+      setIsPaymentModalOpen(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
-    const statusMap: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success', label: string }> = {
-      'succeeded': { variant: 'success', label: 'Paid' },
-      'pending': { variant: 'outline', label: 'Pending' },
-      'failed': { variant: 'destructive', label: 'Failed' },
-      'refunded': { variant: 'secondary', label: 'Refunded' },
-      'requires_payment_method': { variant: 'outline', label: 'Incomplete' },
-      'requires_action': { variant: 'outline', label: 'Action Required' },
-      'processing': { variant: 'outline', label: 'Processing' },
-      'requires_capture': { variant: 'outline', label: 'Capture Required' },
-      'canceled': { variant: 'outline', label: 'Canceled' }
+    const statusMap: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', label: string, className: string }> = {
+      'SUCCEEDED': { variant: 'default', label: 'Paid', className: 'bg-green-100 text-green-800' },
+      'PENDING': { variant: 'outline', label: 'Pending', className: 'bg-yellow-100 text-yellow-800' },
+      'FAILED': { variant: 'destructive', label: 'Failed', className: 'bg-red-100 text-red-800' },
+      'REFUNDED': { variant: 'secondary', label: 'Refunded', className: 'bg-gray-100 text-gray-800' },
+      'CANCELED': { variant: 'outline', label: 'Canceled', className: 'bg-gray-100 text-gray-800' }
     };
 
-    const statusInfo = statusMap[status] || { variant: 'outline' as const, label: status };
+    const statusInfo = statusMap[status] || { variant: 'outline' as const, label: status, className: '' };
     return (
-      <Badge variant={statusInfo.variant} className="capitalize">
+      <Badge variant={statusInfo.variant} className={`capitalize ${statusInfo.className}`}>
         {statusInfo.label}
       </Badge>
     );
@@ -194,19 +355,97 @@ export default function ClientPaymentsPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <p className="text-sm font-medium text-white/80">Payment Methods</p>
+              <p className="text-sm font-medium text-white/80">Total Projects</p>
               <div className="flex items-center gap-2">
                 <div className="bg-white/10 backdrop-blur-sm rounded-lg px-3 py-1.5">
-                  <p className="text-sm font-medium">Visa •••• 4242</p>
+                  <p className="text-2xl font-bold">{projects.length}</p>
                 </div>
-                <Button variant="ghost" size="sm" className="text-white/80 hover:bg-white/10">
-                  + Add
-                </Button>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Projects Requiring Payment Section */}
+      {projects.some(p => p.paymentStatus === 'PENDING' || (p.paymentCompletionPercentage && p.paymentCompletionPercentage < 100)) && (
+        <Card className="border-0 shadow-sm bg-orange-50 border-l-4 border-l-orange-500">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-orange-600" />
+              <CardTitle className="text-orange-900">Projects Requiring Payment</CardTitle>
+            </div>
+            <CardDescription className="text-orange-700">
+              These projects need payment to proceed
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {projects
+                .filter(p => p.paymentStatus === 'PENDING' || (p.paymentCompletionPercentage && p.paymentCompletionPercentage < 100))
+                .map((project) => {
+                  const estimatedValue = project.estimate && 
+                                         project.estimate.estimateFinalPriceMin != null && 
+                                         project.estimate.estimateFinalPriceMax != null
+                    ? (Number(project.estimate.estimateFinalPriceMin) + Number(project.estimate.estimateFinalPriceMax)) / 2
+                    : project.calculatedTotal || 0;
+                  
+                  const totalPaid = Number(project.totalAmountPaid) || 0;
+                  const paymentPercentage = Number(project.paymentCompletionPercentage) || 0;
+                  const remainingAmount = estimatedValue - totalPaid;
+
+                  return (
+                    <div key={project.id} className="flex items-center justify-between p-4 bg-white rounded-lg border border-orange-200">
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900">{project.details.companyName}</h4>
+                        <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                          <div>
+                            <span className="font-medium">Total Value:</span> ${estimatedValue.toLocaleString()}
+                          </div>
+                          <div>
+                            <span className="font-medium">Paid:</span> ${totalPaid.toLocaleString()} ({paymentPercentage.toFixed(0)}%)
+                          </div>
+                          <div>
+                            <span className="font-medium">Remaining:</span> ${remainingAmount.toLocaleString()}
+                          </div>
+                        </div>
+                        {project.paymentStatus === 'PENDING' && (
+                          <div className="mt-2">
+                            <Badge className="bg-yellow-100 text-yellow-800">
+                              First payment required (minimum 25%)
+                            </Badge>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          className="bg-orange-600 hover:bg-orange-700"
+                          onClick={() => {
+                            setSelectedProject(project);
+                            setIsPaymentModalOpen(true);
+                          }}
+                          disabled={processingPayment}
+                        >
+                          {processingPayment ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Processing...
+                            </>
+                          ) : (
+                            <>
+                              <DollarSign className="h-4 w-4 mr-2" />
+                              Make Payment
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters and Search */}
       <Card className="border-0 shadow-sm">
@@ -349,7 +588,7 @@ export default function ClientPaymentsPage() {
               <span className="font-medium">
                 {Math.min(page * itemsPerPage, payments.length + (page - 1) * itemsPerPage)}
               </span>{' '}
-              of <span className="font-medium">{totalPages * itemsPerPage}</span> results
+              results
             </div>
             <div className="flex items-center space-x-2">
               <Button
@@ -374,7 +613,7 @@ export default function ClientPaymentsPage() {
                     pageNum = page - 2 + i;
                   }
                   
-                  if (pageNum > totalPages) return null;
+                  if (pageNum > totalPages || pageNum < 1) return null;
                   
                   return (
                     <Button
@@ -402,6 +641,172 @@ export default function ClientPaymentsPage() {
           </div>
         )}
       </Card>
+
+      {/* Payment Modal for Making Payments */}
+      <Dialog open={isPaymentModalOpen} onOpenChange={(open) => {
+        setIsPaymentModalOpen(open);
+        if (!open) {
+          setCustomAmount(''); // Reset custom amount when closing
+        }
+      }}>
+        <DialogContent className="sm:max-w-lg">
+          {selectedProject ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Make Payment</DialogTitle>
+                <DialogDescription>
+                  Choose payment amount for {selectedProject.details.companyName}
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-4 py-4">
+                {/* Project Summary */}
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <h4 className="font-medium mb-2">Project Details</h4>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Project Value:</span>
+                      <span className="font-medium">
+                        ${((selectedProject.estimate && 
+                            selectedProject.estimate.estimateFinalPriceMin != null && 
+                            selectedProject.estimate.estimateFinalPriceMax != null
+                          ? (Number(selectedProject.estimate.estimateFinalPriceMin) + Number(selectedProject.estimate.estimateFinalPriceMax)) / 2
+                          : selectedProject.calculatedTotal || 0)).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Amount Paid:</span>
+                      <span className="font-medium">
+                        ${(selectedProject.totalAmountPaid || 0).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Remaining:</span>
+                      <span className="font-medium text-orange-600">
+                        ${(((selectedProject.estimate && 
+                            selectedProject.estimate.estimateFinalPriceMin != null && 
+                            selectedProject.estimate.estimateFinalPriceMax != null
+                          ? (Number(selectedProject.estimate.estimateFinalPriceMin) + Number(selectedProject.estimate.estimateFinalPriceMax)) / 2
+                          : selectedProject.calculatedTotal || 0)) - (selectedProject.totalAmountPaid || 0)).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment Options */}
+                <div className="space-y-3">
+                  <h4 className="font-medium">Select Payment Amount</h4>
+                  
+                  {selectedProject.paymentStatus === 'PENDING' && (
+                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <p className="text-sm text-yellow-800">
+                        ⚠️ First payment must be at least 25% of the project value
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      variant="outline"
+                      className="h-20 flex-col"
+                      onClick={() => handleMakePayment(selectedProject, 25)}
+                      disabled={processingPayment}
+                    >
+                      <span className="text-lg font-bold">25%</span>
+                      <span className="text-xs text-gray-600">Deposit</span>
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      className="h-20 flex-col"
+                      onClick={() => handleMakePayment(selectedProject, 50)}
+                      disabled={processingPayment}
+                    >
+                      <span className="text-lg font-bold">50%</span>
+                      <span className="text-xs text-gray-600">Half Payment</span>
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      className="h-20 flex-col"
+                      onClick={() => handleMakePayment(selectedProject, 75)}
+                      disabled={processingPayment}
+                    >
+                      <span className="text-lg font-bold">75%</span>
+                      <span className="text-xs text-gray-600">Majority</span>
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      className="h-20 flex-col"
+                      onClick={() => handleMakePayment(selectedProject, 100)}
+                      disabled={processingPayment}
+                    >
+                      <span className="text-lg font-bold">100%</span>
+                      <span className="text-xs text-gray-600">Full Payment</span>
+                    </Button>
+                  </div>
+
+                  {/* Custom Amount Section */}
+                  <div className="pt-4 border-t">
+                    <h4 className="font-medium mb-3">Or Enter Custom Amount</h4>
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <Input
+                          type="number"
+                          placeholder="Enter amount in USD"
+                          value={customAmount}
+                          onChange={(e) => setCustomAmount(e.target.value)}
+                          min="0"
+                          step="0.01"
+                          disabled={processingPayment}
+                          className="w-full"
+                        />
+                        {customAmount && Number(customAmount) > 0 && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Amount: ${Number(customAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        onClick={() => {
+                          const amount = Number(customAmount);
+                          if (amount > 0) {
+                            handleMakePayment(selectedProject, undefined, amount);
+                          } else {
+                            toast.error('Please enter a valid amount');
+                          }
+                        }}
+                        disabled={!customAmount || Number(customAmount) <= 0 || processingPayment}
+                        className="bg-[#003087] hover:bg-[#003087]/90"
+                      >
+                        {processingPayment ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          'Pay Amount'
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button variant="outline" onClick={() => setIsPaymentModalOpen(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Payment Details Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
@@ -458,7 +863,7 @@ export default function ClientPaymentsPage() {
                             <CreditCard className="h-5 w-5 text-[#003087]" />
                           </div>
                           <div>
-                            <p className="font-medium">
+                            <p className="font-medium capitalize">
                               {selectedPayment.paymentMethodDetails.card.brand} •••• {selectedPayment.paymentMethodDetails.card.last4}
                             </p>
                             <p className="text-sm text-muted-foreground">
@@ -468,7 +873,7 @@ export default function ClientPaymentsPage() {
                         </div>
                       ) : (
                         <p className="text-sm">
-                          {selectedPayment.paymentMethod || 'Payment method not available'}
+                          {selectedPayment.paymentMethod || 'Card payment'}
                         </p>
                       )}
                     </div>

@@ -345,10 +345,11 @@ export default function DashboardHome() {
         }
 
         // Fetch client projects with pagination
-        console.log("🔄 Fetching client projects from:", `${process.env.NEXT_PUBLIC_PLS}/projects/my-projects?page=1&limit=10`)
+        const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+        console.log("🔄 Fetching client projects from:", `${API_BASE_URL}/api/v1/projects/my-projects?page=1&limit=10`)
         console.log("🔑 Using token:", token ? `${token.substring(0, 20)}...` : "NO TOKEN")
         
-        const projectRes = await fetch(`${process.env.NEXT_PUBLIC_PLS}/projects/my-projects?page=1&limit=10`, {
+        const projectRes = await fetch(`${API_BASE_URL}/api/v1/projects/my-projects?page=1&limit=10`, {
           headers: { 
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json"
@@ -382,9 +383,9 @@ export default function DashboardHome() {
         }
 
         // Fetch payment history
-        console.log("🔄 Fetching payment history from:", `${process.env.NEXT_PUBLIC_PLS}/payment/history`)
+        console.log("🔄 Fetching payment history from:", `${API_BASE_URL}/api/v1/payment/history`)
         
-        const paymentRes = await fetch(`${process.env.NEXT_PUBLIC_PLS}/payment/history`, {
+        const paymentRes = await fetch(`${API_BASE_URL}/api/v1/payment/history`, {
           headers: { 
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json"
@@ -410,9 +411,9 @@ export default function DashboardHome() {
         }
 
         // Fetch client KPI data
-        console.log("🔄 Fetching client KPI data from:", `${process.env.NEXT_PUBLIC_PLS}/kpi/client/dashboard`)
+        console.log("🔄 Fetching client KPI data from:", `${API_BASE_URL}/api/v1/kpi/client/dashboard`)
         
-        const kpiRes = await fetch(`${process.env.NEXT_PUBLIC_PLS}/kpi/client/dashboard`, {
+        const kpiRes = await fetch(`${API_BASE_URL}/api/v1/kpi/client/dashboard`, {
           headers: { 
             "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json"
@@ -593,7 +594,8 @@ export default function DashboardHome() {
       const token = userDetails.accessToken
       console.log("🔄 Submitting feedback to API...")
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_PLS}/api/v1/feedback/submit`, {
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const response = await fetch(`${API_BASE_URL}/api/v1/feedback/submit`, {
         method: "POST",
         headers: { 
           "Authorization": `Bearer ${token}`,

@@ -366,31 +366,10 @@ export default function GetStartedPage() {
       try {
         // Handle API calls for each step before proceeding
         switch (currentStepIndex) {
-          case 0: // Step 1: Register Yourself - Create Project Draft
-            try {
-              // Create a new project draft with business details
-              const draftResult = await api.createProjectDraft({
-                companyName: formData.registerYourself.companyName,
-                companyWebsite: formData.registerYourself.companyWebsite || undefined,
-                businessAddress: formData.registerYourself.businessAddress || undefined,
-                businessType: formData.registerYourself.businessType
-              })
-              
-              if (draftResult.success && draftResult.data) {
-                setVisitorId(draftResult.data.id)
-                console.log('New project draft created:', draftResult)
-                enhancedToast.success('Project draft created successfully!', {
-                  title: 'Welcome!',
-                  duration: 4000
-                })
-              } else {
-                throw new Error(draftResult.message || 'Failed to create project draft')
-              }
-            } catch (error) {
-              console.error('Error creating project draft:', error)
-              handleApiError(error, 'Project Draft Creation')
-              throw error
-            }
+          case 0: // Step 1: Register Yourself
+            // Draft creation happens after registration in register.tsx
+            // No API call needed here - just validate and proceed
+            console.log('Registration step completed, proceeding to next step')
             break
 
           case 1: // Step 2: Services

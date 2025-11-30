@@ -23,7 +23,9 @@ export const decryptData = (encryptedData: string): object | null => {
 // Store user details securely in cookies
 export const setUserDetails = (user: object) => {
     const encryptedUser = encryptData(user);
-    Cookies.set("userDetails", encryptedUser, { expires: 7, secure: true, sameSite: "Strict" });
+    // Use sameSite: "Lax" to allow cookie to be sent on top-level navigation (e.g., Stripe redirect)
+    // This allows authentication to persist when returning from external payment pages
+    Cookies.set("userDetails", encryptedUser, { expires: 7, secure: true, sameSite: "Lax" });
 };
 
 // Retrieve user details from cookies

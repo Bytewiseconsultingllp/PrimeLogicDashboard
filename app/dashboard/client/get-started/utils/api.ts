@@ -101,19 +101,44 @@ export interface ProjectDraftServiceAgreement {
   ipAddress?: string
 }
 
+// Helper function to get access token from localStorage
+function getAccessToken(): string {
+  if (typeof window !== 'undefined') {
+    try {
+      const userDetailsStr = localStorage.getItem('userDetails')
+      if (userDetailsStr) {
+        const userDetails = JSON.parse(userDetailsStr)
+        return userDetails.accessToken || ''
+      }
+    } catch (error) {
+      console.error('Error retrieving access token:', error)
+    }
+  }
+  return ''
+}
+
 // Generic API call function
 async function apiCall<T = any>(
   endpoint: string,
   options: AxiosRequestConfig = {}
 ): Promise<ApiResponse<T>> {
   try {
+    // Get access token and add to headers if available
+    const accessToken = getAccessToken()
+    const headers: Record<string, string> = {
+      ...(options.headers as Record<string, string>),
+    }
+    
+    // Add Authorization header if token exists
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`
+    }
+
     const response = await apiClient({
       url: endpoint,
       method: options.method || 'GET',
       data: options.data,
-      headers: {
-        ...options.headers,
-      },
+      headers,
     })
 
     return response.data
@@ -134,15 +159,10 @@ export async function createProjectDraft(details: {
   businessAddress?: string
   businessType: string
 }): Promise<ApiResponse<{ id: string }>> {
-  // Get user email from localStorage or any other auth context
-  const userEmail = typeof window !== 'undefined' ? localStorage.getItem('userEmail') || '' : ''
-  
   return apiCall('/api/v1/projects/draft/create', {
     method: 'POST',
     data: {
       ...details,
-      fullName: details.companyName, // Using company name as full name
-      businessEmail: userEmail,
     },
   })
 }
@@ -349,3 +369,10 @@ export function acceptVisitorEstimate(visitorId: string) {
   return acceptDraftEstimate(visitorId)
 }
 
+export function addVisitorDiscount(visitorId: string, discount: ProjectDraftDiscount) {
+  return addDraftDiscount(visitorId, discount)
+}
+
+export function acceptServiceAgreement(visitorId: string, accepted: boolean) {
+  return acceptDraftServiceAgreement(visitorId, accepted)
+}
