@@ -244,12 +244,7 @@ export default function ProjectStatusPage() {
           <h1 className="text-3xl font-bold text-[#003087]">Project Status</h1>
           <p className="text-muted-foreground">Manage and monitor all projects</p>
         </div>
-        <Button 
-          onClick={() => router.push('/dashboard/Administrator/project-status/create-project')}
-          className="bg-[#003087] hover:bg-[#003087]/90"
-        >
-          Create New Project
-        </Button>
+        
       </div>
 
       {/* Filters */}

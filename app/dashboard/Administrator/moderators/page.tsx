@@ -8,8 +8,9 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { ModeratorDetailsDialog } from "@/components/moderators/moderator-details-dialog"
 import { 
   Shield,
   Plus,
@@ -83,6 +84,9 @@ export default function ModeratorsPage() {
   const [totalPages, setTotalPages] = useState(1)
   const [includeInactive, setIncludeInactive] = useState(false)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [viewingModeratorId, setViewingModeratorId] = useState<string | null>(null)
+  const [isModeratorDialogOpen, setIsModeratorDialogOpen] = useState(false)
+  const [newModerator, setNewModerator] = useState<{id: string; fullName: string; email: string} | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const itemsPerPage = 12
 
@@ -186,8 +190,11 @@ export default function ModeratorsPage() {
       if (response.ok) {
         const result = await response.json()
         console.log("✅ Moderator created:", result)
-        toast.success("Moderator created successfully! Credentials sent via email.")
-        setIsCreateDialogOpen(false)
+        setNewModerator({
+          id: result.id,
+          fullName: result.fullName,
+          email: result.email
+        })
         form.reset()
         fetchModerators()
       } else {
@@ -278,6 +285,12 @@ export default function ModeratorsPage() {
     }
   }
 
+  const handleViewModerator = (e: React.MouseEvent, moderatorId: string) => {
+    e.stopPropagation()
+    setViewingModeratorId(moderatorId)
+    setIsModeratorDialogOpen(true)
+  }
+
   const filteredModerators = (moderators || []).filter(moderator =>
     moderator.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     moderator.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -298,81 +311,19 @@ export default function ModeratorsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="container mx-auto py-6 space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-[#003087]">Moderator Management</h1>
-          <p className="text-muted-foreground">Manage moderators and their project assignments</p>
-        </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              Create Moderator
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create New Moderator</DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(createModerator)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email Address</FormLabel>
-                      <FormControl>
-                        <Input placeholder="moderator@example.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="fullName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Full Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="John Doe" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsCreateDialogOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={actionLoading === "create"}>
-                    {actionLoading === "create" ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      "Create Moderator"
-                    )}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+        <h1 className="text-3xl font-bold">Moderators</h1>
+        <Button onClick={() => setIsCreateDialogOpen(true)}>
+          <Plus className="w-4 h-4 mr-2" />
+          Create Moderator
+        </Button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium">Total Moderators</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -381,25 +332,25 @@ export default function ModeratorsPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Moderators</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-sm font-medium">Active</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.activeModerators}</div>
+            <div className="text-2xl font-bold">{stats.activeModerators}</div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Inactive Moderators</CardTitle>
-            <XCircle className="h-4 w-4 text-red-600" />
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-sm font-medium">Inactive</CardTitle>
+            <User className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.inactiveModerators}</div>
+            <div className="text-2xl font-bold">{stats.inactiveModerators}</div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium">Projects Moderated</CardTitle>
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -409,31 +360,27 @@ export default function ModeratorsPage() {
         </Card>
       </div>
 
-      {/* Filters and Search */}
       <Card>
-        <CardHeader>
-          <CardTitle>Moderators</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Search by name, email, or username..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex-1">
+            <Input
+              placeholder="Search moderators..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="max-w-sm"
+            />
+          </div>
+          <div className="flex items-center space-x-2">
             <Button
               variant={includeInactive ? "default" : "outline"}
+              size="sm"
               onClick={() => setIncludeInactive(!includeInactive)}
             >
-              {includeInactive ? "Show All" : "Include Inactive"}
+              {includeInactive ? 'Hide Inactive' : 'Show Inactive'}
             </Button>
           </div>
-
-          {/* Moderators Table */}
+        </CardHeader>
+        <CardContent>
           <div className="rounded-md border">
             <Table>
               <TableHeader>
@@ -443,99 +390,78 @@ export default function ModeratorsPage() {
                   <TableHead>Projects</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Joined</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredModerators.map((moderator, index) => (
-                  <TableRow key={moderator.id || `moderator-${index}`}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="w-10 h-10">
-                          <AvatarFallback className="bg-[#003087] text-white">
-                            {moderator.fullName
-                              ?.split(" ")
-                              .map((word: string) => word[0])
-                              .join("")
-                              .toUpperCase()
-                              .slice(0, 2) || "MD"}
-                          </AvatarFallback>
+                {filteredModerators.map((moderator) => (
+                  <TableRow key={moderator.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center space-x-3">
+                        <Avatar>
+                          <AvatarImage src={`https://ui-avatars.com/api/?name=${encodeURIComponent(moderator.fullName || '')}&background=003087&color=fff`} />
+                          <AvatarFallback>{moderator.fullName?.charAt(0) || 'M'}</AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium">{moderator.fullName}</p>
-                          <p className="text-sm text-muted-foreground">@{moderator.username}</p>
+                          <div className="font-medium">{moderator.fullName}</div>
+                          <div className="text-sm text-muted-foreground">@{moderator.username}</div>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Mail className="w-3 h-3 text-muted-foreground" />
-                          <span className="text-sm">{moderator.email}</span>
+                        <div className="flex items-center text-sm">
+                          <Mail className="mr-2 h-4 w-4 text-muted-foreground" />
+                          {moderator.email}
                         </div>
                         {moderator.phone && (
-                          <div className="flex items-center gap-2">
-                            <Phone className="w-3 h-3 text-muted-foreground" />
-                            <span className="text-sm">{moderator.phone}</span>
+                          <div className="flex items-center text-sm">
+                            <Phone className="mr-2 h-4 w-4 text-muted-foreground" />
+                            {moderator.phone}
                           </div>
                         )}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Activity className="w-4 h-4 text-muted-foreground" />
-                        <span className="font-medium">
-                          {moderator.moderatedProjects?.length || 0}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={moderator.isActive ? "default" : "secondary"}>
-                        {moderator.isActive ? "Active" : "Inactive"}
+                      <Badge variant="outline">
+                        {moderator.moderatedProjects?.length || 0} Projects
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-3 h-3 text-muted-foreground" />
-                        <span className="text-sm">
-                          {new Date(moderator.createdAt).toLocaleDateString()}
-                        </span>
+                      <Badge variant={moderator.isActive ? 'default' : 'secondary'}>
+                        {moderator.isActive ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center text-sm text-muted-foreground">
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {new Date(moderator.createdAt).toLocaleDateString()}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
+                    <TableCell>
+                      <div className="flex items-center space-x-1">
                         <Button
                           variant="ghost"
-                          size="sm"
-                          onClick={() => router.push(`/dashboard/Administrator/moderators/${moderator.id}`)}
+                          size="icon"
+                          onClick={(e) => handleViewModerator(e, moderator.id)}
+                          className="text-blue-600 hover:bg-blue-50"
                         >
-                          <Eye className="w-4 h-4" />
+                          <Eye className="h-4 w-4" />
+                          <span className="sr-only">View details</span>
                         </Button>
                         <Button
                           variant="ghost"
-                          size="sm"
+                          size="icon"
                           onClick={() => toggleModeratorStatus(moderator.id, moderator.isActive)}
-                          disabled={actionLoading === moderator.id}
+                          disabled={!!actionLoading}
+                          className="text-amber-600 hover:bg-amber-50"
                         >
                           {actionLoading === moderator.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <Loader2 className="h-4 w-4 animate-spin" />
                           ) : moderator.isActive ? (
-                            <XCircle className="w-4 h-4 text-red-600" />
+                            <XCircle className="h-4 w-4" />
                           ) : (
-                            <CheckCircle className="w-4 h-4 text-green-600" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteModerator(moderator.id)}
-                          disabled={actionLoading === moderator.id}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          {actionLoading === moderator.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="w-4 h-4" />
+                            <CheckCircle className="h-4 w-4" />
                           )}
                         </Button>
                       </div>
@@ -545,7 +471,7 @@ export default function ModeratorsPage() {
               </TableBody>
             </Table>
           </div>
-
+          
           {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-4">
@@ -576,6 +502,55 @@ export default function ModeratorsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Moderator Details Dialog */}
+      <ModeratorDetailsDialog
+        moderatorId={viewingModeratorId}
+        open={isModeratorDialogOpen}
+        onOpenChange={setIsModeratorDialogOpen}
+      />
+
+      {/* Success Dialog */}
+      <Dialog open={!!newModerator} onOpenChange={(open) => !open && setNewModerator(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+              <CheckCircle className="h-8 w-8 text-green-600" />
+            </div>
+            <DialogTitle className="text-center text-2xl font-bold text-gray-900">
+              Moderator Created Successfully!
+            </DialogTitle>
+            <DialogDescription className="text-center text-gray-500">
+              Credentials have been sent to the moderator's email.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="mt-6 space-y-4 rounded-lg bg-gray-50 p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-500">Moderator ID:</span>
+              <span className="font-mono text-sm font-medium">{newModerator?.id}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-500">Name:</span>
+              <span className="font-medium">{newModerator?.fullName}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-500">Email:</span>
+              <span className="font-medium">{newModerator?.email}</span>
+            </div>
+          </div>
+          
+          <div className="mt-6">
+            <Button 
+              type="button" 
+              className="w-full bg-[#003087] hover:bg-[#003087]/90"
+              onClick={() => setNewModerator(null)}
+            >
+              Done
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

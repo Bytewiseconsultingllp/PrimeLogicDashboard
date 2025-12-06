@@ -348,11 +348,11 @@ const navItems = [
     href: "/dashboard/Administrator/pricing",
     icon: DollarSign,
   },
-  {
-    title: "Bids Management",
-    href: "/dashboard/Administrator/bids",
-    icon: FileText,
-  },
+  // {
+  //   title: "Bids Management",
+  //   href: "/dashboard/Administrator/bids",
+  //   icon: FileText,
+  // },
   {
     title: "Payments",
     href: "/dashboard/Administrator/payments",
