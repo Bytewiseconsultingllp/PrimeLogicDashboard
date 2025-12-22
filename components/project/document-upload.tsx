@@ -48,7 +48,7 @@ export function DocumentUpload({
 
     try {
       setIsUploading(true)
-      const response = await fetch(`/api/v1/projects/${projectId}/client-brief/upload`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PLS}/api/v1/projects/${projectId}/client-brief/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
@@ -80,7 +80,7 @@ export function DocumentUpload({
     
     try {
       setIsDownloading(true)
-      const response = await fetch(`/api/v1/projects/${projectId}/client-brief`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_PLS}/api/v1/projects/${projectId}/client-brief/upload`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
         },

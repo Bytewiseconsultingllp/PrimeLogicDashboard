@@ -5,6 +5,10 @@ import prisma from '@/lib/prisma';
 import { v2 as cloudinary } from 'cloudinary';
 import { Readable } from 'stream';
 
+// Disable static generation for this route
+export const dynamic = 'force-dynamic';
+
+
 // Configure Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
