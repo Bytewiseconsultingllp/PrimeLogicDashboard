@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { ModeratorDetailsDialog } from "@/components/moderators/moderator-details-dialog"
+
 import { 
   Shield,
   Plus,
@@ -41,6 +41,7 @@ import * as z from "zod"
 const createModeratorSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
   fullName: z.string().min(2, "Full name must be at least 2 characters").max(100, "Full name must be less than 100 characters"),
+  projectId: z.string().optional(),
 })
 
 interface Moderator {
@@ -72,6 +73,8 @@ export default function ModeratorsPage() {
   const { isAuthorized } = useAuth(["ADMIN"])
   const router = useRouter()
   const [moderators, setModerators] = useState<Moderator[]>([])
+  const [moderatorDetails, setModeratorDetails] = useState<Moderator | null>(null)
+  const [projects, setProjects] = useState<Array<{id: string; title: string}>>([])
   const [stats, setStats] = useState<ModeratorStats>({
     totalModerators: 0,
     activeModerators: 0,
@@ -79,6 +82,7 @@ export default function ModeratorsPage() {
     totalProjectsModerated: 0
   })
   const [loading, setLoading] = useState(true)
+  const [projectsLoading, setProjectsLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -95,14 +99,49 @@ export default function ModeratorsPage() {
     defaultValues: {
       email: "",
       fullName: "",
+      projectId: "",
     },
   })
 
   useEffect(() => {
     if (isAuthorized) {
       fetchModerators()
+      fetchProjects()
     }
   }, [isAuthorized, currentPage, includeInactive])
+
+  const fetchProjects = async () => {
+    setProjectsLoading(true)
+    try {
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+
+      if (!token) {
+        console.error("❌ No access token found")
+        return
+      }
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_PLS}/admin/projects?limit=100`, // Adjust limit as needed
+        {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          }
+        }
+      )
+
+      if (response.ok) {
+        const data = await response.json()
+        setProjects(data.data?.projects || [])
+      }
+    } catch (error) {
+      console.error("Error fetching projects:", error)
+      toast.error("Failed to load projects")
+    } finally {
+      setProjectsLoading(false)
+    }
+  }
 
   const fetchModerators = async () => {
     setLoading(true)
@@ -178,39 +217,86 @@ export default function ModeratorsPage() {
         return
       }
 
+      // First, create the moderator
       const response = await fetch(`${process.env.NEXT_PUBLIC_PLS}/admin/moderators`, {
         method: 'POST',
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify({
+          email: data.email,
+          fullName: data.fullName
+        })
       })
 
-      if (response.ok) {
-        const result = await response.json()
-        console.log("✅ Moderator created:", result)
-        setNewModerator({
-          id: result.id,
-          fullName: result.fullName,
-          email: result.email
-        })
-        form.reset()
-        fetchModerators()
-      } else {
+      if (!response.ok) {
         const errorData = await response.text()
-        console.error("❌ Failed to create moderator:", errorData)
-        toast.error("Failed to create moderator")
+        throw new Error(errorData || 'Failed to create moderator')
       }
+
+      const result = await response.json()
+      console.log("Moderator creation response:", result)
+      
+      // Extract moderator data from the response
+      const moderatorData = result.data?.moderator || result.data || result
+      
+      if (!moderatorData) {
+        throw new Error('No moderator data in response')
+      }
+      
+      const moderatorId = moderatorData.uid || moderatorData.id || moderatorData._id
+      const fullName = moderatorData.fullName || data.fullName
+      const email = moderatorData.email || data.email
+      
+      if (!moderatorId) {
+        throw new Error('No moderator ID in response')
+      }
+
+      // If a project was selected, assign it to the moderator
+      if (data.projectId) {
+        try {
+          const assignResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_PLS}/admin/moderators/${moderatorId}/projects/${data.projectId}`,
+            {
+              method: 'POST',
+              headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+              }
+            }
+          )
+
+          if (!assignResponse.ok) {
+            console.warn("Moderator created but failed to assign project")
+          }
+        } catch (assignError) {
+          console.error("Error assigning project:", assignError)
+          // Don't fail the whole operation if project assignment fails
+        }
+      }
+
+      console.log("✅ Moderator created:", moderatorData)
+      setNewModerator({
+        id: moderatorId,
+        fullName: fullName,
+        email: email
+      })
+      form.reset()
+      fetchModerators()
     } catch (error) {
       console.error("Error creating moderator:", error)
-      toast.error("Failed to create moderator")
+      toast.error(error instanceof Error ? error.message : "Failed to create moderator")
     } finally {
       setActionLoading(null)
     }
   }
 
   const toggleModeratorStatus = async (moderatorId: string, currentStatus: boolean) => {
+    if (!confirm(`Are you sure you want to ${currentStatus ? 'deactivate' : 'activate'} this moderator?`)) {
+      return;
+    }
+    
     setActionLoading(moderatorId)
     try {
       const userDetails = getUserDetails()
@@ -285,16 +371,91 @@ export default function ModeratorsPage() {
     }
   }
 
-  const handleViewModerator = (e: React.MouseEvent, moderatorId: string) => {
+  const handleViewModerator = async (e: React.MouseEvent, moderatorId: string) => {
     e.stopPropagation()
     setViewingModeratorId(moderatorId)
-    setIsModeratorDialogOpen(true)
+    setActionLoading(`view-${moderatorId}`)
+    
+    try {
+      const userDetails = getUserDetails()
+      const token = userDetails?.accessToken
+
+      if (!token) {
+        toast.error("Authentication required")
+        return
+      }
+
+      console.log(`🔄 Fetching details for moderator ${moderatorId}...`)
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_PLS}/admin/moderators/${moderatorId}`,
+        {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          cache: 'no-store' // Prevent caching to get fresh data
+        }
+      )
+
+      if (response.ok) {
+        const { data } = await response.json()
+        console.log('✅ Moderator details:', data)
+        
+        // Transform the data to match our Moderator interface
+        const moderatorData = {
+          ...data,
+          // Map any fields if necessary to match the Moderator interface
+          id: data.uid || data.id, // Use uid if available, fallback to id
+          moderatedProjects: data.projects || [], // Map projects to moderatedProjects if needed
+          // Ensure all required fields are present
+          username: data.username || data.email?.split('@')[0] || '',
+          fullName: data.fullName || `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'N/A',
+          email: data.email || 'N/A',
+          phone: data.phone || '',
+          isActive: data.isActive !== undefined ? data.isActive : true,
+          createdAt: data.createdAt || new Date().toISOString(),
+          updatedAt: data.updatedAt || new Date().toISOString()
+        }
+        
+        setModeratorDetails(moderatorData)
+        setIsModeratorDialogOpen(true)
+      } else if (response.status === 404) {
+        toast.error("Moderator not found")
+      } else if (response.status === 401) {
+        toast.error("Session expired. Please login again.")
+        router.push('/login')
+      } else {
+        const errorData = await response.text()
+        console.error("❌ Failed to fetch moderator details:", errorData)
+        toast.error(`Failed to load moderator details: ${response.statusText}`)
+        // Fallback to basic view if detailed fetch fails
+        const fallbackModerator = moderators.find((m: { id: string }) => m.id === moderatorId)
+        if (fallbackModerator) {
+          setModeratorDetails(fallbackModerator)
+          setIsModeratorDialogOpen(true)
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching moderator details:", error)
+      toast.error("An error occurred while fetching moderator details")
+      // Fallback to basic view if there's an error
+      const fallbackModerator = moderators.find((m: { id: string }) => m.id === viewingModeratorId)
+      if (fallbackModerator) {
+        setModeratorDetails(fallbackModerator)
+        setIsModeratorDialogOpen(true)
+      }
+    } finally {
+      if (actionLoading === `view-${viewingModeratorId}`) {
+        setActionLoading(null)
+      }
+    }
   }
 
-  const filteredModerators = (moderators || []).filter(moderator =>
-    moderator.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    moderator.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    moderator.username?.toLowerCase().includes(searchTerm.toLowerCase())
+  // Filter moderators based on search term
+  const filteredModerators = (moderators || []).filter((moderator: { fullName?: string; email?: string; username?: string }) =>
+    (moderator.fullName?.toLowerCase() || '').includes((searchTerm || '').toLowerCase()) ||
+    (moderator.email?.toLowerCase() || '').includes((searchTerm || '').toLowerCase()) ||
+    (moderator.username?.toLowerCase() || '').includes((searchTerm || '').toLowerCase())
   )
 
   if (!isAuthorized) return null
@@ -503,13 +664,232 @@ export default function ModeratorsPage() {
         </CardContent>
       </Card>
 
-      {/* Moderator Details Dialog */}
-      <ModeratorDetailsDialog
-        moderatorId={viewingModeratorId}
-        open={isModeratorDialogOpen}
-        onOpenChange={setIsModeratorDialogOpen}
-      />
+      {/* Create Moderator Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
+              <Shield className="h-6 w-6 text-blue-600" />
+            </div>
+            <DialogTitle className="text-center text-2xl font-bold text-gray-900">
+              Add New Moderator
+            </DialogTitle>
+            <DialogDescription className="text-center text-gray-500">
+              Enter the moderator's details below. An email will be sent with login instructions.
+            </DialogDescription>
+          </DialogHeader>
 
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(createModerator)} className="space-y-4 mt-4">
+              <FormField
+                control={form.control}
+                name="fullName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Full Name</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        <Input
+                          placeholder="John Doe"
+                          className="pl-10"
+                          {...field}
+                        />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email Address</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        <Input
+                          type="email"
+                          placeholder="john@example.com"
+                          className="pl-10"
+                          {...field}
+                        />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="projectId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Project ID (Optional)</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Enter project ID to assign"
+                        className="w-full"
+                        {...field}
+                        value={field.value || ''}
+                        onChange={(e) => field.onChange(e.target.value)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="pt-2">
+                <Button 
+                  type="submit" 
+                  className="w-full bg-[#003087] hover:bg-[#003087]/90"
+                  disabled={actionLoading === 'create'}
+                >
+                  {actionLoading === 'create' ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Create Moderator
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Moderator Details Dialog */}
+      <Dialog open={isModeratorDialogOpen} onOpenChange={setIsModeratorDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <div className="flex items-center space-x-3">
+              <div className="p-2 rounded-full bg-blue-100">
+                <User className="h-6 w-6 text-blue-600" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl">
+                  {moderatorDetails?.fullName}
+                </DialogTitle>
+                <DialogDescription>
+                  Moderator Details
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {viewingModeratorId && (
+            <div className="space-y-6 py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground">Personal Information</h3>
+                    <div className="mt-2 space-y-2">
+                      <div className="flex items-center">
+                        <Mail className="mr-2 h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm">
+                          {moderatorDetails?.email}
+                        </span>
+                      </div>
+                      {moderatorDetails?.phone && (
+                        <div className="flex items-center">
+                          <Phone className="mr-2 h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">
+                            {moderatorDetails.phone}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center">
+                        <Calendar className="mr-2 h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm">
+                          Joined on {moderatorDetails?.createdAt ? new Date(moderatorDetails.createdAt).toLocaleDateString() : 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground">Status</h3>
+                    <div className="mt-2">
+                      <Badge variant={moderatorDetails?.isActive ? 'default' : 'secondary'}>
+                        {moderatorDetails?.isActive ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground">Assigned Projects</h3>
+                  <div className="mt-2 space-y-2">
+                    {moderatorDetails?.moderatedProjects?.length ? (
+                      <div className="space-y-2">
+                        {moderatorDetails.moderatedProjects?.map(project => (
+                          <div key={project.id} className="p-3 border rounded-md">
+                            <div className="font-medium">
+                              {project.details?.title || `Project ${project.id.substring(0, 8)}`}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {new Date(project.createdAt).toLocaleDateString()}
+                            </div>
+                            <Badge variant="outline" className="mt-1">
+                              {project.paymentStatus}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No projects assigned yet</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4 border-t">
+                <Button 
+                  variant={moderatorDetails?.isActive ? 'destructive' : 'outline'}
+                  onClick={() => {
+                    if (moderatorDetails && confirm(`Are you sure you want to ${moderatorDetails.isActive ? 'deactivate' : 'activate'} this moderator?`)) {
+                      toggleModeratorStatus(moderatorDetails.id, moderatorDetails.isActive);
+                      setIsModeratorDialogOpen(false);
+                    }
+                  }}
+                  disabled={!!actionLoading}
+                >
+                  {actionLoading === viewingModeratorId ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      {moderatorDetails?.isActive ? 'Deactivate' : 'Activate'}
+                    </>
+                  )}
+                </Button>
+                <Button 
+                  variant="outline"
+                  onClick={() => {
+                    if (confirm('Are you sure you want to delete this moderator?')) {
+                      deleteModerator(viewingModeratorId);
+                      setIsModeratorDialogOpen(false);
+                    }
+                  }}
+                  disabled={!!actionLoading}
+                  className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                >
+                  Delete
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       {/* Success Dialog */}
       <Dialog open={!!newModerator} onOpenChange={(open) => !open && setNewModerator(null)}>
         <DialogContent className="sm:max-w-[500px]">

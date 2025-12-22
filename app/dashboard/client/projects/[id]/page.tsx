@@ -36,6 +36,7 @@ import { getProjectById, submitProjectFeedback, updateProjectDiscordUrl } from "
 import { getProjectPaymentStatus, createProjectCheckoutSession } from "@/lib/api/payment"
 import { toast } from "sonner"
 import { ProjectPaymentModal } from "@/components/payment/project-payment-modal"
+import { DocumentUpload } from "@/components/project/document-upload"
 
 interface Project {
   id: string
@@ -187,6 +188,9 @@ export default function ProjectDetailsPage() {
     amount: number
     currency: string
   } | null>(null)
+  
+  const [documentUrl, setDocumentUrl] = useState<string | undefined>(undefined)
+  const [documentName, setDocumentName] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     if (projectId) {
@@ -213,6 +217,25 @@ export default function ProjectDetailsPage() {
       if (response.success) {
         setProject(response.data)
         setDiscordUrl(response.data.discordChatUrl || "")
+        // Fetch document URL if available
+        try {
+          const docResponse = await fetch(`/api/v1/projects/${projectId}/client-brief`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+            },
+          })
+          
+          if (docResponse.ok) {
+            const docData = await docResponse.json()
+            if (docData.success && docData.data) {
+              setDocumentUrl(docData.data.documentUrl)
+              setDocumentName(docData.data.fileName || 'project_document.pdf')
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching document:', error)
+          // Don't show error toast here as the document might not exist yet
+        }
         toast.success("Project details loaded")
       } else {
         toast.error("Failed to load project details")
@@ -783,7 +806,18 @@ export default function ProjectDetailsPage() {
             </CardContent>
           </Card>
 
-          {/* 4. Feedback Form Card */}
+          {/* 4. Documentation Card */}
+          <DocumentUpload 
+            projectId={projectId} 
+            documentUrl={documentUrl}
+            fileName={documentName}
+            onDocumentUploaded={(url, fileName) => {
+              setDocumentUrl(url)
+              setDocumentName(fileName)
+            }}
+          />
+
+          {/* 5. Feedback Form Card */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
