@@ -219,7 +219,7 @@ export default function ProjectDetailsPage() {
         setDiscordUrl(response.data.discordChatUrl || "")
         // Fetch document URL if available
         try {
-          const docResponse = await fetch(`/api/v1/projects/${projectId}/client-brief`, {
+          const docResponse = await fetch(`${process.env.NEXT_PUBLIC_PLS}/projects/${projectId}/client-brief`, {
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
             },
