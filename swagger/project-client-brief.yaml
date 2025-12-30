@@ -1,0 +1,220 @@
+paths:
+  /api/v1/projects/{projectId}/client-brief/upload:
+    post:
+      tags:
+        - Project - Client Brief Document
+      summary: Upload client brief/requirements document (ONE-TIME ONLY)
+      description: |
+        Allows the PROJECT OWNER (CLIENT) to upload a PDF document containing project requirements/brief.
+        **IMPORTANT RULES:**
+        - ✅ Only the project owner can upload
+        - ✅ Can only be uploaded ONCE (immutable)
+        - ✅ Cannot be deleted or modified after upload
+        - ✅ Subsequent upload attempts will be rejected
+        - ✅ Only PDF files are supported
+
+        **Access for Download:** CLIENT (owner), ADMIN, MODERATOR, assigned FREELANCERS
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The project UUID
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - document
+              properties:
+                document:
+                  type: string
+                  format: binary
+                  description: PDF file containing project brief/requirements (max 5MB)
+      responses:
+        "201":
+          description: Client brief document uploaded successfully (permanent)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Client brief document uploaded successfully. This document is now permanent and cannot be modified.
+                  data:
+                    type: object
+                    properties:
+                      projectId:
+                        type: string
+                        format: uuid
+                        example: 550e8400-e29b-41d4-a716-446655440000
+                      documentUrl:
+                        type: string
+                        example: https://res.cloudinary.com/.../client_brief_requirements_1234567890.pdf
+                      fileName:
+                        type: string
+                        example: project_requirements.pdf
+                      uploadedAt:
+                        type: string
+                        format: date-time
+                        example: 2025-12-20T17:45:30.000Z
+        "400":
+          description: Bad request - validation failed or document already uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    examples:
+                      - Document already uploaded and cannot be replaced. This document is permanent and immutable.
+                      - A PDF document is required
+                      - Only PDF files are supported for client brief documents
+        "403":
+          description: Forbidden - only project owner can upload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Only the project owner can upload the client brief document
+        "404":
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Project not found
+        "500":
+          description: Server error during upload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Failed to upload document
+
+  /project/{projectId}/client-brief:
+    get:
+      tags:
+        - Project - Client Brief Document
+      summary: Get client brief document URL for download
+      description: |
+        Retrieves the client brief/requirements document URL for a project.
+
+        **Who Can Access:**
+        - ✅ PROJECT OWNER (CLIENT)
+        - ✅ ADMIN
+        - ✅ MODERATOR
+        - ✅ FREELANCER (if assigned to the project)
+
+        The returned URL is a direct Cloudinary link that can be used to download or view the PDF in browser.
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The project UUID
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Client brief document retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Client brief document retrieved successfully
+                  data:
+                    type: object
+                    properties:
+                      projectId:
+                        type: string
+                        format: uuid
+                        example: 550e8400-e29b-41d4-a716-446655440000
+                      documentUrl:
+                        type: string
+                        example: https://res.cloudinary.com/.../client_brief_requirements_1234567890.pdf
+                        description: Direct download/view URL for the PDF document
+                      message:
+                        type: string
+                        example: Use this URL to download or view the document in browser
+        "403":
+          description: Forbidden - user doesn't have permission
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: You don't have permission to view this project's client brief
+        "404":
+          description: Project not found or no document uploaded yet
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    examples:
+                      - Project not found
+                      - No client brief document uploaded for this project yet
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: Failed to retrieve document

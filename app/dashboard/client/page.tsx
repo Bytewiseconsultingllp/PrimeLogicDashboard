@@ -488,8 +488,13 @@ export default function DashboardHome() {
         amount: calculatedAmount,
         status: currentStatus,
         currency: "usd",
-        amountPaid: currentStatus === "SUCCEEDED" ? calculatedAmount : 0,
-        amountRemaining: currentStatus === "SUCCEEDED" ? 0 : calculatedAmount
+        // For non-succeeded payments, assume 25% deposit has been paid (or use actual payment data if available)
+        amountPaid: currentStatus === "SUCCEEDED" 
+          ? calculatedAmount 
+          : calculatedAmount * 0.25, // 25% deposit for non-completed payments
+        amountRemaining: currentStatus === "SUCCEEDED" 
+          ? 0 
+          : calculatedAmount * 0.75 // 75% remaining for non-completed payments
       }
       
       // Update the project with payment details
@@ -508,7 +513,7 @@ export default function DashboardHome() {
         paymentDetails
       } : null)
       
-      toast.success(`Payment details loaded - Total: $${calculatedAmount.toLocaleString()}`)
+      toast.success(`Payment details loaded - Total: $${calculatedAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`)
     } catch (error) {
       console.error("Failed to fetch payment details:", error)
       toast.error("Error loading payment information")
@@ -1127,7 +1132,7 @@ export default function DashboardHome() {
                               : "0%"}
                         </div>
                         <div className="text-sm text-blue-600">
-                          ${selectedProject?.paymentDetails?.amountPaid?.toLocaleString() || "0.00"}
+                          ${(selectedProject?.paymentDetails?.amountPaid || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                         </div>
                       </div>
                     </div>
@@ -1142,10 +1147,7 @@ export default function DashboardHome() {
                       </div>
                       <div className="text-right">
                         <div className="text-lg font-bold text-amber-700">
-                          ${selectedProject?.paymentDetails?.status === "SUCCEEDED" 
-                            ? "0.00" 
-                            : (parseFloat(selectedProject?.calculatedTotal?.toString() || selectedProject?.paymentDetails?.amount?.toString() || "0") - 
-                               (selectedProject?.paymentDetails?.amountPaid || 0)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+${(selectedProject?.paymentDetails?.amountRemaining || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                         </div>
                       </div>
                     </div>
@@ -1160,7 +1162,7 @@ export default function DashboardHome() {
                       </div>
                       <div className="text-right">
                         <div className="text-lg font-bold text-gray-900">
-                          ${parseFloat(selectedProject?.calculatedTotal?.toString() || selectedProject?.paymentDetails?.amount?.toString() || "0").toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                          ${(selectedProject?.paymentDetails?.amount || selectedProject?.calculatedTotal || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                         </div>
                       </div>
                     </div>
