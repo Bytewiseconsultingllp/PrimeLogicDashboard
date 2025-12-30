@@ -27,28 +27,61 @@ export function DocumentViewer({ projectId, role, canUpload = false, onUploadSuc
     const fetchDocument = async () => {
       try {
         setIsLoading(true)
+        setError(null)
+        
+        const token = localStorage.getItem('accessToken')
+        if (!token) {
+          console.log('No auth token found')
+          setDocumentUrl(null)
+          return
+        }
+
+        console.log('Using token:', token.substring(0, 10) + '...')
+        console.log('API URL:', `${process.env.NEXT_PUBLIC_PLS}/projects/${projectId}/client-brief`)
+
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_PLS}/api/v1/projects/${projectId}/client-brief`,
+          `${process.env.NEXT_PUBLIC_PLS}/projects/${projectId}/client-brief`,
           {
+            method: 'GET',
             headers: {
-              'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/json',
             },
+            credentials: 'include',
           }
         )
 
+        console.log('Response status:', response.status)
+        
+        // Handle 401 specifically
+        if (response.status === 401) {
+          console.error('Authentication failed. Token might be invalid or expired.')
+          setError('Your session has expired. Please log in again.')
+          return
+        }
+
         if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          console.error('API Error:', errorData)
+          
           if (response.status === 404) {
             // Document not found is an expected case
             setDocumentUrl(null)
             return
           }
-          throw new Error('Failed to fetch document')
+          
+          throw new Error(errorData.message || 'Failed to fetch document')
         }
 
         const data = await response.json()
-        if (data.success && data.data) {
+        console.log('API Response:', data)
+        
+        if (data.success && data.data?.documentUrl) {
           setDocumentUrl(data.data.documentUrl)
           setDocumentName(data.data.fileName || 'project_document.pdf')
+          onUploadSuccess?.(data.data.documentUrl, data.data.fileName)
+        } else {
+          setDocumentUrl(null)
         }
       } catch (err) {
         console.error('Error fetching document:', err)
@@ -59,18 +92,54 @@ export function DocumentViewer({ projectId, role, canUpload = false, onUploadSuc
     }
 
     fetchDocument()
-  }, [projectId])
+  }, [projectId, onUploadSuccess])
 
   const handleDownload = async () => {
     if (!documentUrl) return
     
     try {
       setIsDownloading(true)
-      // Open in new tab for download
-      window.open(documentUrl, '_blank')
-    } catch (err) {
-      console.error('Error downloading document:', err)
-      toast.error('Failed to download document')
+      const token = localStorage.getItem('accessToken')
+      
+      if (!token) {
+        toast.error('Please log in to download the document')
+        return
+      }
+
+      console.log('Downloading document with token:', token.substring(0, 10) + '...')
+      
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_PLS}projects/${projectId}/client-brief`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+          },
+          credentials: 'include',
+        }
+      )
+
+      if (response.status === 401) {
+        toast.error('Your session has expired. Please log in again.')
+        return
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || 'Failed to download document')
+      }
+
+      const data = await response.json()
+      
+      if (data.success && data.data?.documentUrl) {
+        window.open(data.data.documentUrl, '_blank')
+      } else {
+        throw new Error('No document URL found')
+      }
+    } catch (error) {
+      console.error('Download error:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to download document')
     } finally {
       setIsDownloading(false)
     }
@@ -125,9 +194,13 @@ export function DocumentViewer({ projectId, role, canUpload = false, onUploadSuc
             <FileText className="h-5 w-5 text-primary" />
             <CardTitle>Project Documentation</CardTitle>
           </div>
-          {documentUrl && (
+          {documentUrl ? (
             <Badge variant="outline" className="border-green-100 bg-green-50 text-green-700">
               Document Available
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="border-amber-100 bg-amber-50 text-amber-700">
+              No Document
             </Badge>
           )}
         </div>

@@ -36,11 +36,13 @@ import {
   Target,
   CreditCard,
   Save,
-  PlusCircle
+  PlusCircle,
+  FileText
 } from "lucide-react"
 import { getUserDetails } from "@/lib/api/storage"
 import { toast } from "sonner"
 import { useAuth } from "@/hooks/useAuth"
+import { DocumentViewer } from "@/components/project/document-viewer"
 
 interface ProjectDetails {
   fullName: string
@@ -813,6 +815,19 @@ export default function ProjectDetailPage() {
                   )}
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Project Documentation */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-muted-foreground" />
+                Project Documentation
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DocumentViewer projectId={projectId} role="ADMIN" />
             </CardContent>
           </Card>
 
