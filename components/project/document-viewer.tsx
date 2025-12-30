@@ -109,7 +109,7 @@ export function DocumentViewer({ projectId, role, canUpload = false, onUploadSuc
       console.log('Downloading document with token:', token.substring(0, 10) + '...')
       
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_PLS}projects/${projectId}/client-brief`,
+        `${process.env.NEXT_PUBLIC_PLS}/projects/${projectId}/client-brief`,
         {
           method: 'GET',
           headers: {
